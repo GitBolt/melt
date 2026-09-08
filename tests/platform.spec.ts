@@ -1,5 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 const base = "http://127.0.0.1:5173";
+async function chooseExample(page: Page, name: "Mint" | "Pay") {
+  await page.getByRole("button", { name, exact: true }).click();
+}
 // Fixed fixture choices belong only in tests. Production agents choose from observations.
 async function mintThroughManualBrowser(page: Page) {
   // Wait for wallet creation before starting; creation persists a funding row first.
@@ -68,6 +71,7 @@ test("real browser mint returns NFT and remainder; receipt remains accessible", 
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(base);
   await page.getByRole("button", { name: "Open local workspace" }).click();
+  await chooseExample(page, "Mint");
   await expect(
     page.getByRole("button", { name: "Create task wallet" }),
   ).toBeVisible();
@@ -191,6 +195,7 @@ test("second fixture layout works and narrow UI has no horizontal overflow", asy
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(base);
   await page.getByRole("button", { name: "Open local workspace" }).click();
+  await chooseExample(page, "Mint");
   await page
     .getByLabel("Website", { exact: true })
     .fill("http://127.0.0.1:8788/print-shop");
@@ -240,6 +245,7 @@ test("browser rejects oversized spend, completes allowed mint, and recovers late
   });
   await page.goto(base);
   await page.getByRole("button", { name: "Open local workspace" }).click();
+  await chooseExample(page, "Mint");
   await page
     .getByLabel("Website", { exact: true })
     .fill("http://127.0.0.1:8788/guardrail-check");
@@ -319,6 +325,7 @@ test("manual agent controls and MCP operate only owner-authorized sessions", asy
     await import("@modelcontextprotocol/sdk/client/stdio.js");
   await page.goto(base);
   await page.getByRole("button", { name: "Open local workspace" }).click();
+  await chooseExample(page, "Mint");
   await page.getByRole("button", { name: "Create task wallet" }).click();
   await expect(
     page.getByRole("button", { name: "Open task browser", exact: true }),
@@ -447,6 +454,93 @@ test("request validation blocks private URLs, changed idempotency bodies and cro
     headers: h,
     data: {},
   });
+  const openJob = await request.post(base + "/api/sessions", {
+    headers: { ...h, "Idempotency-Key": crypto.randomUUID() },
+    data: {
+      title: "Open job",
+      instruction: "Leave a tip within the spending limit",
+      url: cfg.fixture.pay.url,
+      budget: "0.0003",
+      recovery: me.owner,
+    },
+  });
+  expect(openJob.status()).toBe(201);
+  const created = await openJob.json();
+  expect(created.target).toBe("");
+  expect(created.selector).toBe("");
+  await request.post(`${base}/api/sessions/${created.id}/close`, {
+    headers: h,
+    data: {},
+  });
+});
+
+test("a spending-limit session can complete a different job without a contract lock", async ({
+  page,
+}) => {
+  await page.goto(base);
+  await page.getByRole("button", { name: "Open local workspace" }).click();
+  await chooseExample(page, "Pay");
+  await page.getByRole("button", { name: "Create task wallet" }).click();
+  await expect(
+    page.getByRole("button", { name: "Open task browser", exact: true }),
+  ).toBeVisible({ timeout: 30000 });
+  await page
+    .getByRole("button", { name: "Open task browser", exact: true })
+    .click();
+  const [task] = await (await page.request.get(base + "/api/sessions")).json();
+  expect(task.target).toBe("");
+  await expect
+    .poll(async () => {
+      const state = await (
+        await page.request.get(`${base}/api/sessions/${task.id}`)
+      ).json();
+      return state.status;
+    })
+    .toBe("paused");
+  for (const label of ["Connect wallet", "Leave a tip"]) {
+    const observation = await (
+      await page.request.get(`${base}/api/sessions/${task.id}/browser`)
+    ).json();
+    const control = observation.controls.find(
+      (candidate: any) => candidate.label === label,
+    );
+    expect(control).toBeDefined();
+    const action = await page.request.post(
+      `${base}/api/sessions/${task.id}/action`,
+      {
+        headers: { Origin: base },
+        data: { type: "click", index: control.index },
+      },
+    );
+    expect(action.ok()).toBe(true);
+  }
+  await expect
+    .poll(
+      async () => {
+        const state = await (
+          await page.request.get(`${base}/api/sessions/${task.id}`)
+        ).json();
+        return state.transactions.some(
+          (tx: any) =>
+            tx.kind === "Execute dapp transaction" && tx.status === "success",
+        );
+      },
+      { timeout: 30000 },
+    )
+    .toBe(true);
+  const finish = await page.request.post(
+    `${base}/api/sessions/${task.id}/action`,
+    {
+      headers: { Origin: base },
+      data: { type: "finish", reason: "Tip confirmed" },
+    },
+  );
+  expect(finish.ok()).toBe(true);
+  const closed = await finish.json();
+  expect(closed.status).toBe("closed");
+  expect(closed.spent).toBe("0.0001");
+  expect(closed.returned).toBe("0.0002");
+  expect(closed.outcome).toBe("succeeded");
 });
 
 test("developer UI creates and revokes a key, clears revealed secret on logout, and serves OpenAPI", async ({

@@ -7,16 +7,50 @@ export const amount = z
     (v) => Number(v) > 0 && Number(v) <= 10,
     "Use an amount between 0 and 10",
   );
-export const createTask = z.object({
-  title: z.string().trim().min(3).max(100),
-  instruction: z.string().trim().min(3).max(2000),
-  url: z.string().url().max(2048),
-  budget: amount,
-  durationMinutes: z.number().int().min(1).max(60).default(15),
-  target: address,
-  selector: z.string().regex(/^0x[0-9a-fA-F]{8}$/),
-  recovery: address,
-});
+const website = z
+  .string()
+  .max(2048)
+  .default("")
+  .refine((value) => {
+    if (!value) return true;
+    try {
+      const parsed = new URL(value);
+      return (
+        ["http:", "https:"].includes(parsed.protocol) &&
+        !parsed.username &&
+        !parsed.password
+      );
+    } catch {
+      return false;
+    }
+  }, "Enter a website URL or leave it blank");
+const lock = z
+  .union([address, z.literal("")])
+  .optional()
+  .default("");
+const selector = z
+  .union([z.string().regex(/^0x[0-9a-fA-F]{8}$/), z.literal("")])
+  .optional()
+  .default("");
+export const createTask = z
+  .object({
+    title: z.string().trim().min(3).max(100),
+    instruction: z.string().trim().min(3).max(2000),
+    url: website,
+    budget: amount,
+    durationMinutes: z.number().int().min(1).max(60).default(15),
+    target: lock,
+    selector,
+    recovery: address,
+  })
+  .superRefine((data, ctx) => {
+    if (Boolean(data.target) === Boolean(data.selector)) return;
+    ctx.addIssue({
+      code: "custom",
+      message: "Set both a contract and a function, or leave both empty",
+      path: data.target ? ["selector"] : ["target"],
+    });
+  });
 export type CreateTask = z.infer<typeof createTask>;
 export type TaskStatus =
   | "funding"
@@ -80,6 +114,13 @@ export interface Config {
     target: string;
     selector: string;
     price: string;
+    pay?: {
+      available: boolean;
+      url: string;
+      target: string;
+      selector: string;
+      price: string;
+    };
   };
   operator: string;
 }

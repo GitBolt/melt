@@ -344,14 +344,14 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                   ) : (
                     <>
                       <p className="sign-in-copy">
-                        Choose a website and tell your agent what to do. You set
-                        the budget before it starts.
+                        Tell your agent what to do and set a spending limit. It
+                        gets a separate wallet and browser.
                       </p>
                       <div className="example-task">
                         <Globe size={17} />
                         <span>
-                          Mint one collectible
-                          <span>0.0003 ETH limit · 15 minutes</span>
+                          Any job you type
+                          <span>Spending limit · leftover funds return</span>
                         </span>
                         <ArrowUpRight size={17} />
                       </div>
@@ -488,32 +488,58 @@ function Composer({
   onSubmit: (body: CreateTask) => void;
   onCancel?: () => void;
 }) {
-  const [custom, setCustom] = useState(!!initial || !config.fixture.available),
-    [url, setUrl] = useState(
-      initial?.url || (config.fixture.available ? config.fixture.url : ""),
-    ),
-    [title, setTitle] = useState(
-      initial?.title || (config.fixture.available ? "Mint a field note" : ""),
-    ),
-    [instruction, setInstruction] = useState(
-      initial?.instruction ||
-        (config.fixture.available
-          ? "Connect the wallet and mint one field note. Return the collectible and remaining funds when done."
-          : ""),
-    ),
-    [budget, setBudget] = useState(initial?.budget || "0.0003"),
-    [budgetRange, setBudgetRange] = useState(
-      Math.max(0.001, Math.min(10, Number(initial?.budget) || 0)),
-    ),
-    [minutes, setMinutes] = useState(initial?.durationMinutes || 15),
-    [target, setTarget] = useState(
-      initial?.target ||
-        (config.fixture.available ? config.fixture.target : ""),
-    ),
-    [selector, setSelector] = useState(
-      initial?.selector ||
-        (config.fixture.available ? config.fixture.selector : ""),
-    );
+  const mint = {
+    title: "Mint a field note",
+    instruction:
+      "Connect the wallet and mint one field note. Return the collectible and remaining funds when done.",
+    url: config.fixture.url,
+    target: config.fixture.target,
+    selector: config.fixture.selector,
+  };
+  const pay = config.fixture.pay?.available
+    ? {
+        title: "Leave a tip",
+        instruction:
+          "Connect the wallet and leave a tip. Return unused funds when done.",
+        url: config.fixture.pay.url,
+        target: "",
+        selector: "",
+      }
+    : undefined;
+  const swap = config.swapsConfigured
+    ? {
+        title: "Swap tokens",
+        instruction:
+          "Open Uniswap, connect the task wallet, and swap within the spending limit. Return leftover funds when done.",
+        url: "https://app.uniswap.org",
+        target: "",
+        selector: "",
+      }
+    : undefined;
+  const [example, setExample] = useState("custom");
+  const [url, setUrl] = useState(initial?.url || "");
+  const [title, setTitle] = useState(initial?.title || "");
+  const [instruction, setInstruction] = useState(initial?.instruction || "");
+  const [budget, setBudget] = useState(initial?.budget || "0.0003");
+  const [budgetRange, setBudgetRange] = useState(
+    Math.max(0.001, Math.min(10, Number(initial?.budget) || 0)),
+  );
+  const [minutes, setMinutes] = useState(initial?.durationMinutes || 15);
+  const [target, setTarget] = useState(initial?.target || "");
+  const [selector, setSelector] = useState(initial?.selector || "");
+  const apply = (next: {
+    title: string;
+    instruction: string;
+    url: string;
+    target: string;
+    selector: string;
+  }) => {
+    setTitle(next.title);
+    setInstruction(next.instruction);
+    setUrl(next.url);
+    setTarget(next.target);
+    setSelector(next.selector);
+  };
   return (
     <form
       onSubmit={(e) => {
@@ -531,49 +557,71 @@ function Composer({
       }}
     >
       <div className="template-options">
+        <button
+          className={example === "custom" ? "chosen" : ""}
+          type="button"
+          onClick={() => {
+            setExample("custom");
+            apply({
+              title: "",
+              instruction: "",
+              url: "",
+              target: "",
+              selector: "",
+            });
+          }}
+        >
+          Custom
+        </button>
         {config.fixture.available && (
           <button
-            className={!custom ? "chosen" : ""}
+            className={example === "mint" ? "chosen" : ""}
             type="button"
             onClick={() => {
-              setCustom(false);
-              setUrl(config.fixture.url);
-              setTarget(config.fixture.target);
-              setSelector(config.fixture.selector);
+              setExample("mint");
+              apply(mint);
             }}
           >
-            Mint a collectible
+            Mint
           </button>
         )}
-        <button
-          className={custom ? "chosen" : ""}
-          type="button"
-          onClick={() => setCustom(true)}
-        >
-          Use another website
-        </button>
+        {pay && (
+          <button
+            className={example === "pay" ? "chosen" : ""}
+            type="button"
+            onClick={() => {
+              setExample("pay");
+              apply(pay);
+            }}
+          >
+            Pay
+          </button>
+        )}
+        {swap && (
+          <button
+            className={example === "swap" ? "chosen" : ""}
+            type="button"
+            onClick={() => {
+              setExample("swap");
+              apply(swap);
+            }}
+          >
+            Swap
+          </button>
+        )}
       </div>
       <label>
-        Website
+        Task name
         <input
-          aria-label="Website"
-          type="url"
           required
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          maxLength={100}
+          value={title}
+          onChange={(e) => {
+            setExample("custom");
+            setTitle(e.target.value);
+          }}
         />
       </label>
-      {custom && (
-        <label>
-          Task name
-          <input
-            required
-            maxLength={100}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-        </label>
-      )}
       <label>
         What should your agent do?
         <textarea
@@ -581,7 +629,20 @@ function Composer({
           maxLength={2000}
           rows={3}
           value={instruction}
-          onChange={(e) => setInstruction(e.target.value)}
+          onChange={(e) => {
+            setExample("custom");
+            setInstruction(e.target.value);
+          }}
+        />
+      </label>
+      <label>
+        Website
+        <input
+          aria-label="Website"
+          type="url"
+          value={url}
+          placeholder="Optional"
+          onChange={(e) => setUrl(e.target.value)}
         />
       </label>
       <div className="allowance-picker">
@@ -628,33 +689,29 @@ function Composer({
           onChange={(e) => setMinutes(Number(e.target.value))}
         />
       </label>
-      {custom && (
-        <details open>
-          <summary>Allowed contract action</summary>
-          <p className="helper">
-            The wallet can call only this contract and function. Token approvals
-            and message signing aren’t supported.
-          </p>
-          <label>
-            Contract address
-            <input
-              required
-              pattern="0x[0-9a-fA-F]{40}"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-            />
-          </label>
-          <label>
-            Function selector
-            <input
-              required
-              pattern="0x[0-9a-fA-F]{8}"
-              value={selector}
-              onChange={(e) => setSelector(e.target.value)}
-            />
-          </label>
-        </details>
-      )}
+      <details>
+        <summary>Limit where it can spend</summary>
+        <p className="helper">
+          Optional. Leave empty to allow any contract call inside the spending
+          limit, except approvals and token transfers.
+        </p>
+        <label>
+          Contract address
+          <input
+            pattern="0x[0-9a-fA-F]{40}"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+          />
+        </label>
+        <label>
+          Function selector
+          <input
+            pattern="0x[0-9a-fA-F]{8}"
+            value={selector}
+            onChange={(e) => setSelector(e.target.value)}
+          />
+        </label>
+      </details>
       <div className="recovery-line">
         <ArrowRight size={14} />
         <span>Funds return to {short(owner)}</span>
@@ -820,9 +877,15 @@ function SessionDetail({
             <summary>Wallet details</summary>
             <p className="identifier">{t.vault}</p>
             <p className="helper">
-              Allowed contract: {short(t.target)}
-              <br />
-              Allowed function: {t.selector}
+              {t.target && t.selector ? (
+                <>
+                  Allowed contract: {short(t.target)}
+                  <br />
+                  Allowed function: {t.selector}
+                </>
+              ) : (
+                "Any contract call inside the spending limit, except approvals and token transfers."
+              )}
               <br />
               Gas paid: {gas.toFixed(7)} {config.chain.symbol}
             </p>

@@ -33,6 +33,22 @@ const transaction = {
   value: "0x5af3107a4000",
 };
 
+test("open sessions can estimate gas for a different contract", async () => {
+  const open = { ...task, target: "", selector: "" };
+  const to = "0x3333333333333333333333333333333333333333";
+  assert.equal(
+    await estimatePermittedGas(
+      open,
+      { ...transaction, to, data: "0x1249c58b" },
+      async (tx) => {
+        assert.equal(tx.to.toLowerCase(), to);
+        return 45000n;
+      },
+    ),
+    "0xafc8",
+  );
+});
+
 test("gas estimation rejects unsupported spending before consulting the RPC", async () => {
   let calls = 0;
   const estimate = async () => {
@@ -65,7 +81,7 @@ test("gas estimation rejects unsupported spending before consulting the RPC", as
   );
 });
 
-test("wallet supports common chain reads and still refuses signatures", async (t) => {
+test("wallet supports chain reads, SIWE-style signatures, and still refuses permits", async (t) => {
   const request = t.mock.method(
     client,
     "request",
@@ -82,14 +98,25 @@ test("wallet supports common chain reads and still refuses signatures", async (t
   ])
     assert.equal(await provider(task, method, []), method);
   assert.equal(request.mock.callCount(), 7);
-  for (const method of [
-    "personal_sign",
-    "eth_signTypedData_v4",
-    "wallet_addEthereumChain",
-    "eth_sendRawTransaction",
-  ])
+  const signature = await provider(task, "personal_sign", [
+    "0x68656c6c6f",
+    task.vault,
+  ]);
+  assert.match(String(signature), /^0x[0-9a-fA-F]+$/);
+  await assert.rejects(
+    provider(task, "eth_signTypedData_v4", [
+      task.vault,
+      JSON.stringify({
+        primaryType: "Permit",
+        domain: {},
+        types: { Permit: [] },
+        message: {},
+      }),
+    ]),
+    /permit/i,
+  );
+  for (const method of ["wallet_addEthereumChain", "eth_sendRawTransaction"])
     await assert.rejects(provider(task, method, []), /does not sign/);
-  assert.equal(request.mock.callCount(), 7);
 });
 
 test("remote browsing requires an operator-approved public host", async () => {

@@ -4,14 +4,14 @@ This repository is a tested prototype, not a third-party audit. The local tests 
 
 ## Enforced boundaries
 
-- The owner, relayer, native budget, expiry, target/function pairs are fixed at vault deployment. The contract supports no permission update or delegatecall.
+- The owner, relayer, native budget, expiry, and optional target/function pairs are fixed at vault deployment. The contract supports no permission update or delegatecall. An empty permission list allows any call except known approval/transfer selectors.
 - `spent` is cumulative native value, not an instantaneous balance check. Extra deposits never increase the allowance.
-- Known approval/transfer selectors and arbitrary message signatures are blocked. This is not a universal detector for every custom approval-like function; the owner must understand the permitted contract/function.
+- Known approval/transfer selectors are blocked. The task wallet may sign login messages as itself; permit-style typed data is rejected. This is not a universal detector for every custom approval-like function.
 - All recovery goes to the immutable owner. Closing and transferring assets are separate operations. The owner may call recovery directly if the API is unavailable.
 - API keys can inspect and operate existing authorized sessions, but cannot create an allowance, manage keys, request owner swaps, or register new recovery tokens. Revocation takes effect on the next request; it does not cancel submitted work.
 - Privy tokens are verified server-side and wallets are obtained from the verified user. Local sign-in is loopback-only and disabled in configured mode. Cookie writes require the correct origin.
 - Each browser has a fresh context and separate Chromium process. Credentials are excluded from its environment. The provider exists only in the main frame at the approved origin.
-- Resource hosts are explicitly bounded and pinned to public IPv4 addresses. Private networks, cross-origin top-level navigation, service workers, WebSockets, popups and downloads are blocked. Chromium sandboxing is requested. Production still needs host-level network/process isolation; URL checks are not a substitute for it.
+- Resource hosts must be public. Private networks, service workers, WebSockets, popups and downloads are blocked. Chromium sandboxing is requested. Production still needs host-level network/process isolation; URL checks are not a substitute for it.
 - Known service credentials and RPC URLs are redacted from user-facing/persisted errors. API keys are displayed once and only their SHA-256 hashes are retained.
 
 ## Supported assets and trust

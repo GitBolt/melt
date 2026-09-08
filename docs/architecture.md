@@ -23,7 +23,7 @@ flowchart LR
 
 The owner authenticates with Privy and owns the recovery address. A separate Privy-managed relayer signs outer Ethereum transactions and pays their gas. A task vault is a Solidity contract holding only that task's funds/assets. Dapps see the vault address through an injected provider. They never receive the owner's provider, cookies, private key or the relayer's signing credentials.
 
-The relayer calls `TaskVault.execute(target,value,data)`. The vault calls the approved dapp, so the dapp sees the vault as `msg.sender`. A resulting NFT therefore belongs to the vault until recovery. The provider returns the actual outer transaction hash; consumers must understand that the outer sender is the relayer. This is a narrow contract-account provider, not an EOA impersonator.
+The relayer calls `TaskVault.execute(target,value,data)`. The vault calls the dapp, so the dapp sees the vault as `msg.sender`. A resulting NFT therefore belongs to the vault until recovery. The provider returns the actual outer transaction hash; consumers must understand that the outer sender is the relayer. This is a narrow contract-account provider, not an EOA impersonator. If the owner set a contract lock, only that function is permitted. If they did not, any call inside the native budget is permitted except known approval and transfer selectors.
 
 ## Lifecycle
 

@@ -139,6 +139,10 @@ const schemas: Record<string, any> = {
     },
   },
 };
+schemas.CreateSession.required = (schemas.CreateSession.required || []).filter(
+  (field: string) =>
+    !["url", "target", "selector", "durationMinutes"].includes(field),
+);
 schemas.Session = {
   type: "object",
   required: [

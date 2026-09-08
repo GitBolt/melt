@@ -9,8 +9,8 @@ interface IERC721Minimal {
     function safeTransferFrom(address, address, uint256) external;
 }
 
-/// @notice One task, a fixed native-token allowance, and a permanent owner recovery path.
-/// No delegatecall, approvals, arbitrary signatures, or mutable permissions.
+/// @notice One task, a native-token spending limit, and a permanent owner recovery path.
+/// No delegatecall, token approvals, or mutable permissions.
 contract TaskVault {
     address public immutable owner;
     address public immutable agent;
@@ -20,6 +20,7 @@ contract TaskVault {
     bool public closed;
     bool private entered;
     mapping(address => mapping(bytes4 => bool)) public permitted;
+    bool public immutable openSpend;
     error Unauthorized();
     error Inactive();
     error OutsidePermission();
@@ -46,18 +47,18 @@ contract TaskVault {
     ) payable {
         require(
             owner_ != address(0) && agent_ != address(0) && budget_ > 0 && expires_ > block.timestamp
-                && targets.length == selectors.length && targets.length > 0
+                && targets.length == selectors.length
         );
         owner = owner_;
         agent = agent_;
         budget = budget_;
         expiresAt = expires_;
+        openSpend = targets.length == 0;
         for (uint256 i; i < targets.length; i++) {
             bytes4 s = selectors[i];
             // Never give a task a persistent token allowance or delegation capability.
             require(
-                targets[i] != address(0) && s != 0x095ea7b3 && s != 0xa22cb465 && s != 0xd505accf && s != 0x23b872dd
-                    && s != 0xa9059cbb
+                targets[i] != address(0) && !_forbidden(s)
             );
             permitted[targets[i]][s] = true;
         }
@@ -67,7 +68,8 @@ contract TaskVault {
     function execute(address target, uint256 value, bytes calldata data) external lock returns (bytes memory result) {
         if (msg.sender != agent) revert Unauthorized();
         if (closed || block.timestamp >= expiresAt) revert Inactive();
-        if (data.length < 4 || !permitted[target][bytes4(data[:4])] || target == address(this)) revert OutsidePermission();
+        if (data.length < 4 || target == address(this) || _forbidden(bytes4(data[:4]))) revert OutsidePermission();
+        if (!openSpend && !permitted[target][bytes4(data[:4])]) revert OutsidePermission();
         if (value > budget - spent) revert OverBudget();
         spent += value;
         (bool ok, bytes memory out) = target.call{value: value}(data);
@@ -115,5 +117,25 @@ contract TaskVault {
 
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
         return this.onERC721Received.selector;
+    }
+
+    function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4) {
+        if (closed || block.timestamp >= expiresAt || signature.length != 65) return 0xffffffff;
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := calldataload(signature.offset)
+            s := calldataload(add(signature.offset, 32))
+            v := byte(0, calldataload(add(signature.offset, 64)))
+        }
+        if (v < 27) v += 27;
+        address signer = ecrecover(hash, v, r, s);
+        return signer != address(0) && signer == agent ? bytes4(0x1626ba7e) : bytes4(0xffffffff);
+    }
+
+    function _forbidden(bytes4 selector) private pure returns (bool) {
+        return selector == 0x095ea7b3 || selector == 0xa22cb465 || selector == 0xd505accf || selector == 0x23b872dd
+            || selector == 0xa9059cbb;
     }
 }

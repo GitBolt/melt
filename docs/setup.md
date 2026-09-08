@@ -25,7 +25,7 @@ npm run chain:deploy -- --confirm-testnet
 
 The script only accepts Sepolia or Base Sepolia. It uses configured Privy signing and consumes testnet gas. Set the printed `FIXTURE_CONTRACT`, `ENABLE_TEST_FIXTURES=true`, and `FIXTURE_ORIGIN=https://your-domain/demo`, then restart. The API serves `/demo/studio`, `/demo/print-shop` and `/demo/guardrail-check`. These are self-hosted fixtures sharing one collectible contract, not independent third-party integrations. Never point this demonstration at a mainnet currency.
 
-For a real dapp, choose **Use another website**, enter its HTTPS URL and exact permitted contract/function. The browser's main navigation stays on that origin. Put additional public resource hostnames in `BROWSER_RESOURCE_HOSTS` if the site needs CDNs. Login redirects, private networks, arbitrary popups, downloads and WebSockets are blocked. Check compatibility first; many dapps require unsupported signatures or approvals.
+For a real dapp, choose **Custom**, describe the job, and optionally add a website. You can leave the contract lock empty so the task wallet can call any function inside the spending limit, except approvals and token transfers. Private networks, popups, downloads and WebSockets are blocked. Check compatibility first; some dapps still require unsupported token approvals.
 
 ## Hosting handoff
 
