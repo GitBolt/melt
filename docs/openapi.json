@@ -2825,13 +2825,67 @@
           "recovery": {
             "type": "string",
             "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "kind": {
+            "default": "browse",
+            "type": "string",
+            "enum": [
+              "browse",
+              "swap"
+            ]
+          },
+          "swap": {
+            "type": "object",
+            "properties": {
+              "tokenOut": {
+                "type": "string",
+                "pattern": "^0x[0-9a-fA-F]{40}$"
+              },
+              "symbol": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20
+              },
+              "amountIn": {
+                "type": "string",
+                "pattern": "^\\d+(\\.\\d{1,18})?$"
+              },
+              "slippageBps": {
+                "default": 50,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5000
+              },
+              "buys": {
+                "default": 1,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20
+              },
+              "intervalSec": {
+                "default": 60,
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 86400
+              }
+            },
+            "required": [
+              "tokenOut",
+              "symbol",
+              "amountIn",
+              "slippageBps",
+              "buys",
+              "intervalSec"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
           "title",
           "instruction",
           "budget",
-          "recovery"
+          "recovery",
+          "kind"
         ],
         "additionalProperties": false
       },
@@ -3095,6 +3149,12 @@
           },
           "recovered": {
             "type": "boolean"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
           }
         }
       },
@@ -3321,6 +3381,7 @@
           "instruction",
           "budget",
           "recovery",
+          "kind",
           "id",
           "userId",
           "vault",
@@ -3390,6 +3451,59 @@
           "recovery": {
             "type": "string",
             "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "kind": {
+            "default": "browse",
+            "type": "string",
+            "enum": [
+              "browse",
+              "swap"
+            ]
+          },
+          "swap": {
+            "type": "object",
+            "properties": {
+              "tokenOut": {
+                "type": "string",
+                "pattern": "^0x[0-9a-fA-F]{40}$"
+              },
+              "symbol": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20
+              },
+              "amountIn": {
+                "type": "string",
+                "pattern": "^\\d+(\\.\\d{1,18})?$"
+              },
+              "slippageBps": {
+                "default": 50,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5000
+              },
+              "buys": {
+                "default": 1,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20
+              },
+              "intervalSec": {
+                "default": 60,
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 86400
+              }
+            },
+            "required": [
+              "tokenOut",
+              "symbol",
+              "amountIn",
+              "slippageBps",
+              "buys",
+              "intervalSec"
+            ],
+            "additionalProperties": false
           },
           "id": {
             "type": "string",

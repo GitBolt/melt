@@ -12,7 +12,14 @@ import {
   type BrowserAction,
 } from "./agent.js";
 export { actionSchema } from "./agent.js";
-import { toHex, toEventSelector, type Hex, type Address } from "viem";
+import {
+  toHex,
+  toEventSelector,
+  formatUnits,
+  parseUnits,
+  type Hex,
+  type Address,
+} from "viem";
 import { validateTransaction, lockedSpend } from "./policy.js";
 import {
   client,
@@ -28,7 +35,7 @@ import {
   signAgentTypedData,
 } from "./chain.js";
 import { get, event, serial, save } from "./store.js";
-import { quoteSwap, buildSwapCall } from "./swap.js";
+import { quoteSwap, buildSwapCall, knownToken } from "./swap.js";
 import type { Task } from "../../../packages/shared/src/index.js";
 async function launchBrowser(args: string[]) {
   if (process.env.BROWSERLESS_TOKEN) {
@@ -422,19 +429,39 @@ export async function discoverAssets(task: Task) {
       const tokenId = log.topics[3]
         ? BigInt(log.topics[3]).toString()
         : undefined;
-      if (
-        !task.assets.some(
-          (a) =>
-            a.token.toLowerCase() === log.address.toLowerCase() &&
-            a.tokenId === tokenId,
-        )
-      )
-        task.assets.push({
-          token: log.address,
-          tokenId,
-          kind: tokenId ? "erc721" : "erc20",
-          recovered: false,
-        });
+      const rawAmount =
+        !tokenId && log.data && log.data !== "0x" ? BigInt(log.data) : 0n;
+      const known = knownToken(log.address);
+      const existing = task.assets.find(
+        (a) =>
+          a.token.toLowerCase() === log.address.toLowerCase() &&
+          a.tokenId === tokenId,
+      );
+      if (existing) {
+        if (existing.kind === "erc20" && rawAmount > 0n) {
+          const decimals = known?.decimals ?? 18;
+          let prev = 0n;
+          try {
+            if (existing.amount) prev = parseUnits(existing.amount, decimals);
+          } catch {
+            prev = 0n;
+          }
+          existing.amount = formatUnits(prev + rawAmount, decimals);
+          existing.symbol ||= known?.symbol;
+        }
+        continue;
+      }
+      task.assets.push({
+        token: log.address,
+        tokenId,
+        kind: tokenId ? "erc721" : "erc20",
+        recovered: false,
+        symbol: known?.symbol,
+        amount:
+          !tokenId && rawAmount > 0n
+            ? formatUnits(rawAmount, known?.decimals ?? 18)
+            : undefined,
+      });
     }
   }
   save(task);
@@ -591,7 +618,11 @@ export async function start(id: string, manual = false) {
         task.error = message;
         task.outcome = "failed";
         task.outcomeReason = `The swap did not complete: ${message}`;
-        event(task, "error", `Swap paused: ${message}. Your funds are safe and can be returned.`);
+        event(
+          task,
+          "error",
+          `Swap paused: ${message}. Your funds are safe and can be returned.`,
+        );
       }
     });
     return;
