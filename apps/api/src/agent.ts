@@ -54,8 +54,22 @@ export const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("finish"), reason }),
 ]);
 export type BrowserAction = z.infer<typeof actionSchema>;
-export const hasModelConfiguration = () =>
-  Boolean(process.env.AI_API_KEY && process.env.AI_MODEL);
+// Resolve the model provider from env. An OpenAI key (sk-...) works with just
+// the key: base URL and a sensible default model are inferred. OpenRouter and
+// other OpenAI-compatible endpoints keep working via AI_BASE_URL + AI_MODEL.
+export function modelConfig() {
+  const apiKey = process.env.AI_API_KEY;
+  if (!apiKey) return null;
+  const isOpenAI = apiKey.startsWith("sk-") && !apiKey.startsWith("sk-or-");
+  const baseUrl = (
+    process.env.AI_BASE_URL ||
+    (isOpenAI ? "https://api.openai.com/v1" : "https://openrouter.ai/api/v1")
+  ).replace(/\/$/, "");
+  const model = process.env.AI_MODEL || (isOpenAI ? "gpt-4o-mini" : "");
+  if (!model) return null;
+  return { apiKey, baseUrl, model };
+}
+export const hasModelConfiguration = () => modelConfig() !== null;
 export const hasConfirmedExecution = (task: Pick<Task, "transactions">) =>
   task.transactions.some(
     (tx) => tx.kind === "Execute dapp transaction" && tx.status === "success",
@@ -102,12 +116,12 @@ export function actionSummary(
   return action.reason ? `${summary} · ${action.reason}` : summary;
 }
 export async function decide(observation: unknown): Promise<BrowserAction> {
-  if (!hasModelConfiguration())
+  const config = modelConfig();
+  if (!config)
     throw Error("AI agent is not configured. Use manual browser control.");
-  const base = process.env.AI_BASE_URL || "https://openrouter.ai/api/v1";
-  const url = `${base.replace(/\/$/, "")}/chat/completions`;
+  const url = `${config.baseUrl}/chat/completions`;
   const body = JSON.stringify({
-    model: process.env.AI_MODEL,
+    model: config.model,
     temperature: 0,
     response_format: { type: "json_object" },
     messages: [
@@ -125,7 +139,7 @@ export async function decide(observation: unknown): Promise<BrowserAction> {
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.AI_API_KEY}`,
+        Authorization: `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",
       },
       signal: AbortSignal.timeout(45000),

@@ -37,6 +37,7 @@ import {
   actionSchema,
   verifyBrowserRuntime,
 } from "./browser.js";
+import { hasModelConfiguration } from "./agent.js";
 import { startFixtures, registerFixtures } from "./fixtures.js";
 import { uniswapQuote, prepareSwap, checkApproval } from "./uniswap.js";
 import {
@@ -128,7 +129,7 @@ app.get("/api/config", async () => ({
   },
   privyAppId: local ? undefined : process.env.PRIVY_APP_ID,
   browserAvailable,
-  modelConfigured: !!(process.env.AI_API_KEY && process.env.AI_MODEL),
+  modelConfigured: hasModelConfiguration(),
   swapsConfigured: !!process.env.UNISWAP_API_KEY,
   swap: {
     available: await swapAvailable(),
@@ -303,8 +304,7 @@ app.post(
         events: [],
         transactions: [],
         assets: [],
-        agentMode:
-          process.env.AI_API_KEY && process.env.AI_MODEL ? "model" : "manual",
+        agentMode: hasModelConfiguration() ? "model" : "manual",
         outcome: "pending",
       };
       save(task);
