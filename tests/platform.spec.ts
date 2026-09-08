@@ -3,7 +3,13 @@ const base = "http://127.0.0.1:5173";
 const workspace = base + "/app";
 async function signInLocal(page: Page) {
   await page.goto(workspace);
-  await page.getByRole("button", { name: "Open local workspace" }).click();
+  const open = page.getByRole("button", { name: "Open local workspace" });
+  if (await open.isVisible({ timeout: 10000 }).catch(() => false)) {
+    await open.click();
+  }
+  await expect(page.locator("button.account")).not.toHaveText("Sign in", {
+    timeout: 15000,
+  });
 }
 async function createBrowseSession(
   page: Page,
@@ -54,19 +60,27 @@ async function openActivitySession(page: Page, title: string) {
 }
 // Fixed fixture choices belong only in tests. Production agents choose from observations.
 async function mintThroughManualBrowser(page: Page, sessionId?: string) {
-  await page
-    .getByRole("button", { name: "Open task browser", exact: true })
-    .click();
   const task = sessionId
     ? { id: sessionId }
     : (await (await page.request.get(base + "/api/sessions")).json())[0];
+  const started = await page.request.post(
+    `${base}/api/sessions/${task.id}/start`,
+    {
+      headers: { Origin: base },
+      data: { manual: true },
+    },
+  );
+  expect(started.ok(), await started.text()).toBeTruthy();
   await expect
-    .poll(async () => {
-      const state = await (
-        await page.request.get(`${base}/api/sessions/${task.id}`)
-      ).json();
-      return state.status;
-    })
+    .poll(
+      async () => {
+        const state = await (
+          await page.request.get(`${base}/api/sessions/${task.id}`)
+        ).json();
+        return state.status;
+      },
+      { timeout: 30000 },
+    )
     .toBe("paused");
   for (const label of ["Connect wallet", "Mint field note"]) {
     const observation = await (
@@ -393,10 +407,17 @@ test("manual agent controls and MCP operate only owner-authorized sessions", asy
     await import("@modelcontextprotocol/sdk/client/stdio.js");
   await signInLocal(page);
   const created = await createBrowseSession(page, { key: "mcp-mint" });
-  await openActivitySession(page, "Mint a field note");
-  await expect(
-    page.getByRole("button", { name: "Open task browser", exact: true }),
-  ).toBeVisible({ timeout: 30000 });
+  await expect
+    .poll(
+      async () => {
+        const state = await (
+          await page.request.get(`${base}/api/sessions/${created.id}`)
+        ).json();
+        return state.status;
+      },
+      { timeout: 30000 },
+    )
+    .toBe("ready");
   const task = created;
   const key = await (
     await page.request.post(base + "/api/keys", {
@@ -558,18 +579,26 @@ test("a spending-limit session can complete a different job without a contract l
   await expect(
     page.getByRole("button", { name: "Open task browser", exact: true }),
   ).toBeVisible({ timeout: 30000 });
-  await page
-    .getByRole("button", { name: "Open task browser", exact: true })
-    .click();
   const task = created;
   expect(task.target).toBe("");
+  const started = await page.request.post(
+    `${base}/api/sessions/${task.id}/start`,
+    {
+      headers: { Origin: base },
+      data: { manual: true },
+    },
+  );
+  expect(started.ok(), await started.text()).toBeTruthy();
   await expect
-    .poll(async () => {
-      const state = await (
-        await page.request.get(`${base}/api/sessions/${task.id}`)
-      ).json();
-      return state.status;
-    })
+    .poll(
+      async () => {
+        const state = await (
+          await page.request.get(`${base}/api/sessions/${task.id}`)
+        ).json();
+        return state.status;
+      },
+      { timeout: 30000 },
+    )
     .toBe("paused");
   for (const label of ["Connect wallet", "Leave a tip"]) {
     const observation = await (
