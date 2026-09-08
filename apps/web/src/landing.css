@@ -33,7 +33,7 @@
   gap: 28px;
 }
 .landing-nav nav a {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   min-height: 40px;
   display: inline-flex;
@@ -52,16 +52,16 @@
   align-items: center;
 }
 .hero-title {
-  font-size: clamp(44px, 6.4vw, 68px);
+  font-size: clamp(46px, 6.5vw, 70px);
   letter-spacing: -2.6px;
   font-weight: 600;
   line-height: 1.04;
-  max-width: 8.4ch;
+  max-width: 14ch;
 }
 .hero-lead {
   margin-top: 18px;
   max-width: 34em;
-  font-size: 16px;
+  font-size: 17px;
   line-height: 1.65;
 }
 .hero-actions {
@@ -83,7 +83,7 @@
   margin-top: 8px;
 }
 .hero-stage-copy > span {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
 }
 .hero-stage-copy strong {
@@ -93,13 +93,13 @@
   margin: 4px 0 10px;
 }
 .hero-stage-copy small {
-  font-size: 14px;
+  font-size: 15px;
   color: var(--muted);
   font-weight: 550;
 }
 .hero-stage-copy p {
   margin-top: 12px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .landing-facts {
   padding: 8px 0 12px;
@@ -113,14 +113,14 @@
   border-bottom: 1px solid var(--line);
 }
 .fact-row p {
-  font-size: 13px;
+  font-size: 14px;
   color: #4c5161;
 }
 .landing-block {
   padding: 88px 0 12px;
 }
 .landing-kicker {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   margin-bottom: 10px;
 }
@@ -128,11 +128,11 @@
 .feature-row h2,
 .agents-grid h2,
 .close-panel h2 {
-  font-size: clamp(26px, 3.4vw, 36px);
+  font-size: clamp(28px, 3.5vw, 38px);
   letter-spacing: -1.4px;
   font-weight: 600;
   line-height: 1.2;
-  max-width: 18ch;
+  max-width: 20ch;
 }
 .landing-block > .landing-wrap > h2 {
   margin-bottom: 36px;
@@ -149,7 +149,7 @@
 .step-card h3,
 .flow-card h3 {
   margin: 14px 0 8px;
-  font-size: 16px;
+  font-size: 17px;
   letter-spacing: -0.3px;
 }
 .feature-row {
@@ -204,7 +204,7 @@
   margin: 0;
   padding: 28px 30px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.8;
   color: #3d4254;
   overflow: auto;
@@ -235,7 +235,7 @@
   justify-content: space-between;
   gap: 20px;
   color: #9699a3;
-  font-size: 12px;
+  font-size: 13px;
 }
 .footer-row div {
   display: flex;

@@ -300,7 +300,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                 <h1>
                   {page === "Receipts"
                     ? "See where your funds went."
-                    : "Give your agent a wallet for the task."}
+                    : "Give your agent an allowance."}
                 </h1>
                 <p>
                   {page === "Receipts"
@@ -395,8 +395,8 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                   <div>
                     <h2>Keep your main wallet separate.</h2>
                     <p>
-                      Your agent uses a task wallet with limits you set.
-                      Recovery stays available after the session ends.
+                      Your agent spends from a task wallet with a limit you set.
+                      Unused funds return when the session ends.
                     </p>
                   </div>
                   <div className="wallet-footer">
@@ -624,6 +624,7 @@ function Composer({
           required
           maxLength={100}
           value={title}
+          placeholder="Mint this collectible"
           onChange={(e) => {
             setExample("custom");
             setTitle(e.target.value);
@@ -637,6 +638,7 @@ function Composer({
           maxLength={2000}
           rows={3}
           value={instruction}
+          placeholder="Connect, complete the job inside the spending limit, and return leftover funds."
           onChange={(e) => {
             setExample("custom");
             setInstruction(e.target.value);
@@ -644,9 +646,9 @@ function Composer({
         />
       </label>
       <label>
-        Website
+        Starting website
         <input
-          aria-label="Website"
+          aria-label="Starting website"
           type="url"
           value={url}
           placeholder="Optional"

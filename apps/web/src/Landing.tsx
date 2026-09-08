@@ -84,11 +84,13 @@ export default function Landing() {
       <section className="landing-hero">
         <div className="landing-wrap hero-grid">
           <div>
-            <h1 className="hero-title">A wallet for one task.</h1>
+            <h1 className="hero-title">
+              Let an agent spend without your wallet.
+            </h1>
             <p className="hero-lead">
-              Set a spending limit, let your agent work, and return unused funds
-              to your wallet. Melt opens a separate browser and a task wallet
-              that is not your main wallet.
+              Tell Melt the job and how much it may spend. It opens a separate
+              browser and a wallet that is not yours. When you end the session,
+              spending stops. Unused funds and what it bought come back.
             </p>
             <div className="hero-actions">
               <a className="primary" href={app}>
@@ -126,7 +128,7 @@ export default function Landing() {
       <motion.section id="how" className="landing-block" {...reveal}>
         <div className="landing-wrap">
           <p className="landing-kicker">How a session works</p>
-          <h2>One job. One wallet. Then it closes.</h2>
+          <h2>You set the limit. Then you can close it.</h2>
           <div className="step-grid">
             {steps.map((step) => (
               <article key={step.n} className="panel step-card">
@@ -144,11 +146,11 @@ export default function Landing() {
           <motion.article className="feature-row" {...reveal}>
             <div>
               <p className="landing-kicker">Any job you can describe</p>
-              <h2>Start from the task, not a contract function.</h2>
+              <h2>Start from the job, not a contract function.</h2>
               <p>
-                Custom is the product. Mint, pay, swap, or type what you need.
-                Website and contract locks are optional if you want to narrow
-                where it can spend.
+                Mint, swap, register a name, pay a site, or type your own
+                instructions. Website and contract locks are optional if you
+                want to narrow where it can spend.
               </p>
             </div>
             <figure className="feature-media panel">
@@ -162,11 +164,11 @@ export default function Landing() {
           <motion.article className="feature-row flip" {...reveal}>
             <div>
               <p className="landing-kicker">Separate from you</p>
-              <h2>The site sees the task wallet. Never your main wallet.</h2>
+              <h2>The site never sees your main wallet.</h2>
               <p>
-                Sign in with email or a wallet. Privy creates the owner wallet
-                you fund from. The agent works with a Solidity task vault that
-                cannot keep spending after you end the session.
+                Sign in with email or a wallet. You fund a session from an owner
+                wallet you control. The agent spends from a separate task
+                wallet, and that spending stops when you end the session.
               </p>
             </div>
             <figure className="feature-media panel">
@@ -200,9 +202,7 @@ export default function Landing() {
       <motion.section className="landing-block" {...reveal}>
         <div className="landing-wrap">
           <p className="landing-kicker">How money moves</p>
-          <h2>
-            A financial flow your agent can use, without inheriting your wallet.
-          </h2>
+          <h2>Fund it from your wallet. The agent never inherits it.</h2>
           <div className="flow-grid">
             {flow.map((item, i) => (
               <article key={item.title} className="panel flow-card">
@@ -243,10 +243,10 @@ const page = await melt.observe(sessionId);`}</pre>
         <div className="landing-wrap close-panel panel">
           <SessionSeal status="ready" />
           <div>
-            <h2>Give the next job its own wallet.</h2>
+            <h2>Set a spending limit and start.</h2>
             <p>
-              Open Melt, describe the task, and set a spending limit. The rest
-              of the session stays isolated until you end it.
+              Describe the job, choose how much it may spend, and open a
+              session. Spending stays isolated until you end it.
             </p>
             <a className="primary" href={app}>
               Open Melt
@@ -258,7 +258,7 @@ const page = await melt.observe(sessionId);`}</pre>
 
       <footer className="landing-footer">
         <div className="landing-wrap footer-row">
-          <span>Melt · A wallet for one task</span>
+          <span>Melt · Agent spending you still control</span>
           <div>
             <a href={app}>App</a>
             <a href="/recover">Recover</a>

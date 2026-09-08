@@ -2,7 +2,7 @@
 
 ## Positioning
 
-“Melt is a wallet for one browser task. Give an agent a small allowance, let it bring something back, then close its spending access while keeping your recovery access.”
+“Let an agent spend without your wallet. Give it a job and a spending limit, then close its spending access while keeping recovery.”
 
 We are not claiming to invent agent wallets, browser takeover or disposable sessions. The demonstration is a complete, understandable lifecycle with independently enforced permissions and persistent recovery. See the research report for direct competitors.
 
