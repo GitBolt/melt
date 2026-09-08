@@ -44,6 +44,17 @@ over `eth_call`; documenting that explicitly (and that native ETH input via
 Probing fee tiers in parallel and caching quotes was necessary for responsive
 UX on a cold fork.
 
+Recurring buys (dollar-cost averaging) run several of these native-value swaps
+across time under one onchain budget (`runSwaps` in `apps/api/src/browser.ts`),
+an automated agent strategy that fits the same no-approval model.
+
+Agent access: the dependency-free client and MCP server expose `quote` and
+`tokens` (`packages/sdk/client.mjs`, `packages/sdk/src/mcp.ts`) so an external
+agent can price and operate owner-authorized swaps it cannot escalate.
+
+We also send the recommended `X-Agent-Info` attribution header on Trading API
+calls (`decision_origin=autonomous`) in `apps/api/src/uniswap.ts`.
+
 ## 2. Owner funding conversion (Uniswap Trading API)
 
 The optional funding flow calls `check_approval`, `quote`, and `swap` from
