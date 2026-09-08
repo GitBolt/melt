@@ -568,7 +568,14 @@ export async function start(id: string, manual = false) {
   if (Date.now() >= task.expiresAt * 1000)
     throw Error("Session expired; return funds instead");
   await reconcile(task);
-  if (lockedSpend(task) && hasConfirmedExecution(task)) return finish(id);
+  // A locked single-purchase session that already executed is complete; a
+  // recurring (DCA) swap resumes its remaining buys instead of finishing.
+  if (
+    lockedSpend(task) &&
+    hasConfirmedExecution(task) &&
+    (task.swap?.buys ?? 1) <= 1
+  )
+    return finish(id);
   if (task.kind === "swap") {
     const generation = (generations.get(id) || 0) + 1;
     generations.set(id, generation);
@@ -577,7 +584,7 @@ export async function start(id: string, manual = false) {
     delete task.outcomeReason;
     delete task.error;
     save(task);
-    void runSwap(id, generation).catch((e) => {
+    void runSwaps(id, generation).catch((e) => {
       if (task.status === "running" && generations.get(id) === generation) {
         const message = errorMessage(e);
         task.status = "paused";
@@ -754,62 +761,85 @@ async function runAgent(id: string, generation: number) {
     );
   }
 }
-// Deterministic Uniswap swap: no browser, no model. The vault forwards its
+const confirmedSwaps = (task: Task) =>
+  task.transactions.filter(
+    (t) => t.kind === "Execute dapp transaction" && t.status === "success",
+  ).length;
+// Deterministic Uniswap swaps: no browser, no model. The vault forwards its
 // native allowance to the Uniswap router (a native-value call that needs no
-// approval) and the purchased token is returned to the owner on close.
-async function runSwap(id: string, generation: number) {
+// approval) and the purchased token is returned to the owner on close. With
+// `buys > 1` this dollar-cost-averages across time under one onchain budget.
+async function runSwaps(id: string, generation: number) {
   const task = get(id);
   if (!task.swap) throw Error("This session has no swap details");
   const symbol = chain.nativeCurrency.symbol;
-  event(
-    task,
-    "info",
-    `Preparing a Uniswap swap of ${task.swap.amountIn} ${symbol} for ${task.swap.symbol}.`,
-  );
-  const quote = await quoteSwap({
-    tokenOut: task.swap.tokenOut,
-    amountIn: task.swap.amountIn,
-    slippageBps: task.swap.slippageBps,
-  });
-  if (task.status !== "running" || generations.get(id) !== generation) return;
-  const call = buildSwapCall({
-    tokenOut: quote.tokenOut,
-    recipient: task.vault as Address,
-    amountInWei: BigInt(quote.amountInWei),
-    minOutWei: BigInt(quote.minOutWei),
-    fee: quote.fee,
-  });
-  event(
-    task,
-    "info",
-    `Best route: Uniswap V3 ${(quote.fee / 10000).toFixed(2)}% pool · min received ${quote.minOut} ${quote.symbol}.`,
-  );
-  await serial(task.id, async () => {
-    await reconcile(task);
-    await refreshBalance(task);
-    // Simulate as the vault before the relayer signs anything real.
-    await client.call({
-      account: task.vault as Address,
-      to: call.to,
-      value: call.value,
-      data: call.data,
-    });
-    const hash = await vaultCall(
-      task,
-      "execute",
-      [call.to, call.value, call.data],
-      "Execute dapp transaction",
-    );
-    await refreshBalance(task);
-    await discoverAssets(task);
+  const buys = task.swap.buys ?? 1;
+  const intervalSec = task.swap.intervalSec ?? 60;
+  const live = () =>
+    task.status === "running" && generations.get(id) === generation;
+  if (buys > 1)
     event(
       task,
-      "success",
-      `Swap confirmed · about ${Number(quote.amountOut).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${quote.symbol} received`,
-      hash,
+      "info",
+      `Recurring buy: ${buys} × ${task.swap.amountIn} ${symbol} → ${task.swap.symbol}, every ${intervalSec}s within one limit.`,
     );
-  });
-  if (task.status !== "running" || generations.get(id) !== generation) return;
+  for (let i = confirmedSwaps(task); i < buys; i++) {
+    if (!live()) return;
+    if (Date.now() >= task.expiresAt * 1000) {
+      event(task, "info", "Session window ended before all buys completed.");
+      break;
+    }
+    const quote = await quoteSwap({
+      tokenOut: task.swap.tokenOut,
+      amountIn: task.swap.amountIn,
+      slippageBps: task.swap.slippageBps,
+    });
+    if (!live()) return;
+    const call = buildSwapCall({
+      tokenOut: quote.tokenOut,
+      recipient: task.vault as Address,
+      amountInWei: BigInt(quote.amountInWei),
+      minOutWei: BigInt(quote.minOutWei),
+      fee: quote.fee,
+    });
+    const label = buys > 1 ? `Buy ${i + 1} of ${buys}` : "Swap";
+    event(
+      task,
+      "info",
+      `${label}: Uniswap V3 ${(quote.fee / 10000).toFixed(2)}% pool · min ${quote.minOut} ${quote.symbol}.`,
+    );
+    await serial(task.id, async () => {
+      await reconcile(task);
+      await refreshBalance(task);
+      // Simulate as the vault before the relayer signs anything real.
+      await client.call({
+        account: task.vault as Address,
+        to: call.to,
+        value: call.value,
+        data: call.data,
+      });
+      const hash = await vaultCall(
+        task,
+        "execute",
+        [call.to, call.value, call.data],
+        "Execute dapp transaction",
+      );
+      await refreshBalance(task);
+      await discoverAssets(task);
+      event(
+        task,
+        "success",
+        `${label} confirmed · about ${Number(quote.amountOut).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${quote.symbol} received`,
+        hash,
+      );
+    });
+    if (!live()) return;
+    if (i < buys - 1)
+      await new Promise((r) =>
+        setTimeout(r, Math.min(intervalSec, 3600) * 1000),
+      );
+  }
+  if (!live()) return;
   Object.assign(task, executionOutcome(task));
   await finish(id);
 }

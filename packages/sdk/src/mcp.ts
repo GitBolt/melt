@@ -46,6 +46,29 @@ server.registerTool(
   () => result(() => client.sessions()),
 );
 server.registerTool(
+  "swap_tokens",
+  {
+    description:
+      "List tokens available for onchain Uniswap swaps and whether swaps are enabled on this chain. Read-only.",
+    inputSchema: z.object({}),
+  },
+  () => result(() => client.tokens()),
+);
+server.registerTool(
+  "quote_swap",
+  {
+    description:
+      "Get a live Uniswap V3 quote for swapping native ETH into a token (by symbol or address). Read-only price discovery; moves no funds. Use before running an owner-authorized swap session.",
+    inputSchema: z.object({
+      tokenOut: z.string().min(1).max(42),
+      amountIn: z.string().regex(/^\d+(\.\d{1,18})?$/),
+      slippageBps: z.number().int().min(1).max(5000).optional(),
+    }),
+  },
+  ({ tokenOut, amountIn, slippageBps }) =>
+    result(() => client.quote({ tokenOut, amountIn, slippageBps })),
+);
+server.registerTool(
   "start_session",
   {
     description:

@@ -98,6 +98,31 @@ export interface WaitOptions extends RequestOptions {
   intervalMs?: number;
   until?: SessionStatus[];
 }
+export interface SwapToken {
+  symbol: string;
+  name: string;
+  address: string;
+  decimals: number;
+}
+export interface SwapTokens {
+  available: boolean;
+  router: string;
+  tokens: SwapToken[];
+}
+export interface SwapQuote {
+  tokenOut: string;
+  symbol: string;
+  decimals: number;
+  amountIn: string;
+  amountInWei: string;
+  fee: number;
+  amountOutWei: string;
+  amountOut: string;
+  minOutWei: string;
+  minOut: string;
+  slippageBps: number;
+  rate: string;
+}
 export interface MeltConfig {
   baseUrl?: string;
   apiKey: string;
@@ -123,6 +148,11 @@ export class MeltError extends Error {
 export class Melt {
   constructor(config: MeltConfig);
   sessions(options?: RequestOptions): Promise<Session[]>;
+  tokens(options?: RequestOptions): Promise<SwapTokens>;
+  quote(
+    params: { tokenOut: string; amountIn: string; slippageBps?: number },
+    options?: RequestOptions,
+  ): Promise<SwapQuote>;
   session(id: string, options?: RequestOptions): Promise<Session>;
   start(
     id: string,

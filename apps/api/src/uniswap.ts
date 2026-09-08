@@ -24,6 +24,13 @@ async function api(path: string, body: unknown) {
         "Content-Type": "application/json",
         "x-api-key": process.env.UNISWAP_API_KEY,
         "x-universal-router-version": "2.0",
+        // Attribute this traffic as an autonomous agent integration so Uniswap
+        // can measure agent-driven volume. JSON value; carries no user data.
+        "X-Agent-Info": JSON.stringify({
+          decision_origin: "autonomous",
+          integration_name: "melt",
+          version: "0.2.0",
+        }),
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(20000),
