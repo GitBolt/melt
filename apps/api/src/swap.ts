@@ -10,15 +10,23 @@ import {
 } from "viem";
 import { client, chain } from "./chain.js";
 
-// Uniswap V3 canonical deployments. These addresses are the same on Ethereum
-// mainnet and are present whenever the local chain is a mainnet fork, so a
-// swap is a plain native-value contract call from the task vault — no ERC-20
-// approval, which is exactly what the vault's spending model already allows.
-export const UNISWAP = {
-  router: getAddress("0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"), // SwapRouter02
-  quoter: getAddress("0x61fFE014bA17989E743c5F6cB21bF9697530B21e"), // QuoterV2
+// Uniswap V3 deployments. Mainnet addresses are reused on a local mainnet fork
+// (chain id 31337). Sepolia uses the official testnet router/quoter so hosted
+// Melt can settle envelopes with faucet ETH instead of real money.
+const MAINNET_UNISWAP = {
+  router: getAddress("0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"),
+  quoter: getAddress("0x61fFE014bA17989E743c5F6cB21bF9697530B21e"),
   weth: getAddress("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
 } as const;
+const SEPOLIA_UNISWAP = {
+  router: getAddress("0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E"),
+  quoter: getAddress("0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3"),
+  weth: getAddress("0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"),
+} as const;
+export function uniswapFor(chainId: number) {
+  return chainId === 11155111 ? SEPOLIA_UNISWAP : MAINNET_UNISWAP;
+}
+export const UNISWAP = uniswapFor(chain.id);
 
 export interface TokenInfo {
   symbol: string;
@@ -27,9 +35,7 @@ export interface TokenInfo {
   decimals: number;
 }
 
-// A curated set of deep-liquidity tokens an agent can buy with its ETH
-// allowance. Custom ERC-20 addresses are also accepted and resolved onchain.
-export const TOKENS: TokenInfo[] = [
+const MAINNET_TOKENS: TokenInfo[] = [
   {
     symbol: "USDC",
     name: "USD Coin",
@@ -87,10 +93,28 @@ export const TOKENS: TokenInfo[] = [
   {
     symbol: "WETH",
     name: "Wrapped Ether",
-    address: UNISWAP.weth,
+    address: MAINNET_UNISWAP.weth,
     decimals: 18,
   },
 ];
+const SEPOLIA_TOKENS: TokenInfo[] = [
+  {
+    symbol: "USDC",
+    name: "USD Coin",
+    address: getAddress("0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"),
+    decimals: 6,
+  },
+  {
+    symbol: "WETH",
+    name: "Wrapped Ether",
+    address: SEPOLIA_UNISWAP.weth,
+    decimals: 18,
+  },
+];
+export function tokensFor(chainId: number) {
+  return chainId === 11155111 ? SEPOLIA_TOKENS : MAINNET_TOKENS;
+}
+export const TOKENS: TokenInfo[] = tokensFor(chain.id);
 
 const routerAbi = [
   {
@@ -169,7 +193,7 @@ const FEE_TIERS = [500, 3000, 10000, 100] as const;
 
 let available: boolean | undefined;
 // Uniswap is usable only when its router and quoter bytecode exist on the
-// connected chain (mainnet or a mainnet fork). Checked once and cached.
+// connected chain (mainnet, a mainnet fork, or Sepolia). Checked once and cached.
 export async function swapAvailable(): Promise<boolean> {
   if (available !== undefined) return available;
   try {

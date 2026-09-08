@@ -1,7 +1,11 @@
 import { MeltLoading } from "./components/MeltMotion";
 import React, { Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { Config } from "../../../packages/shared/src/index";
+import {
+  networkKind,
+  SEPOLIA_FAUCET,
+  type Config,
+} from "../../../packages/shared/src/index";
 import App from "./App";
 import Landing from "./Landing";
 import { DirectRecovery } from "./DirectRecovery";
@@ -13,10 +17,13 @@ const product = location.pathname === "/app";
 const publicReceiptToken = location.pathname.match(
   /^\/r\/([0-9a-f]{48})$/i,
 )?.[1];
+const recoveryChainId = Number(import.meta.env.VITE_CHAIN_ID || 11155111);
 const recoveryConfig: Config = {
   mode: "configured",
+  network: networkKind(recoveryChainId),
+  faucetUrl: recoveryChainId === 11155111 ? SEPOLIA_FAUCET : undefined,
   chain: {
-    id: Number(import.meta.env.VITE_CHAIN_ID || 11155111),
+    id: recoveryChainId,
     name: import.meta.env.VITE_CHAIN_NAME || "Sepolia",
     symbol: "ETH",
     explorer:

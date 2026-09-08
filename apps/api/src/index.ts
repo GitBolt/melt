@@ -11,6 +11,8 @@ import { toFunctionSelector, parseEther, formatEther } from "viem";
 import {
   createTask,
   createEnvelope,
+  networkKind,
+  SEPOLIA_FAUCET,
   type Task,
 } from "../../../packages/shared/src/index.js";
 import { forbiddenSelectors } from "./policy.js";
@@ -155,6 +157,8 @@ app.get("/api/health", async () => ({
 }));
 app.get("/api/config", async () => ({
   mode: local ? "local" : "configured",
+  network: networkKind(chain.id),
+  faucetUrl: chain.id === 11155111 ? SEPOLIA_FAUCET : undefined,
   chain: {
     id: chain.id,
     name: chain.name,
@@ -684,9 +688,7 @@ app.post("/api/keys", async (req) => {
     .parse(req.body);
   const token = "melt_" + randomBytes(32).toString("hex");
   const inserted = db
-    .prepare(
-      "INSERT INTO tokens(hash,user_id,name,created) VALUES(?,?,?,?)",
-    )
+    .prepare("INSERT INTO tokens(hash,user_id,name,created) VALUES(?,?,?,?)")
     .run(digest(token), user.id, name, new Date().toISOString());
   return {
     token,

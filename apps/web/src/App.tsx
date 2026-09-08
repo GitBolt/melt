@@ -29,11 +29,12 @@ import type {
   TaskStatus,
   Envelope,
 } from "../../../packages/shared/src/index";
-import { mandateText } from "../../../packages/shared/src/index";
+import { mandateText, networkKind } from "../../../packages/shared/src/index";
 import { BudgetRibbon } from "./components/BudgetRibbon";
 import { GooeyNav } from "./components/ui/gooey-nav";
 import { SessionSeal } from "./SessionSeal";
 import { FundingSwap } from "./FundingSwap";
+import { NetworkStrip } from "./NetworkStrip";
 import {
   DiscoverPanel,
   EnvelopeComposer,
@@ -332,15 +333,16 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
         </button>
       </header>
       <div className="environment">
-        <span>
-          <span className="network-mark">◇</span>
-          {config.chain.name}
-          <span className="env-detail">
-            {config.mode === "local"
-              ? "Test funds · no real money"
-              : "Task wallets"}
-          </span>
-        </span>
+        <NetworkStrip
+          network={config.network || networkKind(config.chain.id)}
+          chainName={config.chain.name}
+          faucetUrl={config.faucetUrl}
+          onExplainMainnet={() =>
+            setNotice(
+              "This hosted Melt is Sepolia. Mainnet would spend real ETH and is not this deployment.",
+            )
+          }
+        />
         <span>
           {config.browserAvailable === false
             ? "Browser unavailable · recovery available"
@@ -1094,64 +1096,64 @@ function SessionDetail({
                           ? "Review this envelope vault"
                           : "This vault holds the gift"
                     : t.kind === "swap"
-                    ? t.status === "closed"
-                      ? t.assets.some((a) => a.recovered)
-                        ? recoveredTokens[0]?.amount
-                          ? `${formatAmount(Number(recoveredTokens[0].amount))} ${recoveredTokens[0].symbol || t.swap?.symbol} returned to your wallet`
-                          : `${t.swap?.symbol || "Token"} returned to your wallet`
-                        : "Swap session closed"
-                      : t.status === "closing"
-                        ? "Returning your token"
-                        : t.status === "funding"
-                          ? "Add funds to swap"
-                          : t.status === "attention"
-                            ? "Review your session"
-                            : t.status === "running"
-                              ? "Swapping on Uniswap"
-                              : "Ready to swap"
-                    : t.status === "closed"
-                      ? t.assets.some((a) => a.recovered)
-                        ? "Assets returned"
-                        : "Session closed"
-                      : t.status === "closing"
-                        ? "Returning your funds and assets"
-                        : t.status === "funding"
-                          ? "Add funds to start"
-                          : t.status === "attention"
-                            ? "Review your session"
-                            : t.status === "ready"
-                              ? "Ready to start your task"
-                              : "Opening your task browser"}
+                      ? t.status === "closed"
+                        ? t.assets.some((a) => a.recovered)
+                          ? recoveredTokens[0]?.amount
+                            ? `${formatAmount(Number(recoveredTokens[0].amount))} ${recoveredTokens[0].symbol || t.swap?.symbol} returned to your wallet`
+                            : `${t.swap?.symbol || "Token"} returned to your wallet`
+                          : "Swap session closed"
+                        : t.status === "closing"
+                          ? "Returning your token"
+                          : t.status === "funding"
+                            ? "Add funds to swap"
+                            : t.status === "attention"
+                              ? "Review your session"
+                              : t.status === "running"
+                                ? "Swapping on Uniswap"
+                                : "Ready to swap"
+                      : t.status === "closed"
+                        ? t.assets.some((a) => a.recovered)
+                          ? "Assets returned"
+                          : "Session closed"
+                        : t.status === "closing"
+                          ? "Returning your funds and assets"
+                          : t.status === "funding"
+                            ? "Add funds to start"
+                            : t.status === "attention"
+                              ? "Review your session"
+                              : t.status === "ready"
+                                ? "Ready to start your task"
+                                : "Opening your task browser"}
                 </h2>
                 <p>
                   {t.envelopeId
                     ? t.error ||
                       "Qualifying purchases settle through Uniswap. Leftover funds stay here until the envelope expires."
                     : t.kind === "swap"
-                    ? t.status === "closed"
-                      ? `Swapped ${t.spent} ${config.chain.symbol} for ${t.swap?.symbol || "tokens"} · agent spending disabled`
-                      : t.error ||
-                        (t.status === "closing"
-                          ? "Returning your purchased token and any unused funds."
-                          : t.status === "running"
-                            ? `Buying ${t.swap?.symbol || "tokens"} inside your spending limit, then returning it to you.`
-                            : t.status === "ready"
-                              ? `Melt will swap ${t.swap?.amountIn} ${config.chain.symbol} for ${t.swap?.symbol} through Uniswap V3, within your limit.`
-                              : "Add the funds this swap can use. Gas costs are separate.")
-                    : t.status === "closed"
-                      ? `${returnedAssets} ${returnedAssets === 1 ? "asset" : "assets"} returned · agent spending disabled`
-                      : t.error ||
-                        (t.status === "closing"
-                          ? "Ending agent access and returning funds to your wallet."
-                          : t.status === "funding"
-                            ? "Add the funds this task can use. Gas costs are separate."
-                            : t.status === "attention"
-                              ? "Check the activity below, then retry recovery."
+                      ? t.status === "closed"
+                        ? `Swapped ${t.spent} ${config.chain.symbol} for ${t.swap?.symbol || "tokens"} · agent spending disabled`
+                        : t.error ||
+                          (t.status === "closing"
+                            ? "Returning your purchased token and any unused funds."
+                            : t.status === "running"
+                              ? `Buying ${t.swap?.symbol || "tokens"} inside your spending limit, then returning it to you.`
                               : t.status === "ready"
-                                ? t.url
-                                  ? "Your agent will open the website using this wallet."
-                                  : "Your agent will open a browser using this wallet."
-                                : "Your browser preview will appear here.")}
+                                ? `Melt will swap ${t.swap?.amountIn} ${config.chain.symbol} for ${t.swap?.symbol} through Uniswap V3, within your limit.`
+                                : "Add the funds this swap can use. Gas costs are separate.")
+                      : t.status === "closed"
+                        ? `${returnedAssets} ${returnedAssets === 1 ? "asset" : "assets"} returned · agent spending disabled`
+                        : t.error ||
+                          (t.status === "closing"
+                            ? "Ending agent access and returning funds to your wallet."
+                            : t.status === "funding"
+                              ? "Add the funds this task can use. Gas costs are separate."
+                              : t.status === "attention"
+                                ? "Check the activity below, then retry recovery."
+                                : t.status === "ready"
+                                  ? t.url
+                                    ? "Your agent will open the website using this wallet."
+                                    : "Your agent will open a browser using this wallet."
+                                  : "Your browser preview will appear here.")}
                 </p>
                 {t.status === "ready" && t.kind === "swap" && (
                   <button
@@ -1190,7 +1192,9 @@ function SessionDetail({
                       </button>
                     )}
                     <button
-                      className={config.modelConfigured ? "secondary" : "primary"}
+                      className={
+                        config.modelConfigured ? "secondary" : "primary"
+                      }
                       disabled={!!busy}
                       onClick={() =>
                         act("start", () =>

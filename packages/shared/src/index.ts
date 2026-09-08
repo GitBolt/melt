@@ -245,8 +245,21 @@ export interface Task extends CreateTask {
   receiptToken?: string;
   envelopeId?: string;
 }
+export type NetworkKind = "local" | "testnet" | "mainnet";
+
+export const SEPOLIA_FAUCET =
+  "https://ethglobal.com/faucet/sepolia-11155111-eth";
+
+export function networkKind(chainId: number): NetworkKind {
+  if (chainId === 1) return "mainnet";
+  if (chainId === 11155111) return "testnet";
+  return "local";
+}
+
 export interface Config {
   mode: "local" | "configured";
+  network: NetworkKind;
+  faucetUrl?: string;
   chain: { id: number; name: string; symbol: string; explorer?: string };
   privyAppId?: string;
   modelConfigured: boolean;
