@@ -1,6 +1,11 @@
 # Check-in draft — not posted
 
-I'm building Melt: let an agent spend without your wallet. You give it a job and a spending limit. It gets a separate wallet and browser, does the task, and returns the assets and unused funds when the session ends. You can still recover assets that arrive later.
+I'm building Melt Envelopes: gift cards without stores. You send purchasing power for a purpose — dinner, a flight home, mobile data for a trip — and their existing assistant chooses how to use it later. The money is locked onchain. They cannot cash it out. You cannot take it back early.
+
+ChatGPT, Claude, Codex or Grok call Melt through MCP, find a qualifying purchase, and Melt converts only the required ETH to USDC on Uniswap. Unused funds stay in the envelope, then return to the sender.
+
+App: [Melt](https://melt-woad.vercel.app)
+Public source: [GitBolt/melt](https://github.com/GitBolt/melt)
 
 The hosted flow now works on Sepolia: I signed in with email, funded a task wallet with 0.0003 ETH, and let the AI connect to a test dapp and mint a collectible. It spent 0.0001 ETH, then returned the NFT and the remaining 0.0002 ETH. The receipts and final NFT ownership are verified onchain.
 

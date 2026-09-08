@@ -1,6 +1,6 @@
 # Melt API
 
-Create and fund a task wallet in [Melt](https://melt-woad.vercel.app), then let your agent operate that session over HTTP.
+Create and fund a purpose-bound envelope in [Melt](https://melt-woad.vercel.app), then let an existing assistant redeem it over HTTP or MCP.
 
 - **Hosted base URL:** `https://melt-woad.vercel.app/api`
 - **Direct backend:** `https://melt-api-production-1b26.up.railway.app/api`
@@ -14,11 +14,11 @@ Create a key under **Developers** in Melt. Keep it in your agent's environment:
 
 ```sh
 curl --fail-with-body \
-  'https://melt-woad.vercel.app/api/sessions' \
+  'https://melt-woad.vercel.app/api/envelopes' \
   -H "Authorization: Bearer $MELT_API_KEY"
 ```
 
-Agent keys use `Authorization: Bearer melt_…`. They can read, run and close sessions belonging to the issuing account. They cannot create sessions, register funding or recovery tokens, perform owner swaps, or manage keys. A key is account-scoped, not limited to one session.
+Agent keys use `Authorization: Bearer melt_…`. They can list envelopes, find matching purchases, propose a quote and redeem it. They cannot create envelopes, register funding, or send unrestricted cash. A key is account-scoped. Revocation applies to subsequent requests.
 
 Owner-only endpoints require a verified Privy access token in the bearer header. An owner cookie exists only in local development, and cookie-authenticated mutations require an `Origin` matching `APP_ORIGIN`. Never share an owner token with an agent. API key creation returns the token once; the service stores its hash. Revocation applies to subsequent requests.
 
@@ -31,7 +31,14 @@ Paths below are relative to the base URL.
 | GET        | `/health`, `/config`                                   | Public         | Service health and current chain configuration                      |
 | GET        | `/openapi.json`, `/client.mjs`, `/client.d.mts`        | Public         | Reference and standalone client downloads                           |
 | GET        | `/me`                                                  | Owner or agent | Identity; agent keys do not expose an owner signing credential      |
-| GET        | `/sessions`                                            | Owner or agent | List the account's sessions                                         |
+| GET        | `/envelopes`                                           | Owner or agent | List sent and received envelopes                                    |
+| POST       | `/envelopes`                                           | Owner          | Create a purpose-bound envelope and its vault                       |
+| GET        | `/envelopes/{id}`                                      | Owner or agent | Read purpose, remaining funds, policy hash and redemptions          |
+| GET        | `/envelopes/{id}/options`                              | Owner or agent | Find purchases that satisfy the gift                                |
+| POST       | `/envelopes/{id}/propose`                              | Owner or agent | Propose a catalog option; does not move funds                       |
+| POST       | `/envelopes/{id}/redeem`                               | Owner or agent | Settle a quote after policy check; rejects generic transfers        |
+| GET        | `/envelopes/{id}/redemptions`                          | Owner or agent | Settlement and delivery status                                      |
+| GET        | `/sessions`                                            | Owner or agent | List backing vault sessions                                         |
 | POST       | `/sessions`                                            | Owner          | Create a wallet with a spending limit and an optional contract lock |
 | GET        | `/sessions/{id}`                                       | Owner or agent | Status, events, transactions and assets                             |
 | POST       | `/sessions/{id}/start`                                 | Owner or agent | Run the configured model, or open manual control                    |

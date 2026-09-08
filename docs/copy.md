@@ -12,13 +12,13 @@ Keep headings brief. Give supporting text one job. Buttons describe the action, 
 
 ## Product vocabulary
 
-- **Task:** the job the person wants done.
-- **Session:** the task wallet, browser, permissions, and activity for one run.
-- **Task wallet:** the wallet used by the agent, separate from the main wallet.
-- **Spending limit:** the maximum native-token value the wallet may spend. Gas costs are separate.
-- **Return wallet:** the fixed destination for returned funds and supported assets.
-- **Receipt:** the session’s spending, transactions, returned assets, recovery status and task outcome.
-- **API key:** access to operate sessions already authorized by the owner; it cannot create wallets or raise spending limits.
+- **Envelope:** a purpose-bound gift. Purchasing power for a promise, not unrestricted cash.
+- **Discover:** valid ways to use one envelope.
+- **Activity:** settlement and delivery history.
+- **Policy:** the immutable conditions (purpose, cap, expiry, deny list) hashed onchain in the receipt.
+- **Task wallet / vault:** implementation detail that holds the envelope. Not a top-level product.
+- **Receipt:** the envelope’s spending, settlement hashes, returned assets and outcome.
+- **API key:** access to list, find, propose and redeem existing envelopes; it cannot create envelopes or send unrestricted cash.
 
 Use exact technical terms where they help someone configure the product: contract address, function selector, base units, ERC-20, ERC-721, API, and MCP. Contract locks are optional.
 

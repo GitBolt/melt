@@ -1,8 +1,52 @@
 import { test, expect, type Page } from "@playwright/test";
 const base = "http://127.0.0.1:5173";
 const workspace = base + "/app";
-async function chooseExample(page: Page, name: "Mint" | "Pay") {
-  await page.getByRole("button", { name, exact: true }).click();
+async function signInLocal(page: Page) {
+  await page.goto(workspace);
+  await page.getByRole("button", { name: "Open local workspace" }).click();
+}
+async function createBrowseSession(
+  page: Page,
+  extra: {
+    title?: string;
+    instruction?: string;
+    url?: string;
+    target?: string;
+    selector?: string;
+    key?: string;
+  } = {},
+) {
+  const cfg = await (await page.request.get(base + "/api/config")).json();
+  const me = await (await page.request.get(base + "/api/me")).json();
+  const response = await page.request.post(base + "/api/sessions", {
+    headers: {
+      Origin: base,
+      "Idempotency-Key": extra.key || crypto.randomUUID(),
+    },
+    data: {
+      title: extra.title || "Mint a field note",
+      instruction:
+        extra.instruction ||
+        "Connect the wallet and mint one field note. Return the collectible and remaining funds when done.",
+      url: extra.url ?? cfg.fixture.url,
+      budget: "0.0003",
+      durationMinutes: 15,
+      target: extra.target === undefined ? cfg.fixture.target : extra.target,
+      selector:
+        extra.selector === undefined ? cfg.fixture.selector : extra.selector,
+      recovery: me.owner,
+      kind: "browse",
+    },
+  });
+  expect(response.ok(), await response.text()).toBeTruthy();
+  return response.json();
+}
+async function openActivitySession(page: Page, title: string) {
+  await page.getByRole("link", { name: "Activity", exact: true }).click();
+  await page
+    .getByRole("button", { name: new RegExp(title) })
+    .first()
+    .click();
 }
 // Fixed fixture choices belong only in tests. Production agents choose from observations.
 async function mintThroughManualBrowser(page: Page) {
@@ -71,7 +115,7 @@ test("product page explains the task wallet before the workspace", async ({
   await page.goto(base);
   await expect(
     page.getByRole("heading", {
-      name: "Let an agent spend without your wallet.",
+      name: "Gift cards without stores.",
     }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Open Melt" }).first().click();
@@ -85,13 +129,9 @@ test("real browser mint returns NFT and remainder; receipt remains accessible", 
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(workspace);
-  await page.getByRole("button", { name: "Open local workspace" }).click();
-  await chooseExample(page, "Mint");
-  await expect(
-    page.getByRole("button", { name: "Create task wallet" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Create task wallet" }).click();
+  await signInLocal(page);
+  await createBrowseSession(page);
+  await openActivitySession(page, "Mint a field note");
   await expect(
     page.getByRole("button", { name: "Open task browser", exact: true }),
   ).toBeVisible({ timeout: 30000 });
@@ -209,13 +249,12 @@ test("second fixture layout works and narrow UI has no horizontal overflow", asy
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto(workspace);
-  await page.getByRole("button", { name: "Open local workspace" }).click();
-  await chooseExample(page, "Mint");
-  await page
-    .getByLabel("Starting website", { exact: true })
-    .fill("http://127.0.0.1:8788/print-shop");
-  await page.getByRole("button", { name: "Create task wallet" }).click();
+  await signInLocal(page);
+  await createBrowseSession(page, {
+    url: "http://127.0.0.1:8788/print-shop",
+    key: "print-shop-mobile",
+  });
+  await openActivitySession(page, "Mint a field note");
   await expect(
     page.getByRole("button", { name: "Open task browser", exact: true }),
   ).toBeVisible({ timeout: 30000 });
@@ -259,13 +298,15 @@ test("browser rejects oversized spend, completes allowed mint, and recovers late
     chain: foundry,
     transport: http("http://127.0.0.1:8545"),
   });
-  await page.goto(workspace);
-  await page.getByRole("button", { name: "Open local workspace" }).click();
-  await chooseExample(page, "Mint");
-  await page
-    .getByLabel("Starting website", { exact: true })
-    .fill("http://127.0.0.1:8788/guardrail-check");
-  await page.getByRole("button", { name: "Create task wallet" }).click();
+  await signInLocal(page);
+  await createBrowseSession(page, {
+    url: "http://127.0.0.1:8788/guardrail-check",
+    key: "guardrail-mint",
+  });
+  await openActivitySession(page, "Mint a field note");
+  await expect(
+    page.getByRole("button", { name: "Open task browser", exact: true }),
+  ).toBeVisible({ timeout: 30000 });
   await mintThroughManualBrowser(page);
   await expect(page.getByText("Session closed", { exact: true })).toBeVisible({
     timeout: 60000,
@@ -339,10 +380,9 @@ test("manual agent controls and MCP operate only owner-authorized sessions", asy
   const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
   const { StdioClientTransport } =
     await import("@modelcontextprotocol/sdk/client/stdio.js");
-  await page.goto(workspace);
-  await page.getByRole("button", { name: "Open local workspace" }).click();
-  await chooseExample(page, "Mint");
-  await page.getByRole("button", { name: "Create task wallet" }).click();
+  await signInLocal(page);
+  await createBrowseSession(page, { key: "mcp-mint" });
+  await openActivitySession(page, "Mint a field note");
   await expect(
     page.getByRole("button", { name: "Open task browser", exact: true }),
   ).toBeVisible();
@@ -370,25 +410,22 @@ test("manual agent controls and MCP operate only owner-authorized sessions", asy
   try {
     await mcp.connect(transport);
     const tools = await mcp.listTools();
-    expect(tools.tools.map((tool) => tool.name).sort()).toEqual(
-      [
+    const names = tools.tools.map((tool) => tool.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "list_envelopes",
+        "get_envelope",
+        "find_options",
+        "propose_purchase",
+        "redeem",
+        "get_redemption_status",
         "list_sessions",
         "start_session",
         "read_session",
-        "take_control",
-        "observe_browser",
-        "open_page",
-        "click_control",
-        "fill_control",
-        "close_session",
-        "wait_browser",
         "read_receipt",
-        "scroll_browser",
-        "press_control",
-        "select_control",
-        "finish_task",
-      ].sort(),
+      ]),
     );
+    expect(names).not.toContain("transfer");
     const started = await mcp.callTool({
       name: "start_session",
       arguments: { sessionId: task.id },
@@ -494,10 +531,18 @@ test("request validation blocks private URLs, changed idempotency bodies and cro
 test("a spending-limit session can complete a different job without a contract lock", async ({
   page,
 }) => {
-  await page.goto(workspace);
-  await page.getByRole("button", { name: "Open local workspace" }).click();
-  await chooseExample(page, "Pay");
-  await page.getByRole("button", { name: "Create task wallet" }).click();
+  await signInLocal(page);
+  const cfg = await (await page.request.get(base + "/api/config")).json();
+  await createBrowseSession(page, {
+    title: "Leave a tip",
+    instruction:
+      "Connect the wallet and leave a tip. Return unused funds when done.",
+    url: cfg.fixture.pay.url,
+    target: "",
+    selector: "",
+    key: "tip-session",
+  });
+  await openActivitySession(page, "Leave a tip");
   await expect(
     page.getByRole("button", { name: "Open task browser", exact: true }),
   ).toBeVisible({ timeout: 30000 });
@@ -560,6 +605,58 @@ test("a spending-limit session can complete a different job without a contract l
   expect(closed.outcome).toBe("succeeded");
 });
 
+test("envelope create, discover matching options, and reject cash-out", async ({
+  page,
+}) => {
+  await signInLocal(page);
+  await expect(
+    page.getByRole("heading", { name: "Send a possibility instead of cash." }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Uniswap swap" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole("button", { name: "Browser job" })).toHaveCount(
+    0,
+  );
+  await page.getByLabel("To").fill("Alex");
+  await page.getByRole("button", { name: "Mobile data", exact: true }).click();
+  await page.getByRole("button", { name: "Create envelope" }).click();
+  await expect(
+    page.getByText(/mobile data for your trip/i).first(),
+  ).toBeVisible({
+    timeout: 30000,
+  });
+  const created = await (
+    await page.request.get(base + "/api/envelopes")
+  ).json();
+  expect(created.sent.length).toBeGreaterThan(0);
+  const envelope = created.sent[0];
+  expect(envelope.category).toBe("esim");
+  expect(envelope.policyHash).toMatch(/^[0-9a-f]{64}$/);
+  await page.getByRole("link", { name: "Discover", exact: true }).click();
+  await page
+    .getByLabel("What do you want this gift to become")
+    .fill("an eSIM for Japan");
+  await page.getByRole("button", { name: "Find options" }).click();
+  await expect(page.getByText(/Japan eSIM/i).first()).toBeVisible({
+    timeout: 20000,
+  });
+  const cash = await page.request.get(
+    `${base}/api/envelopes/${envelope.id}/options?q=${encodeURIComponent("just transfer the money")}`,
+  );
+  const cashBody = await cash.json();
+  expect(cashBody.options).toEqual([]);
+  expect(cashBody.note).toMatch(/unrestricted cash/i);
+  const transfer = await page.request.post(
+    `${base}/api/envelopes/${envelope.id}/redeem`,
+    {
+      headers: { Origin: base },
+      data: { to: envelope.senderAddress, amount: "0.01" },
+    },
+  );
+  expect(transfer.status()).toBe(400);
+});
+
 test("developer UI creates and revokes a key, clears revealed secret on logout, and serves OpenAPI", async ({
   page,
 }) => {
@@ -574,6 +671,8 @@ test("developer UI creates and revokes a key, clears revealed secret on logout, 
   await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
   const doc = await (await page.request.get(base + "/api/openapi.json")).json();
   expect(doc.openapi).toBe("3.1.0");
+  expect(doc.paths["/envelopes"]).toBeDefined();
+  expect(doc.paths["/envelopes/{id}/redeem"]).toBeDefined();
   expect(doc.paths["/sessions/{id}/recover"]).toBeDefined();
   expect(doc.paths["/client.mjs"]).toBeDefined();
   const download = await page.request.get(base + "/api/client.mjs");

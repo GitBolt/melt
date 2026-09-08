@@ -40,6 +40,7 @@ export function publicReceipt(
     title: task.title,
     instruction: task.instruction,
     mandate: mandateText(task, chain.symbol),
+    envelopeId: task.envelopeId,
     kind: task.kind,
     swap: task.swap,
     budget: task.budget,
