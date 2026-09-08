@@ -139,7 +139,9 @@ export function listEnvelopes(userId: string, owner: string) {
     )
       received.push(envelope);
   }
-  return { sent, received };
+  const newest = (a: Envelope, b: Envelope) =>
+    Date.parse(b.createdAt) - Date.parse(a.createdAt);
+  return { sent: sent.sort(newest), received: received.sort(newest) };
 }
 
 export function canAccessEnvelope(

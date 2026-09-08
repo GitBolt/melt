@@ -618,7 +618,11 @@ test("envelope create, discover matching options, and reject cash-out", async ({
   await expect(page.getByRole("button", { name: "Browser job" })).toHaveCount(
     0,
   );
-  await page.getByLabel("To").fill("Alex");
+  const toField = page.getByLabel("To");
+  if (!(await toField.isVisible())) {
+    await page.getByRole("button", { name: "New envelope" }).click();
+  }
+  await toField.fill("Alex");
   await page.getByRole("button", { name: "Mobile data", exact: true }).click();
   await page.getByRole("button", { name: "Create envelope" }).click();
   await expect(
@@ -630,7 +634,11 @@ test("envelope create, discover matching options, and reject cash-out", async ({
     await page.request.get(base + "/api/envelopes")
   ).json();
   expect(created.sent.length).toBeGreaterThan(0);
-  const envelope = created.sent[0];
+  const envelope =
+    created.sent.find(
+      (item: { recipientLabel: string; purpose: string }) =>
+        item.recipientLabel === "Alex" && /mobile data/i.test(item.purpose),
+    ) || created.sent[0];
   expect(envelope.category).toBe("esim");
   expect(envelope.policyHash).toMatch(/^[0-9a-f]{64}$/);
   await page.getByRole("link", { name: "Discover", exact: true }).click();
@@ -655,6 +663,27 @@ test("envelope create, discover matching options, and reject cash-out", async ({
     },
   );
   expect(transfer.status()).toBe(400);
+  const proposed = await page.request.post(
+    `${base}/api/envelopes/${envelope.id}/propose`,
+    {
+      headers: { Origin: base },
+      data: { sku: "esim-jp-1gb", request: "an eSIM for Japan" },
+    },
+  );
+  expect(proposed.ok(), await proposed.text()).toBeTruthy();
+  const quote = await proposed.json();
+  const redeemed = await page.request.post(
+    `${base}/api/envelopes/${envelope.id}/redeem`,
+    {
+      headers: { Origin: base },
+      data: { quoteId: quote.quote.id },
+    },
+  );
+  expect(redeemed.ok(), await redeemed.text()).toBeTruthy();
+  const settled = await redeemed.json();
+  expect(settled.redemption.status).toBe("succeeded");
+  expect(settled.redemption.symbol).toBe("USDC");
+  expect(settled.redemption.hash).toMatch(/^0x[0-9a-fA-F]{64}$/);
 });
 
 test("developer UI creates and revokes a key, clears revealed secret on logout, and serves OpenAPI", async ({
