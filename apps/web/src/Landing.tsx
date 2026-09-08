@@ -242,8 +242,9 @@ export default function Landing() {
             ))}
           </div>
           <p className="flow-note">
-            Swap tokens to fund a session in your own wallet with Uniswap. That
-            conversion never enters the agent browser.
+            Or let the agent swap for you: tell Melt "swap 0.05 ETH for USDC" and
+            it trades on Uniswap V3 from the spend-limited task wallet, then
+            returns the token to you — real onchain execution, no approvals.
           </p>
         </div>
       </motion.section>
