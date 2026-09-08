@@ -22,6 +22,14 @@ Without model credentials, you or an external agent control the browser through 
 
 Local development starts Anvil on 8545, the API on 8787, test dapps on 8788, and the web app on 5173. Its ETH and wallets are public development accounts with no monetary value. No provider account or payment is required for manual local use.
 
+To try **agent-driven Uniswap swaps** against the real Uniswap V3 contracts, start with a mainnet fork (the chain id stays 31337, so every other local flow is unchanged):
+
+```sh
+MELT_FORK=1 npm run dev
+```
+
+Then sign in, choose the **Swap** tab, pick a token and amount, and run it. Melt swaps ETH for the token from a spend-limited task wallet and returns the token to your wallet — no ERC-20 approval, real onchain execution. Set `FORK_RPC_URL` to use your own RPC.
+
 ## Connect your own agent
 
 Create and fund a session in Melt, then create an API key under **Developers**. Use HTTP directly or download the dependency-free JavaScript client:
@@ -43,6 +51,7 @@ The client includes status polling, cancellation, screenshots, receipts and clea
 
 ## What's implemented
 
+- **Allowance-bounded Uniswap V3 swaps.** An agent (or one line of natural language) swaps ETH for a token from a task wallet capped by an onchain limit, then the token returns to the owner. Deterministic and reliable — it never depends on a model driving a UI. Because an ETH→token router call carries value and needs no `approve`, it runs inside the existing task-wallet security model.
 - Owner-authorized wallet creation, separate funding, isolated browser execution, live preview, manual takeover, expiry, recovery and downloadable receipts.
 - Solidity task wallets with immutable owner, agent, optional permitted target/function, cumulative native-token budget and expiry.
 - ERC-20 and ERC-721 recovery, including late assets. Native refunds are derived from confirmed recovery logs.
@@ -54,7 +63,12 @@ The client includes status polling, cancellation, screenshots, receipts and clea
 
 Privy is the owner identity and wallet: email or external wallet login, an embedded Ethereum wallet, passkeys, and the relayer that signs outer task-wallet transactions. The live financial flow is sign in → owner wallet → fund the session → the agent spends inside the limit → unused funds and supported assets return. Implementation: [`apps/web/src/PrivyApp.tsx`](apps/web/src/PrivyApp.tsx).
 
-Uniswap is an owner-only conversion used to fund a session. The agent browser never receives that wallet. Adapter: [`apps/api/src/uniswap.ts`](apps/api/src/uniswap.ts) (`checkApproval`, `uniswapQuote`, `prepareSwap`). UI: [`apps/web/src/FundingSwap.tsx`](apps/web/src/FundingSwap.tsx). Review notes: [`FEEDBACK.md`](FEEDBACK.md).
+### Uniswap integration (for reviewers)
+
+Melt integrates Uniswap in two places. Precise code pointers are in [`FEEDBACK.md`](FEEDBACK.md).
+
+- **Agent-executed Uniswap V3 swaps (headline).** A task wallet swaps ETH for a token on Uniswap V3, bounded by its onchain allowance. Engine: [`apps/api/src/swap.ts`](apps/api/src/swap.ts) — `quoteSwap` (QuoterV2 `0x61fFE014bA17989E743c5F6cB21bF9697530B21e`, best fee tier), `buildSwapCall` (SwapRouter02 `0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45` `exactInputSingle`, native value, no approval). Execution: [`apps/api/src/browser.ts`](apps/api/src/browser.ts) `runSwap` via the vault's `execute`. The reason no approval is needed and this stays safe: [`contracts/src/TaskVault.sol`](contracts/src/TaskVault.sol) `execute`/`_forbidden`. Natural-language routing: [`apps/api/src/intent.ts`](apps/api/src/intent.ts).
+- **Owner funding conversion (Uniswap Trading API).** An owner-only conversion used to fund a session. The agent browser never receives that wallet. Adapter: [`apps/api/src/uniswap.ts`](apps/api/src/uniswap.ts) (`checkApproval`, `uniswapQuote`, `prepareSwap`). UI: [`apps/web/src/FundingSwap.tsx`](apps/web/src/FundingSwap.tsx).
 
 Implementation is not the same as live verification. [The verification record](docs/verification.md) distinguishes local transaction evidence, mocked provider tests and outstanding public-network checks.
 
