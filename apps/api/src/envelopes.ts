@@ -12,7 +12,8 @@ import {
   type EnvelopeStatus,
   type Task,
 } from "../../../packages/shared/src/index.js";
-import { db, event, get, save, serial } from "./store.js";
+import { db, event, get, getByReceiptToken, save, serial } from "./store.js";
+import { giftEmail, giftUrl, mailConfigured, sendMail } from "./mail.js";
 import {
   client,
   demoOwner,
@@ -157,21 +158,147 @@ export function canAccessEnvelope(
   return false;
 }
 
-async function ethUsdRate() {
-  if (!(await swapAvailable())) return 2500;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function inferEmail(parsed: CreateEnvelope) {
+  const explicit = parsed.recipientEmail?.trim() || "";
+  if (explicit) return explicit;
+  const label = parsed.recipientLabel.trim();
+  return EMAIL_RE.test(label) ? label : "";
+}
+
+export async function notifyGift(
+  envelope: Envelope,
+  kind: "sent" | "ready" | "spent",
+) {
+  const to = envelope.recipientEmail?.trim();
+  if (!to || !mailConfigured()) return { sent: false as const };
   try {
-    const usdc = TOKENS.find((token) => token.symbol === "USDC");
-    if (!usdc) return 2500;
-    const quote = await quoteSwap({
-      tokenOut: usdc.address,
-      amountIn: "0.01",
-      slippageBps: 50,
-    });
-    const usd = Number(quote.amountOut) * 100;
-    return usd > 100 ? usd : 2500;
-  } catch {
-    return 2500;
+    await sendMail(
+      to,
+      giftEmail(kind, envelope, await ethUsdRate({ wait: false })),
+    );
+    envelope.lastEmailedAt = new Date().toISOString();
+    saveEnvelope(envelope);
+    return { sent: true as const };
+  } catch (error) {
+    try {
+      event(
+        get(envelope.sessionId),
+        "info",
+        `Gift email did not send: ${errorMessage(error)}`,
+      );
+    } catch {
+      /* envelope may not have a session yet */
+    }
+    return { sent: false as const, reason: errorMessage(error) };
   }
+}
+
+export async function notifyEnvelopeSession(
+  sessionId: string,
+  kind: "sent" | "ready" | "spent",
+) {
+  const envelope = envelopeBySession(sessionId);
+  if (envelope) await notifyGift(presentEnvelope(envelope), kind);
+}
+
+export function giftByToken(token: string) {
+  const task = getByReceiptToken(token);
+  const envelope = envelopeBySession(task.id);
+  if (!envelope)
+    throw Object.assign(Error("Gift not found"), { statusCode: 404 });
+  return presentEnvelope(envelope, task);
+}
+
+export function publicGift(envelope: Envelope, rate?: number) {
+  const usd = Number(envelope.remaining || envelope.budget) * (rate || 0);
+  const amount =
+    rate && Number.isFinite(usd) && usd > 0
+      ? usd.toLocaleString(undefined, {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: usd >= 10 ? 0 : 2,
+        })
+      : `${envelope.budget} ETH`;
+  return {
+    object: "gift" as const,
+    purpose: envelope.purpose,
+    senderName: envelope.senderName || "Someone",
+    recipientLabel: envelope.recipientLabel,
+    note: envelope.note || "",
+    status: envelope.status,
+    amount,
+    expiresAt: envelope.expiresAt,
+    giftOpenedAt: envelope.giftOpenedAt,
+    lastEmailedAt: envelope.lastEmailedAt,
+    funded: envelope.status !== "funding",
+    lastPurchase: envelope.redemptions.at(-1)?.title || "",
+    url: giftUrl(envelope.receiptToken),
+  };
+}
+
+export async function publicGiftByToken(token: string) {
+  return publicGift(giftByToken(token), await ethUsdRate({ wait: false }));
+}
+
+export async function markGiftOpened(token: string) {
+  const envelope = giftByToken(token);
+  if (!envelope.giftOpenedAt) {
+    envelope.giftOpenedAt = new Date().toISOString();
+    saveEnvelope(envelope);
+  }
+  return publicGift(envelope, await ethUsdRate({ wait: false }));
+}
+
+export async function resendGiftEmail(envelope: Envelope) {
+  if (!envelope.recipientEmail)
+    throw Object.assign(Error("This gift has no recipient email"), {
+      statusCode: 400,
+    });
+  if (!mailConfigured())
+    throw Object.assign(Error("Mail is not configured"), { statusCode: 503 });
+  const kind = envelope.redemptions.some((item) => item.status === "succeeded")
+    ? "spent"
+    : envelope.status === "funding"
+      ? "sent"
+      : "ready";
+  const result = await notifyGift(presentEnvelope(envelope), kind);
+  if (!result.sent)
+    throw Object.assign(Error(result.reason || "Gift email did not send"), {
+      statusCode: 502,
+    });
+  return { sent: true, lastEmailedAt: envelope.lastEmailedAt };
+}
+
+let rateCache: { at: number; rate: number } | undefined;
+
+export async function ethUsdRate(opts?: { wait?: boolean }) {
+  if (rateCache && Date.now() - rateCache.at < 45_000) return rateCache.rate;
+  const wait = opts?.wait !== false;
+  if (!wait) {
+    void ethUsdRate({ wait: true });
+    return rateCache?.rate ?? 2500;
+  }
+  let rate = 2500;
+  if (await swapAvailable()) {
+    try {
+      const usdc = TOKENS.find((token) => token.symbol === "USDC");
+      if (usdc) {
+        const quote = await quoteSwap({
+          tokenOut: usdc.address,
+          amountIn: "0.01",
+          slippageBps: 50,
+        });
+        const usd = Number(quote.amountOut) * 100;
+        if (usd > 100) rate = usd;
+      }
+    } catch {
+      rate = 2500;
+    }
+  }
+  rateCache = { at: Date.now(), rate };
+  return rate;
 }
 
 export async function createFundedEnvelope(
@@ -223,8 +350,11 @@ export async function createFundedEnvelope(
     sessionId: task.id,
     vault: "",
     senderAddress: user.owner,
+    senderName: parsed.senderName || "",
     recipientLabel: parsed.recipientLabel,
+    recipientEmail: inferEmail(parsed),
     recipientAddress: parsed.recipientAddress || "",
+    note: parsed.note || "",
     purpose: parsed.purpose,
     category: policy.category,
     budget: parsed.budget,
@@ -264,6 +394,11 @@ export async function createFundedEnvelope(
   });
   if (envelope.status !== "funding")
     emit(user.id, "envelope.funded", task, { envelopeId: envelope.id });
+  if (parsed.notifyRecipient !== false)
+    await notifyGift(
+      envelope,
+      envelope.status === "funding" ? "sent" : "ready",
+    );
   return presentEnvelope(envelope, task);
 }
 
@@ -503,6 +638,7 @@ export async function redeemQuote(envelope: Envelope, quoteId: string) {
     };
     live.redemptions.push(redemption);
     saveEnvelope(presentEnvelope(live, get(task.id)));
+    await notifyGift(getEnvelope(live.id), "spent");
     emit(task.userId, "envelope.redeemed", get(task.id), {
       envelopeId: live.id,
       quoteId: quote.id,

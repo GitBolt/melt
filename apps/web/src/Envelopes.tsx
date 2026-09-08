@@ -3,13 +3,15 @@ import { useEffect, useId, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
-  Plus,
   Gift,
   Check,
   Wallet,
   Search,
   ShieldCheck,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { parseEther, toHex } from "viem";
@@ -24,39 +26,58 @@ export const PRESETS = [
   {
     label: "Dinner",
     purpose: "Dinner for two, anywhere you like, up to $120",
-    budget: "0.05",
+    usd: "120",
   },
   {
     label: "Flight home",
     purpose: "A flight home for Thanksgiving, up to $400",
-    budget: "0.16",
+    usd: "400",
   },
   {
     label: "Concert",
     purpose: "Any concert you want this summer, up to $150",
-    budget: "0.06",
+    usd: "150",
   },
   {
     label: "Apartment",
     purpose: "Something for your new apartment, except electronics",
-    budget: "0.08",
+    usd: "200",
   },
   {
     label: "Mobile data",
     purpose: "Mobile data for your trip, up to $20",
-    budget: "0.01",
+    usd: "20",
   },
   {
     label: "Indie game",
     purpose: "Any indie game under $40",
-    budget: "0.02",
+    usd: "40",
   },
   {
     label: "AI month",
     purpose: "One month of an AI product you actually want",
-    budget: "0.01",
+    usd: "25",
   },
 ];
+
+export function usdToEth(usd: number, rate: number) {
+  if (!(usd > 0) || !(rate > 0)) return "";
+  const eth = usd / rate;
+  if (eth > 10) return "";
+  const text = eth.toFixed(5).replace(/\.?0+$/, "");
+  return Number(text) > 0 ? text : "";
+}
+
+export function formatUsd(eth: string | number, rate?: number) {
+  const n = Number(eth);
+  if (!rate || !Number.isFinite(n) || n < 0) return "";
+  const usd = n * rate;
+  return usd.toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: usd >= 10 ? 0 : 2,
+  });
+}
 
 function defaultUntil() {
   const date = new Date();
@@ -73,6 +94,169 @@ function newYearUntil() {
 function endOfDay(date: string) {
   const [year, month, day] = date.split("-").map(Number);
   return Math.floor(Date.UTC(year, month - 1, day, 23, 59, 59) / 1000);
+}
+
+function toIso(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function fromIso(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function DateField({
+  label,
+  value,
+  min,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  min: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [cursor, setCursor] = useState(() => fromIso(value));
+  const reduced = useReducedMotion();
+  const root = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const selected = fromIso(value);
+  const minDay = fromIso(min);
+  useEffect(() => {
+    if (open) setCursor(fromIso(value));
+  }, [open, value]);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (event: MouseEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  const start = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  const pad = start.getDay();
+  const days = new Date(
+    cursor.getFullYear(),
+    cursor.getMonth() + 1,
+    0,
+  ).getDate();
+  const cells = Array.from({ length: pad + days }, (_, i) =>
+    i < pad
+      ? null
+      : new Date(cursor.getFullYear(), cursor.getMonth(), i - pad + 1),
+  );
+  while (cells.length % 7) cells.push(null);
+  return (
+    <div className="date-field" ref={root}>
+      <span>{label}</span>
+      <button
+        type="button"
+        className={`date-trigger${open ? " open" : ""}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((next) => !next)}
+      >
+        {selected.toLocaleDateString(undefined, {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })}
+        <ChevronDown size={16} />
+      </button>
+      <AnimatePresence>
+        {open ? (
+          <motion.div
+            id={listId}
+            role="dialog"
+            aria-label={label}
+            className="date-menu"
+            initial={reduced ? false : { opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={reduced ? undefined : { opacity: 0, y: -6, scale: 0.98 }}
+            transition={
+              reduced
+                ? { duration: 0 }
+                : { type: "spring", stiffness: 200, damping: 28, mass: 1 }
+            }
+          >
+            <div className="date-nav">
+              <button
+                type="button"
+                aria-label="Previous month"
+                onClick={() =>
+                  setCursor(
+                    new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1),
+                  )
+                }
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <strong>
+                {cursor.toLocaleDateString(undefined, {
+                  month: "long",
+                  year: "numeric",
+                })}
+              </strong>
+              <button
+                type="button"
+                aria-label="Next month"
+                onClick={() =>
+                  setCursor(
+                    new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1),
+                  )
+                }
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="date-week">
+              {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
+                <span key={day}>{day}</span>
+              ))}
+            </div>
+            <div className="date-grid">
+              {cells.map((day, i) =>
+                day ? (
+                  <button
+                    key={toIso(day)}
+                    type="button"
+                    disabled={day < minDay}
+                    className={
+                      toIso(day) === value
+                        ? "chosen"
+                        : toIso(day) === toIso(new Date())
+                          ? "today"
+                          : ""
+                    }
+                    onClick={() => {
+                      onChange(toIso(day));
+                      setOpen(false);
+                    }}
+                  >
+                    {day.getDate()}
+                  </button>
+                ) : (
+                  <span key={`empty-${i}`} />
+                ),
+              )}
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
 }
 
 export function formatRemaining(
@@ -112,6 +296,10 @@ export function EnvelopeComposer({
   busy: string;
   onSubmit: (body: {
     recipientLabel: string;
+    recipientEmail: string;
+    senderName: string;
+    note: string;
+    notifyRecipient: boolean;
     purpose: string;
     budget: string;
     expiresAt: number;
@@ -119,19 +307,35 @@ export function EnvelopeComposer({
   }) => void;
   onCancel?: () => void;
 }) {
-  const [preset, setPreset] = useState("Mobile data");
+  const [preset, setPreset] = useState("Dinner");
+  const [senderName, setSenderName] = useState("");
   const [recipientLabel, setRecipientLabel] = useState("");
-  const [purpose, setPurpose] = useState(PRESETS[4].purpose);
-  const [budget, setBudget] = useState(PRESETS[4].budget);
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [note, setNote] = useState("");
+  const [notifyRecipient, setNotifyRecipient] = useState(true);
+  const [purpose, setPurpose] = useState(PRESETS[0].purpose);
+  const [usd, setUsd] = useState(PRESETS[0].usd);
   const [until, setUntil] = useState(defaultUntil);
   const [partialUse, setPartialUse] = useState(true);
+  const rate = config.ethUsd || 2500;
+  const budget = usdToEth(Number(usd), rate);
+  const overCap = Number(usd) > 0 && Number(usd) / rate > 10;
   return (
     <form
       className="envelope-compose"
       onSubmit={(e) => {
         e.preventDefault();
+        if (!budget) return;
         onSubmit({
+          senderName,
           recipientLabel,
+          recipientEmail:
+            recipientEmail ||
+            (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientLabel)
+              ? recipientLabel
+              : ""),
+          note,
+          notifyRecipient,
           purpose,
           budget,
           expiresAt: endOfDay(until),
@@ -152,13 +356,22 @@ export function EnvelopeComposer({
             onClick={() => {
               setPreset(item.label);
               setPurpose(item.purpose);
-              setBudget(item.budget);
+              setUsd(item.usd);
             }}
           >
             {item.label}
           </button>
         ))}
       </div>
+      <label>
+        From
+        <input
+          maxLength={80}
+          value={senderName}
+          placeholder="Maya"
+          onChange={(e) => setSenderName(e.target.value)}
+        />
+      </label>
       <label>
         To
         <input
@@ -167,6 +380,26 @@ export function EnvelopeComposer({
           value={recipientLabel}
           placeholder="Alex, or an email"
           onChange={(e) => setRecipientLabel(e.target.value)}
+        />
+      </label>
+      <label>
+        Their email
+        <input
+          type="email"
+          maxLength={200}
+          value={recipientEmail}
+          placeholder="Optional. We send the gift from Melt."
+          onChange={(e) => setRecipientEmail(e.target.value)}
+        />
+      </label>
+      <label>
+        Note
+        <textarea
+          maxLength={400}
+          rows={2}
+          value={note}
+          placeholder="Dinner is on me. Pick somewhere you actually want."
+          onChange={(e) => setNote(e.target.value)}
         />
       </label>
       <label>
@@ -183,43 +416,38 @@ export function EnvelopeComposer({
           }}
         />
       </label>
-      <div className="allowance-picker">
-        <div>
-          <label>
-            Up to
-            <span className="amount-input">
-              <input
-                aria-label="Envelope budget"
-                type="number"
-                step="any"
-                min="0.000000001"
-                max="10"
-                required
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-              />
-              <span>{config.chain.symbol}</span>
-            </span>
-          </label>
-        </div>
-        <BudgetRibbon
-          value={Number(budget) || 0}
-          total={Math.max(0.02, Number(budget) || 0)}
-          large
-          symbol={config.chain.symbol}
-          onChange={(value) => setBudget(String(value))}
-        />
-      </div>
-      <label>
-        Use by
-        <input
-          type="date"
-          required
-          value={until}
-          min={new Date().toISOString().slice(0, 10)}
-          onChange={(e) => setUntil(e.target.value)}
-        />
+      <label className="usd-field">
+        Up to
+        <span className="amount-input">
+          <span>$</span>
+          <input
+            aria-label="Envelope budget in US dollars"
+            type="number"
+            step="1"
+            min="1"
+            required
+            value={usd}
+            onChange={(e) => {
+              setPreset("");
+              setUsd(e.target.value);
+            }}
+          />
+          <span>USD</span>
+        </span>
       </label>
+      <p className="helper">
+        {overCap
+          ? "That is more than this vault can hold right now."
+          : budget
+            ? `You will fund about ${budget} ${config.chain.symbol}.`
+            : "Enter an amount."}
+      </p>
+      <DateField
+        label="Use by"
+        value={until}
+        min={new Date().toISOString().slice(0, 10)}
+        onChange={setUntil}
+      />
       <div className="template-options">
         <button
           type="button"
@@ -232,6 +460,14 @@ export function EnvelopeComposer({
       <label className="check-line">
         <input
           type="checkbox"
+          checked={notifyRecipient}
+          onChange={(e) => setNotifyRecipient(e.target.checked)}
+        />
+        Email them this gift when you create it
+      </label>
+      <label className="check-line">
+        <input
+          type="checkbox"
           checked={partialUse}
           onChange={(e) => setPartialUse(e.target.checked)}
         />
@@ -240,7 +476,7 @@ export function EnvelopeComposer({
       </label>
       <div className="recovery-line">
         <ArrowRight size={14} />
-        <span>Unused {config.chain.symbol} returns to you after expiry</span>
+        <span>Unused funds return to you after expiry</span>
         <span>They cannot cash it out</span>
       </div>
       <div className="form-actions">
@@ -249,7 +485,7 @@ export function EnvelopeComposer({
             Cancel
           </button>
         )}
-        <button className="primary" disabled={!!busy}>
+        <button className="primary" disabled={!!busy || !budget}>
           {busy === "create" ? <MeltLoader size={16} /> : <Gift size={16} />}
           Create envelope
           <ArrowRight size={16} />
@@ -263,11 +499,13 @@ export function EnvelopeList({
   envelopes,
   now,
   symbol,
+  ethUsd,
   onOpen,
 }: {
   envelopes: Envelope[];
   now: number;
   symbol: string;
+  ethUsd?: number;
   onOpen: (id: string) => void;
 }) {
   if (!envelopes.length)
@@ -304,7 +542,10 @@ export function EnvelopeList({
             {statusCopy[envelope.status]}
           </span>
           <span className="row-amount">
-            {envelope.remaining} <small>{symbol}</small>
+            {formatUsd(envelope.remaining, ethUsd) || envelope.remaining}{" "}
+            <small>
+              {formatUsd(envelope.remaining, ethUsd) ? "left" : symbol}
+            </small>
           </span>
           <ArrowUpRight size={16} />
         </button>
@@ -357,6 +598,7 @@ export function EnvelopeDetail({
           <h1>{envelope.purpose}</h1>
           <p>
             For {envelope.recipientLabel}
+            {envelope.senderName ? ` · from ${envelope.senderName}` : ""}
             {envelope.recipientAddress
               ? ` · ${short(envelope.recipientAddress)}`
               : ""}{" "}
@@ -393,8 +635,13 @@ export function EnvelopeDetail({
           <div className="balance-heading">
             <span>Remaining</span>
             <h2>
-              {envelope.remaining}
-              <small>{config.chain.symbol}</small>
+              {formatUsd(envelope.remaining, config.ethUsd) ||
+                envelope.remaining}
+              <small>
+                {formatUsd(envelope.remaining, config.ethUsd)
+                  ? "left"
+                  : config.chain.symbol}
+              </small>
             </h2>
           </div>
           <BudgetRibbon
@@ -406,7 +653,8 @@ export function EnvelopeDetail({
             <div>
               <dt>Budget</dt>
               <dd>
-                {envelope.budget} {config.chain.symbol}
+                {formatUsd(envelope.budget, config.ethUsd) ||
+                  `${envelope.budget} ${config.chain.symbol}`}
               </dd>
             </div>
             <div>
@@ -450,7 +698,9 @@ export function EnvelopeDetail({
               }
             >
               <Wallet size={15} />
-              Fund {envelope.budget} {config.chain.symbol}
+              Fund{" "}
+              {formatUsd(envelope.budget, config.ethUsd) ||
+                `${envelope.budget} ${config.chain.symbol}`}
             </button>
           )}
           {envelope.status === "open" && (
@@ -460,9 +710,38 @@ export function EnvelopeDetail({
             </button>
           )}
           {envelope.receiptToken && (
-            <button className="secondary wide" onClick={onShare}>
-              Share receipt
+            <button className="primary wide" onClick={onShare}>
+              <Copy size={15} />
+              Copy gift link
             </button>
+          )}
+          {config.mailConfigured && envelope.recipientEmail && (
+            <button
+              className="secondary wide"
+              disabled={!!busy}
+              onClick={() =>
+                act("notify", () =>
+                  request(`/envelopes/${envelope.id}/notify`, {}, "POST"),
+                )
+              }
+            >
+              Email {envelope.recipientEmail}
+            </button>
+          )}
+          {envelope.giftOpenedAt && (
+            <p className="helper">
+              Opened {new Date(envelope.giftOpenedAt).toLocaleString()}
+            </p>
+          )}
+          {envelope.receiptToken && (
+            <a
+              className="quiet-button wide"
+              href={`/r/${envelope.receiptToken}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open receipt
+            </a>
           )}
           {envelope.vault && (
             <a
@@ -477,8 +756,8 @@ export function EnvelopeDetail({
           <h2>Activity</h2>
           {envelope.redemptions.length === 0 && (
             <p className="helper">
-              No purchase yet. The recipient can open Melt or ask ChatGPT,
-              Claude, Codex or Grok to use this gift through MCP.
+              No purchase yet. The recipient can open Melt or ask an assistant
+              they already use to spend this gift through MCP.
             </p>
           )}
           {envelope.redemptions.map((item) => (
@@ -627,6 +906,7 @@ export function DiscoverPanel({
   act,
   busy,
   symbol,
+  onTx,
 }: {
   envelopes: Envelope[];
   selectedId?: string;
@@ -640,6 +920,7 @@ export function DiscoverPanel({
   act: (name: string, fn: () => Promise<unknown>) => Promise<void>;
   busy: string;
   symbol: string;
+  onTx?: (hash: string, label?: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<any>(null);
@@ -761,6 +1042,8 @@ export function DiscoverPanel({
                     },
                   );
                   setSettled(done.redemption);
+                  if (done.redemption?.hash)
+                    onTx?.(done.redemption.hash, "Settled onchain");
                   await search(query);
                 })
               }

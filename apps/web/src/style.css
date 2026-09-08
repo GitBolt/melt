@@ -156,10 +156,80 @@ footer button {
   align-items: center;
   font-size: 13px;
 }
-.launch-grid {
+.launch {
   display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
+  gap: 22px;
+}
+.gift-slips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 8px 6px 4px;
+}
+.gift-slip,
+.example-slip {
+  text-align: left;
+  padding: 20px 20px 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(180deg, #fbfbfd, #f3f5fb) border-box;
+  box-shadow: 4px 5px 0 #eceff6;
+  transform: rotate(var(--tilt, 0deg));
+}
+.gift-slip header,
+.example-slip header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.gift-slip header span,
+.example-slip header span {
+  font-size: 13px;
+  color: #6f7584;
+}
+.gift-slip strong,
+.example-slip strong {
+  font-size: 28px;
+  letter-spacing: -1.1px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.gift-slip p {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: #4c5161;
+  line-height: 1.45;
+}
+.launch-auth {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 24px;
+  padding: 22px 26px;
+}
+.launch-auth h2 {
+  font-size: 20px;
+  letter-spacing: -0.5px;
+  font-weight: 600;
+}
+.launch-auth p {
+  margin: 8px 0 0;
+  max-width: 38em;
+  color: var(--muted);
+  font-size: 14px;
+}
+.launch-actions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.launch-actions .helper {
+  margin: 0;
+  text-align: right;
 }
 .compose {
   padding: 28px 32px;
@@ -179,25 +249,6 @@ footer button {
 .sign-in-cta {
   width: auto;
   min-width: 0;
-}
-.example-task {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 20px 16px;
-  background: #f7f8fb;
-  border-radius: 12px;
-  margin: 30px 0 26px;
-  font-size: 15px;
-}
-.example-task > span {
-  flex: 1;
-}
-.example-task > span > span {
-  display: block;
-  font-size: 13px;
-  color: #858897;
-  margin-top: 7px;
 }
 .helper {
   font-size: 13px;
@@ -276,15 +327,111 @@ footer button {
 .job-modes:has(button:only-child) {
   grid-template-columns: 1fr;
 }
-.allowance-picker {
+.usd-field .amount-input input {
+  max-width: 200px;
+}
+.usd-field .amount-input > span:first-child {
+  font-size: 29px;
+  letter-spacing: -1px;
+  color: var(--ink);
+}
+.date-field {
+  position: relative;
+  margin: 18px 0 8px;
+}
+.date-field > span {
+  display: block;
+  font-size: 14px;
+  color: #626777;
+  margin-bottom: 8px;
+}
+.date-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 30px;
-  margin: 22px 0 10px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fdfdfe;
 }
-.allowance-picker label {
-  margin: 0;
+.date-trigger.open {
+  border-color: #c5cce8;
+  box-shadow: 0 0 0 3px #5867c80c;
+}
+.date-trigger svg {
+  color: #8c90a0;
+}
+.date-menu {
+  position: absolute;
+  z-index: 8;
+  left: 0;
+  width: min(320px, 100%);
+  bottom: calc(100% + 8px);
+  top: auto;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 15px 40px #2b3c4a14;
+}
+.date-nav {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.date-nav strong {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 550;
+}
+.date-nav button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+}
+.date-nav button:hover {
+  background: #eef1fc;
+  color: #414f9e;
+}
+.date-week,
+.date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.date-week span {
+  text-align: center;
+  font-size: 11px;
+  color: #8c90a0;
+  padding: 6px 0;
+}
+.date-grid button,
+.date-grid span {
+  min-height: 36px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.date-grid button:hover:not(:disabled) {
+  background: #eef1fc;
+  color: #414f9e;
+}
+.date-grid button.chosen {
+  background: #5867c8;
+  color: #fff;
+}
+.date-grid button.today:not(.chosen) {
+  box-shadow: inset 0 0 0 1px #c5cce8;
+}
+.date-grid button:disabled {
+  color: #c5c8d2;
 }
 .amount-input {
   display: flex;
@@ -829,8 +976,8 @@ details label {
 }
 .toast {
   position: fixed;
-  right: 25px;
-  bottom: 25px;
+  right: 22px;
+  bottom: 22px;
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 12px;
@@ -841,6 +988,49 @@ details label {
   font-size: 14px;
   box-shadow: 0 15px 40px #2b3c4a14;
   z-index: 10;
+}
+.tx-toasts {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  width: min(340px, calc(100vw - 36px));
+}
+.tx-toast {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 40px #2b3c4a18;
+}
+.tx-toast strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 550;
+}
+.tx-toast a,
+.tx-toast .identifier {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+  color: #414f9e;
+  font-variant-numeric: tabular-nums;
+}
+.tx-toast button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: #8c90a0;
 }
 .empty {
   text-align: center;
@@ -1003,8 +1193,8 @@ details label {
   .wallet-panel {
     padding: 20px;
   }
-  .launch-grid {
-    gap: 16px;
+  .gift-slips {
+    gap: 12px;
   }
   .compose {
     padding: 24px;
@@ -1071,11 +1261,17 @@ details label {
   .intro .primary {
     white-space: nowrap;
   }
-  .launch-grid {
+  .gift-slips {
     grid-template-columns: 1fr;
   }
-  .welcome-wallet {
-    display: none;
+  .launch-auth {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .launch-actions,
+  .launch-actions .helper {
+    justify-items: start;
+    text-align: left;
   }
   .compose {
     padding: 22px;

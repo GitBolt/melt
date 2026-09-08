@@ -24,6 +24,10 @@
     {
       "source": "/r/:token",
       "destination": "/index.html"
+    },
+    {
+      "source": "/g/:token",
+      "destination": "/index.html"
     }
   ],
   "headers": [

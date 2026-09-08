@@ -95,6 +95,13 @@ export const createEnvelope = z
     partialUse: z.boolean().default(true),
     unusedTo: z.literal("sender").default("sender"),
     category: z.enum(envelopeCategories).optional(),
+    senderName: z.string().trim().max(80).optional().default(""),
+    recipientEmail: z
+      .union([z.string().trim().email().max(200), z.literal("")])
+      .optional()
+      .default(""),
+    note: z.string().trim().max(400).optional().default(""),
+    notifyRecipient: z.boolean().optional().default(true),
   })
   .superRefine((data, ctx) => {
     const now = Math.floor(Date.now() / 1000);
@@ -161,8 +168,13 @@ export interface Envelope {
   sessionId: string;
   vault: string;
   senderAddress: string;
+  senderName?: string;
   recipientLabel: string;
+  recipientEmail?: string;
   recipientAddress: string;
+  note?: string;
+  giftOpenedAt?: string;
+  lastEmailedAt?: string;
   purpose: string;
   category: EnvelopeCategory;
   budget: string;
@@ -277,6 +289,8 @@ export interface Config {
   };
   publicRpcUrl?: string;
   envelopes?: { available: boolean };
+  ethUsd?: number;
+  mailConfigured?: boolean;
   fixture: {
     available: boolean;
     url: string;
