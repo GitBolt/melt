@@ -338,6 +338,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                       onCancel={
                         tasks.length ? () => setNewTask(false) : undefined
                       }
+                      onQuote={(body) => request("/swap/quote", body)}
                       onSubmit={(body) =>
                         act("create", async () => {
                           const t = await request("/sessions", body, "POST", {
@@ -488,6 +489,7 @@ function Composer({
   busy,
   onSubmit,
   onCancel,
+  onQuote,
 }: {
   config: Config;
   owner: string;
@@ -495,6 +497,11 @@ function Composer({
   initial?: CreateTask;
   onSubmit: (body: CreateTask) => void;
   onCancel?: () => void;
+  onQuote: (body: {
+    tokenOut: string;
+    amountIn: string;
+    slippageBps: number;
+  }) => Promise<any>;
 }) {
   const mint = {
     title: "Mint a field note",
@@ -522,7 +529,11 @@ function Composer({
         selector: "",
       }
     : undefined;
-  const [example, setExample] = useState("custom");
+  const swapTokens = config.swap?.tokens || [];
+  const swapEnabled = !!config.swap?.available && swapTokens.length > 0;
+  const [example, setExample] = useState(
+    initial?.kind === "swap" ? "swap" : "custom",
+  );
   const [url, setUrl] = useState(initial?.url || "");
   const [title, setTitle] = useState(initial?.title || "");
   const [instruction, setInstruction] = useState(initial?.instruction || "");
@@ -533,6 +544,54 @@ function Composer({
   const [minutes, setMinutes] = useState(initial?.durationMinutes || 15);
   const [target, setTarget] = useState(initial?.target || "");
   const [selector, setSelector] = useState(initial?.selector || "");
+  const [swapSymbol, setSwapSymbol] = useState(
+    initial?.swap?.symbol || swapTokens[0]?.symbol || "USDC",
+  );
+  const [swapAmount, setSwapAmount] = useState(
+    initial?.swap?.amountIn || "0.05",
+  );
+  const [slippagePct, setSlippagePct] = useState(
+    (initial?.swap?.slippageBps ?? 50) / 100,
+  );
+  const [quote, setQuote] = useState<any>(null);
+  const [quoteErr, setQuoteErr] = useState("");
+  const [quoting, setQuoting] = useState(false);
+  const chosenToken = swapTokens.find((t) => t.symbol === swapSymbol);
+  useEffect(() => {
+    if (example !== "swap" || !swapEnabled) return;
+    const amountNumber = Number(swapAmount);
+    if (!(amountNumber > 0) || amountNumber > 10) {
+      setQuote(null);
+      setQuoteErr("");
+      return;
+    }
+    let alive = true;
+    setQuoting(true);
+    const timer = setTimeout(async () => {
+      try {
+        const q = await onQuote({
+          tokenOut: chosenToken?.address || swapSymbol,
+          amountIn: swapAmount,
+          slippageBps: Math.round(slippagePct * 100),
+        });
+        if (alive) {
+          setQuote(q);
+          setQuoteErr("");
+        }
+      } catch (e) {
+        if (alive) {
+          setQuote(null);
+          setQuoteErr((e as Error).message);
+        }
+      } finally {
+        if (alive) setQuoting(false);
+      }
+    }, 400);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [example, swapSymbol, swapAmount, slippagePct, swapEnabled]);
   const apply = (next: {
     title: string;
     instruction: string;
@@ -546,6 +605,227 @@ function Composer({
     setTarget(next.target);
     setSelector(next.selector);
   };
+  const tabs = (
+    <div className="template-options">
+      <button
+        className={example === "custom" ? "chosen" : ""}
+        type="button"
+        onClick={() => {
+          setExample("custom");
+          apply({
+            title: "",
+            instruction: "",
+            url: "",
+            target: "",
+            selector: "",
+          });
+        }}
+      >
+        Custom
+      </button>
+      {swapEnabled && (
+        <button
+          className={example === "swap" ? "chosen" : ""}
+          type="button"
+          onClick={() => setExample("swap")}
+        >
+          Swap
+        </button>
+      )}
+      <button
+        className={example === "site" ? "chosen" : ""}
+        type="button"
+        onClick={() => {
+          setExample("site");
+          apply(site);
+        }}
+      >
+        New site
+      </button>
+      {config.fixture.available && (
+        <button
+          className={example === "mint" ? "chosen" : ""}
+          type="button"
+          onClick={() => {
+            setExample("mint");
+            apply(mint);
+          }}
+        >
+          Mint
+        </button>
+      )}
+      {pay && (
+        <button
+          className={example === "pay" ? "chosen" : ""}
+          type="button"
+          onClick={() => {
+            setExample("pay");
+            apply(pay);
+          }}
+        >
+          Pay
+        </button>
+      )}
+    </div>
+  );
+  if (example === "swap") {
+    const canSwap = !!chosenToken && !!quote && !quoteErr;
+    return (
+      <form
+        className="swap-compose"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!chosenToken) return;
+          onSubmit({
+            url: "",
+            title: `Swap ${config.chain.symbol} for ${chosenToken.symbol}`,
+            instruction: `Swap ${swapAmount} ${config.chain.symbol} for ${chosenToken.symbol} on Uniswap`,
+            budget: swapAmount,
+            durationMinutes: minutes,
+            target: "",
+            selector: "",
+            recovery: owner,
+            kind: "swap",
+            swap: {
+              tokenOut: chosenToken.address,
+              symbol: chosenToken.symbol,
+              amountIn: swapAmount,
+              slippageBps: Math.round(slippagePct * 100),
+            },
+          });
+        }}
+      >
+        {tabs}
+        <p className="swap-lead">
+          Your agent swaps from a task wallet with a hard limit. Nothing else
+          can be spent, and the token you buy returns to your wallet.
+        </p>
+        <div className="swap-pair">
+          <label className="swap-field">
+            You pay
+            <span className="amount-input">
+              <input
+                aria-label="Amount to swap"
+                type="number"
+                step="any"
+                min="0.000000001"
+                max="10"
+                required
+                value={swapAmount}
+                onChange={(e) => setSwapAmount(e.target.value)}
+              />
+              <span>{config.chain.symbol}</span>
+            </span>
+          </label>
+          <div className="swap-arrow">
+            <ArrowRight size={18} />
+          </div>
+          <label className="swap-field">
+            You receive
+            <select
+              aria-label="Token to buy"
+              value={swapSymbol}
+              onChange={(e) => setSwapSymbol(e.target.value)}
+            >
+              {swapTokens
+                .filter((t) => t.symbol !== "WETH")
+                .map((t) => (
+                  <option key={t.address} value={t.symbol}>
+                    {t.symbol} · {t.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+        </div>
+        <div className={`swap-quote ${quoteErr ? "swap-quote-error" : ""}`}>
+          {quoteErr ? (
+            <span>{quoteErr}</span>
+          ) : quote ? (
+            <>
+              <div className="swap-quote-main">
+                <span>Estimated received</span>
+                <strong>
+                  ≈ {Number(quote.amountOut).toLocaleString(undefined, {
+                    maximumFractionDigits: 4,
+                  })}{" "}
+                  {quote.symbol}
+                </strong>
+              </div>
+              <dl>
+                <div>
+                  <dt>Rate</dt>
+                  <dd>
+                    1 {config.chain.symbol} ≈{" "}
+                    {Number(quote.rate).toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    {quote.symbol}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Minimum received</dt>
+                  <dd>
+                    {Number(quote.minOut).toLocaleString(undefined, {
+                      maximumFractionDigits: 4,
+                    })}{" "}
+                    {quote.symbol}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Route</dt>
+                  <dd>Uniswap V3 · {(quote.fee / 10000).toFixed(2)}% pool</dd>
+                </div>
+              </dl>
+            </>
+          ) : (
+            <span className="quiet">
+              {quoting ? "Fetching best Uniswap price…" : "Enter an amount to price this swap."}
+            </span>
+          )}
+        </div>
+        <label className="swap-slippage">
+          Max slippage
+          <select
+            value={slippagePct}
+            onChange={(e) => setSlippagePct(Number(e.target.value))}
+          >
+            <option value={0.1}>0.1%</option>
+            <option value={0.5}>0.5%</option>
+            <option value={1}>1%</option>
+          </select>
+        </label>
+        <label className="duration-label">
+          Session length<span>{minutes} min</span>
+          <input
+            aria-label="Session length"
+            type="range"
+            min="5"
+            max="60"
+            step="5"
+            value={minutes}
+            onChange={(e) => setMinutes(Number(e.target.value))}
+          />
+        </label>
+        <div className="recovery-line">
+          <ArrowRight size={14} />
+          <span>{chosenToken?.symbol || "Tokens"} return to {short(owner)}</span>
+          <span>Gas is separate</span>
+        </div>
+        <div className="form-actions">
+          {onCancel && (
+            <button type="button" className="secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
+          <button className="primary" disabled={!!busy || !canSwap}>
+            {busy === "create" ? <MeltLoader size={16} /> : <ArrowUpRight size={16} />}
+            Create swap wallet
+            <ArrowRight size={16} />
+          </button>
+        </div>
+      </form>
+    );
+  }
   return (
     <form
       onSubmit={(e) => {
@@ -559,61 +839,11 @@ function Composer({
           target,
           selector,
           recovery: owner,
+          kind: "browse",
         });
       }}
     >
-      <div className="template-options">
-        <button
-          className={example === "custom" ? "chosen" : ""}
-          type="button"
-          onClick={() => {
-            setExample("custom");
-            apply({
-              title: "",
-              instruction: "",
-              url: "",
-              target: "",
-              selector: "",
-            });
-          }}
-        >
-          Custom
-        </button>
-        <button
-          className={example === "site" ? "chosen" : ""}
-          type="button"
-          onClick={() => {
-            setExample("site");
-            apply(site);
-          }}
-        >
-          New site
-        </button>
-        {config.fixture.available && (
-          <button
-            className={example === "mint" ? "chosen" : ""}
-            type="button"
-            onClick={() => {
-              setExample("mint");
-              apply(mint);
-            }}
-          >
-            Mint
-          </button>
-        )}
-        {pay && (
-          <button
-            className={example === "pay" ? "chosen" : ""}
-            type="button"
-            onClick={() => {
-              setExample("pay");
-              apply(pay);
-            }}
-          >
-            Pay
-          </button>
-        )}
-      </div>
+      {tabs}
       <label>
         Task name
         <input
@@ -774,7 +1004,12 @@ function SessionDetail({
   useEffect(() => {
     let alive = true;
     async function load() {
-      if (document.hidden || !["running", "paused"].includes(t.status)) return;
+      if (
+        document.hidden ||
+        t.kind === "swap" ||
+        !["running", "paused"].includes(t.status)
+      )
+        return;
       try {
         const token = await auth?.getToken();
         const r = await fetch(`/api/sessions/${t.id}/screenshot`, {
@@ -824,8 +1059,16 @@ function SessionDetail({
         <div>
           <h1>{t.title}</h1>
           <p>
-            {siteHost(t.url)} <span className="divider-dot">·</span>{" "}
-            {t.agentMode === "model" ? "AI browser agent" : "Manual control"}
+            {t.kind === "swap" ? (
+              <>
+                Uniswap V3 <span className="divider-dot">·</span> Automated swap
+              </>
+            ) : (
+              <>
+                {siteHost(t.url)} <span className="divider-dot">·</span>{" "}
+                {t.agentMode === "model" ? "AI browser agent" : "Manual control"}
+              </>
+            )}
           </p>
         </div>
         <span className={`status status-${t.status}`}>
@@ -953,7 +1196,7 @@ function SessionDetail({
               <Globe size={14} />
               {t.browserTitle || "Task browser"}
             </span>
-            {t.status === "paused" && (
+            {t.status === "paused" && t.kind !== "swap" && (
               <form
                 className="browser-url"
                 onSubmit={(e) => {
@@ -981,7 +1224,7 @@ function SessionDetail({
               </form>
             )}
             <div>
-              {t.status === "running" && (
+              {t.status === "running" && t.kind !== "swap" && (
                 <button disabled={!!busy} onClick={() => command("pause")}>
                   <MousePointer2 size={14} />
                   Take control
@@ -1021,35 +1264,60 @@ function SessionDetail({
                   </div>
                 )}
                 <h2>
-                  {t.status === "closed"
-                    ? t.assets.some((a) => a.recovered)
-                      ? "Assets returned"
-                      : "Session closed"
-                    : t.status === "closing"
-                      ? "Returning your funds and assets"
-                      : t.status === "funding"
-                        ? "Add funds to start"
-                        : t.status === "attention"
-                          ? "Review your session"
-                          : t.status === "ready"
-                            ? "Ready to start your task"
-                            : "Opening your task browser"}
+                  {t.kind === "swap"
+                    ? t.status === "closed"
+                      ? t.assets.some((a) => a.recovered)
+                        ? `${t.swap?.symbol || "Token"} returned to your wallet`
+                        : "Swap session closed"
+                      : t.status === "closing"
+                        ? "Returning your token"
+                        : t.status === "funding"
+                          ? "Add funds to swap"
+                          : t.status === "attention"
+                            ? "Review your session"
+                            : t.status === "running"
+                              ? "Swapping on Uniswap"
+                              : "Ready to swap"
+                    : t.status === "closed"
+                      ? t.assets.some((a) => a.recovered)
+                        ? "Assets returned"
+                        : "Session closed"
+                      : t.status === "closing"
+                        ? "Returning your funds and assets"
+                        : t.status === "funding"
+                          ? "Add funds to start"
+                          : t.status === "attention"
+                            ? "Review your session"
+                            : t.status === "ready"
+                              ? "Ready to start your task"
+                              : "Opening your task browser"}
                 </h2>
                 <p>
-                  {t.status === "closed"
-                    ? `${returnedAssets} ${returnedAssets === 1 ? "asset" : "assets"} returned · agent spending disabled`
-                    : t.error ||
-                      (t.status === "closing"
-                        ? "Ending agent access and returning funds to your wallet."
-                        : t.status === "funding"
-                          ? "Add the funds this task can use. Gas costs are separate."
-                          : t.status === "attention"
-                            ? "Check the activity below, then retry recovery."
+                  {t.kind === "swap"
+                    ? t.status === "closed"
+                      ? `Swapped ${t.spent} ${config.chain.symbol} for ${t.swap?.symbol || "tokens"} · agent spending disabled`
+                      : t.error ||
+                        (t.status === "closing"
+                          ? "Returning your purchased token and any unused funds."
+                          : t.status === "running"
+                            ? `Buying ${t.swap?.symbol || "tokens"} inside your spending limit, then returning it to you.`
                             : t.status === "ready"
-                              ? t.url
-                                ? "Your agent will open the website using this wallet."
-                                : "Your agent will open a browser using this wallet."
-                              : "Your browser preview will appear here.")}
+                              ? `Melt will swap ${t.swap?.amountIn} ${config.chain.symbol} for ${t.swap?.symbol} through Uniswap V3, within your limit.`
+                              : "Add the funds this swap can use. Gas costs are separate.")
+                    : t.status === "closed"
+                      ? `${returnedAssets} ${returnedAssets === 1 ? "asset" : "assets"} returned · agent spending disabled`
+                      : t.error ||
+                        (t.status === "closing"
+                          ? "Ending agent access and returning funds to your wallet."
+                          : t.status === "funding"
+                            ? "Add the funds this task can use. Gas costs are separate."
+                            : t.status === "attention"
+                              ? "Check the activity below, then retry recovery."
+                              : t.status === "ready"
+                                ? t.url
+                                  ? "Your agent will open the website using this wallet."
+                                  : "Your agent will open a browser using this wallet."
+                                : "Your browser preview will appear here.")}
                 </p>
                 {t.status === "ready" && (
                   <button
@@ -1062,9 +1330,11 @@ function SessionDetail({
                     ) : (
                       <Play size={15} />
                     )}
-                    {config.modelConfigured
-                      ? "Start task"
-                      : "Open task browser"}
+                    {t.kind === "swap"
+                      ? "Run swap on Uniswap"
+                      : config.modelConfigured
+                        ? "Start task"
+                        : "Open task browser"}
                   </button>
                 )}
                 {t.status === "funding" && (
@@ -1156,7 +1426,7 @@ function SessionDetail({
             )}
           </div>
           {browserError && <p className="helper">{browserError}</p>}
-          {t.status === "paused" && (
+          {t.status === "paused" && t.kind !== "swap" && (
             <div className="manual-controls">
               <button
                 className="secondary"
