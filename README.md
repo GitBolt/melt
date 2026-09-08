@@ -1,10 +1,16 @@
-# Melt · Let an agent spend without your wallet
+# Melt · Gift cards without stores
 
-Give a browser agent one job, a spending limit, and a deadline. Melt opens an isolated browser with a separate task wallet. When the session ends, spending access closes onchain and supported assets return to your wallet. Recovery stays available for assets that arrive later.
+Send purchasing power for a purpose — dinner, a flight home, mobile data for a trip — and let their AI choose how to use it later. The money can only become what you meant.
+
+You create an envelope. Ethereum holds the amount, the purpose, the expiry, and where unused funds go. The recipient cannot cash it out. You cannot take it back early. Weeks later they open Melt, or they tell ChatGPT, Claude, Codex or Grok to use the gift. Melt finds a qualifying purchase, converts only the required ETH to USDC on Uniswap, and leaves the rest in the envelope.
 
 [Open Melt](https://melt-woad.vercel.app) · [API reference](docs/api.md) · [Connect an agent](docs/agents.md) · [Verification record](docs/verification.md)
 
-The core flow is concrete: an agent opens a collectible website, connects its task wallet, mints within the limit, and returns the NFT and unused ETH. Each step has transaction evidence. The task's outcome and the wallet's closed state are tracked separately; a returned balance does not imply the requested task succeeded.
+This is not an agent wallet for the owner’s own spending, and it is not a store gift card. The relationship is:
+
+```text
+sender’s money → immutable purpose → recipient’s chosen assistant → qualifying purchase
+```
 
 ## Run locally
 
@@ -13,26 +19,18 @@ Requires Node.js 24.13+, npm, [Foundry / Anvil](https://getfoundry.sh/introducti
 ```sh
 npm ci
 npx playwright install chromium
-npm run dev
-```
-
-Open [the local site](http://127.0.0.1:5173), choose **Open Melt**, then **Open local workspace**. Create a task wallet, then **Open task browser**. Under **View browser controls**, connect the wallet, refresh the controls, and choose the mint button. End the session to return the collectible and remaining ETH.
-
-Without model credentials, you or an external agent control the browser through visible controls. There is no scripted production driver. With a configured model, Melt chooses actions from page observations and finishes when the job is done or a locked session confirms its permitted transaction. The browser tests choose fixture buttons explicitly inside the test suite.
-
-Local development starts Anvil on 8545, the API on 8787, test dapps on 8788, and the web app on 5173. Its ETH and wallets are public development accounts with no monetary value. No provider account or payment is required for manual local use.
-
-To try **agent-driven Uniswap swaps** against the real Uniswap V3 contracts, start with a mainnet fork (the chain id stays 31337, so every other local flow is unchanged):
-
-```sh
 MELT_FORK=1 npm run dev
 ```
 
-Then sign in, choose the **Swap** tab, pick a token and amount, and run it. Melt swaps ETH for the token from a spend-limited task wallet and returns the token to your wallet — no ERC-20 approval, real onchain execution. Set `FORK_RPC_URL` to use your own RPC.
+`MELT_FORK=1` forks Ethereum so Uniswap V3 settlement is real. The chain id stays 31337. Set `FORK_RPC_URL` to use your own RPC.
+
+Open [the local site](http://127.0.0.1:5173), choose **Open Melt**, then **Open local workspace**. Create an envelope — the demo path is “mobile data for your trip, up to $20”. Open **Discover**, search for an eSIM, and **Use this**. Melt swaps only the required ETH to USDC on Uniswap. Cash-out wording returns nothing.
+
+Local development starts Anvil on 8545, the API on 8787, test dapps on 8788, and the web app on 5173. Its ETH and wallets are public development accounts with no monetary value.
 
 ## Connect your own agent
 
-Create and fund a session in Melt, then create an API key under **Developers**. Use HTTP directly or download the dependency-free JavaScript client:
+Create and fund an envelope in Melt, then create an API key under **Developers**. Use HTTP, download the dependency-free JavaScript client, or run the MCP server. There is no generic transfer tool.
 
 ```sh
 curl --fail --show-error https://melt-woad.vercel.app/api/client.mjs -o melt-client.mjs
@@ -42,41 +40,37 @@ curl --fail --show-error https://melt-woad.vercel.app/api/client.mjs -o melt-cli
 import { Melt } from "./melt-client.mjs";
 
 const melt = new Melt({ apiKey: process.env.MELT_API_KEY });
-await melt.start(sessionId, { manual: true });
-const page = await melt.observe(sessionId);
-// Your agent chooses a control from page.controls, then observes again.
+const { sent } = await melt.envelopes();
+const found = await melt.findOptions(sent[0].id, "an eSIM for Japan");
+const quote = await melt.proposePurchase(sent[0].id, {
+  sku: found.options[0].sku,
+});
+await melt.redeem(sent[0].id, quote.quote.id);
 ```
 
-The client includes status polling, cancellation, screenshots, receipts and clear error handling. It never automatically retries financial actions. There is no npm package to publish or install. [Runnable examples](examples/README.md) also show direct HTTP. The repository-local [MCP server](docs/agents.md#mcp-from-the-repository) exposes the same session and browser controls.
+MCP tools: `list_envelopes`, `get_envelope`, `find_options`, `propose_purchase`, `redeem`, `get_redemption_status`. An external agent cannot create envelopes, raise the amount, or send unrestricted cash. [Runnable examples](examples/README.md) also show direct HTTP.
 
 ## What's implemented
 
-- **Allowance-bounded Uniswap V3 swaps.** An agent (or one line of natural language) swaps ETH for a token from a task wallet capped by an onchain limit, then the token returns to the owner. Deterministic and reliable — it never depends on a model driving a UI. Because an ETH→token router call carries value and needs no `approve`, it runs inside the existing task-wallet security model.
-- **Recurring buys (dollar-cost averaging).** Schedule several swaps over time under one onchain budget — an automated strategy the agent runs to completion, with proceeds returned on close.
-- **Agent access to swaps.** The dependency-free client and MCP server expose Uniswap price discovery (`quote`, `tokens`), so an external agent (Cursor, Claude) can size and operate owner-authorized swaps within limits it cannot raise.
-- Owner-authorized wallet creation, separate funding, isolated browser execution, live preview, manual takeover, expiry, recovery and downloadable receipts.
-- Solidity task wallets with immutable owner, agent, optional permitted target/function, cumulative native-token budget and expiry.
-- ERC-20 and ERC-721 recovery, including late assets. Native refunds are derived from confirmed recovery logs.
-- SQLite persistence, idempotent creation, transaction reconciliation, account isolation and hashed, revocable agent keys.
-- Privy email/wallet authentication, embedded wallets, passkey support, verified owner identity and Privy-managed relayer signing in configured mode.
-- An owner-reviewed Uniswap funding conversion: bounded approvals, Permit2 validation, expiring owner-bound quotes and simulated unsigned swaps.
-- Built-in model integration and external-agent HTTP, JavaScript and MCP access. Eight browser action types, including opening a public site; no arbitrary script execution.
-- A light interface with custom paper-wallet motion, a spending ribbon and reduced-motion support.
-
-Privy is the owner identity and wallet: email or external wallet login, an embedded Ethereum wallet, passkeys, and the relayer that signs outer task-wallet transactions. The live financial flow is sign in → owner wallet → fund the session → the agent spends inside the limit → unused funds and supported assets return. Implementation: [`apps/web/src/PrivyApp.tsx`](apps/web/src/PrivyApp.tsx).
+- **Purpose-bound envelopes.** A sender locks ETH against a semantic promise. Policy (category, dollar cap, deny list, partial use, unused-to-sender) is hashed and cannot be rewritten after funding.
+- **Discover and redeem.** Matching catalog options only. Uniswap V3 converts the required ETH to USDC from the envelope vault (`exactInputSingle`, native value, no ERC-20 approval). Leftover funds stay until expiry, then return to the sender.
+- **MCP as distribution.** ChatGPT, Claude, Codex or Grok redeem an existing gift. They cannot invent a transfer.
+- **Privy identity.** Email or wallet login, embedded Ethereum wallets, passkeys, and a relayer for outer vault transactions. Implementation: [`apps/web/src/PrivyApp.tsx`](apps/web/src/PrivyApp.tsx).
+- Solidity task wallets with immutable owner, agent, cumulative native-token budget and expiry. ERC-20 and ERC-721 recovery, including late assets.
+- SQLite persistence, idempotent creation, hashed revocable agent keys, HMAC-signed webhooks, and shareable public receipts.
 
 ### Uniswap integration (for reviewers)
 
-Melt integrates Uniswap in two places. Precise code pointers are in [`FEEDBACK.md`](FEEDBACK.md).
+Uniswap is the settlement rail for a qualifying purchase, not a product tab. Precise code pointers are in [`FEEDBACK.md`](FEEDBACK.md).
 
-- **Agent-executed Uniswap V3 swaps (headline).** A task wallet swaps ETH for a token on Uniswap V3, bounded by its onchain allowance. Engine: [`apps/api/src/swap.ts`](apps/api/src/swap.ts) — `quoteSwap` (QuoterV2 `0x61fFE014bA17989E743c5F6cB21bF9697530B21e`, best fee tier), `buildSwapCall` (SwapRouter02 `0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45` `exactInputSingle`, native value, no approval). Execution: [`apps/api/src/browser.ts`](apps/api/src/browser.ts) `runSwap` via the vault's `execute`. The reason no approval is needed and this stays safe: [`contracts/src/TaskVault.sol`](contracts/src/TaskVault.sol) `execute`/`_forbidden`. Natural-language routing: [`apps/api/src/intent.ts`](apps/api/src/intent.ts).
-- **Owner funding conversion (Uniswap Trading API).** An owner-only conversion used to fund a session. The agent browser never receives that wallet. Adapter: [`apps/api/src/uniswap.ts`](apps/api/src/uniswap.ts) (`checkApproval`, `uniswapQuote`, `prepareSwap`). UI: [`apps/web/src/FundingSwap.tsx`](apps/web/src/FundingSwap.tsx).
+- **Envelope settlement (headline).** Redeeming a quote swaps only `priceEth` from the vault to USDC on Uniswap V3. Engine: [`apps/api/src/swap.ts`](apps/api/src/swap.ts) — `quoteSwap` (QuoterV2 `0x61fFE014bA17989E743c5F6cB21bF9697530B21e`), `buildSwapCall` (SwapRouter02 `0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45` `exactInputSingle`). Execution: [`apps/api/src/envelopes.ts`](apps/api/src/envelopes.ts) `executeSettlement` via the vault’s `execute`. The vault already forbids `approve`/`transfer`; a native-value router call needs neither.
+- **Owner funding conversion (Uniswap Trading API).** Optional owner-only conversion before funding. The recipient’s assistant never receives that wallet. Adapter: [`apps/api/src/uniswap.ts`](apps/api/src/uniswap.ts). UI: [`apps/web/src/FundingSwap.tsx`](apps/web/src/FundingSwap.tsx).
 
 Implementation is not the same as live verification. [The verification record](docs/verification.md) distinguishes local transaction evidence, mocked provider tests and outstanding public-network checks.
 
 ## Use a public testnet
 
-Follow [setup](docs/setup.md) and configure the hosted services with `.env.example`. A public-network run needs the selected chain's RPC, Privy configuration, a funded relayer, and owner test ETH. The built-in agent also needs model credentials; an external API/MCP agent can supply its own decisions.
+Follow [setup](docs/setup.md) and configure the hosted services with `.env.example`. A public-network run needs the selected chain's RPC, Privy configuration, a funded relayer, and owner test ETH.
 
 Testnet ETH has no monetary value. Mainnet gas, hosted models and infrastructure can incur costs. Neither a deployed frontend nor successful RPC connectivity establishes that the full public-network transaction flow has passed.
 
@@ -84,9 +78,9 @@ Testnet ETH has no monetary value. Mainnet gas, hosted models and infrastructure
 
 | Location          | Responsibility                                                                    |
 | ----------------- | --------------------------------------------------------------------------------- |
-| `apps/web`        | Product page, React workspace, authentication, funding and session UI             |
-| `apps/api`        | HTTP API, browser worker, model/Uniswap adapters, persistence and chain execution |
-| `packages/shared` | Shared validation and domain types                                                |
+| `apps/web`        | Product page, envelope composer, Discover, Activity, Developers                   |
+| `apps/api`        | HTTP API, catalog, envelope settlement, persistence and chain execution           |
+| `packages/shared` | Shared validation, envelope policy and domain types                               |
 | `packages/sdk`    | Standalone JavaScript client, types and stdio MCP server                          |
 | `examples`        | HTTP and downloaded-client examples                                               |
 | `contracts`       | TaskVault, collectible test contract and Solidity tests                           |
@@ -100,13 +94,12 @@ With `npm run dev` running in a separate terminal:
 npm run check
 ```
 
-This builds the app and runs contract, adapter, SDK, browser/API/MCP and worker-restart checks. Browser tests use real Chromium and local Ethereum receipts. They do not call a live model or prove third-party dapp compatibility. API rate limits apply to tests too; leave a minute between repeated full browser suites.
+This builds the app and runs contract, adapter, SDK, browser/API/MCP and worker-restart checks. Browser tests use real Chromium and local Ethereum receipts. They do not call a live model or prove third-party merchant delivery. API rate limits apply to tests too; leave a minute between repeated full browser suites.
 
 ## Read next
 
 - [Architecture](docs/architecture.md) and [security boundaries](docs/security.md)
 - [API reference](docs/api.md), [agent integration](docs/agents.md) and [OpenAPI](docs/openapi.json)
-- [Competitor and track research](docs/research/validation-2026-09-07.md)
 - [Submission plan](docs/hackathon.md), [check-in draft](docs/check-in.md) and [Uniswap feedback](FEEDBACK.md)
 
 The supported execution surface is native-value contract calls. Optional locks can pin a session to one contract function. ERC-1155, cross-chain actions and private-network browsing are outside it. This hackathon implementation has not undergone an independent security audit.

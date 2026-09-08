@@ -202,7 +202,7 @@ export default function Landing() {
             <figure className="feature-media panel">
               <img
                 src="/illustrations/melt-browser.jpg"
-                alt="Paper browser card with a receipt strip, representing the isolated task browser"
+                alt="Paper card with a receipt strip, representing a purpose-bound envelope"
               />
             </figure>
           </motion.article>
@@ -220,7 +220,7 @@ export default function Landing() {
             <figure className="feature-media panel">
               <img
                 src="/illustrations/melt-sleeve.jpg"
-                alt="Paper sleeve holding fanned sheets, representing a task wallet opening for one job"
+                alt="Paper sleeve holding fanned sheets, representing an envelope vault that opens for one gift"
               />
             </figure>
           </motion.article>
