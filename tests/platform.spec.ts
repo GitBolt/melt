@@ -212,7 +212,10 @@ test("another account cannot read session; API key cannot create allowance; revo
     })
   ).json();
   const other = await browser.newContext();
-  await other.request.post(base + "/api/auth/local", { data: {}, headers: h });
+  await other.request.post(base + "/api/auth/local", {
+    data: {},
+    headers: { ...h, "x-melt-local-user": "isolated" },
+  });
   expect(
     (await other.request.get(`${base}/api/sessions/${task.id}`)).status(),
   ).toBe(404);

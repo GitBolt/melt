@@ -1076,7 +1076,15 @@ function SessionDetail({
                   </div>
                 )}
                 <h2>
-                  {t.kind === "swap"
+                  {t.envelopeId
+                    ? t.status === "closed"
+                      ? "Envelope vault closed"
+                      : t.status === "funding"
+                        ? "Fund this envelope"
+                        : t.status === "attention"
+                          ? "Review this envelope vault"
+                          : "This vault holds the gift"
+                    : t.kind === "swap"
                     ? t.status === "closed"
                       ? t.assets.some((a) => a.recovered)
                         ? recoveredTokens[0]?.amount
@@ -1107,7 +1115,10 @@ function SessionDetail({
                               : "Opening your task browser"}
                 </h2>
                 <p>
-                  {t.kind === "swap"
+                  {t.envelopeId
+                    ? t.error ||
+                      "Qualifying purchases settle through Uniswap. Leftover funds stay here until the envelope expires."
+                    : t.kind === "swap"
                     ? t.status === "closed"
                       ? `Swapped ${t.spent} ${config.chain.symbol} for ${t.swap?.symbol || "tokens"} · agent spending disabled`
                       : t.error ||
@@ -1133,7 +1144,7 @@ function SessionDetail({
                                   : "Your agent will open a browser using this wallet."
                                 : "Your browser preview will appear here.")}
                 </p>
-                {t.status === "ready" && (
+                {t.status === "ready" && t.kind === "swap" && (
                   <button
                     className="primary"
                     disabled={!!busy}
@@ -1144,12 +1155,48 @@ function SessionDetail({
                     ) : (
                       <Play size={15} />
                     )}
-                    {t.kind === "swap"
-                      ? "Run swap on Uniswap"
-                      : config.modelConfigured
-                        ? "Start task"
-                        : "Open task browser"}
+                    Run swap on Uniswap
                   </button>
+                )}
+                {t.status === "ready" && t.kind !== "swap" && !t.envelopeId && (
+                  <>
+                    {config.modelConfigured && (
+                      <button
+                        className="primary"
+                        disabled={!!busy}
+                        onClick={() =>
+                          act("start", () =>
+                            request(`/sessions/${t.id}/start`, {
+                              manual: false,
+                            }),
+                          )
+                        }
+                      >
+                        {busy === "start" ? (
+                          <MeltLoader size={15} />
+                        ) : (
+                          <Play size={15} />
+                        )}
+                        Start task
+                      </button>
+                    )}
+                    <button
+                      className={config.modelConfigured ? "secondary" : "primary"}
+                      disabled={!!busy}
+                      onClick={() =>
+                        act("start", () =>
+                          request(`/sessions/${t.id}/start`, { manual: true }),
+                        )
+                      }
+                    >
+                      {busy === "start" ? (
+                        <MeltLoader size={15} />
+                      ) : (
+                        <Play size={15} />
+                      )}
+                      Open task browser
+                    </button>
+                  </>
                 )}
                 {t.status === "funding" && (
                   <>
