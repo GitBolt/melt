@@ -226,6 +226,36 @@ export class Melt {
       validate: (value) => Array.isArray(value) && value.every(isSession),
     });
   }
+  // Read-only Uniswap price discovery so an agent can size a swap before an
+  // owner-authorized swap session is run. Never moves funds.
+  tokens(options = {}) {
+    return this.#request("/swap/tokens", {
+      ...options,
+      validate: (value) => record(value) && Array.isArray(value.tokens),
+    });
+  }
+  quote(params, options = {}) {
+    if (
+      !record(params) ||
+      typeof params.tokenOut !== "string" ||
+      typeof params.amountIn !== "string"
+    )
+      throw new TypeError("quote needs { tokenOut, amountIn, slippageBps? }");
+    const body = { tokenOut: params.tokenOut, amountIn: params.amountIn };
+    if (params.slippageBps !== undefined) {
+      if (!Number.isInteger(params.slippageBps))
+        throw new TypeError("slippageBps must be an integer (basis points)");
+      body.slippageBps = params.slippageBps;
+    }
+    return this.#request("/swap/quote", {
+      ...options,
+      body,
+      validate: (value) =>
+        record(value) &&
+        typeof value.amountOut === "string" &&
+        typeof value.minOut === "string",
+    });
+  }
   session(id, options = {}) {
     return this.#request(sessionPath(id), { ...options, validate: isSession });
   }

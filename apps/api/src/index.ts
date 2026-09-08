@@ -7,7 +7,7 @@ import { randomUUID, randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
-import { toFunctionSelector } from "viem";
+import { toFunctionSelector, parseEther, formatEther } from "viem";
 import { createTask, type Task } from "../../../packages/shared/src/index.js";
 import { forbiddenSelectors } from "./policy.js";
 import { db, digest, get, list, save, event, serial } from "./store.js";
@@ -235,6 +235,8 @@ app.post(
             symbol: token.symbol,
             amountIn: intent.amountIn,
             slippageBps: 50,
+            buys: 1,
+            intervalSec: 60,
           };
         } catch {
           /* Unknown token symbol; keep this as a browser task. */
@@ -257,10 +259,13 @@ app.post(
       input.swap.tokenOut = token.address;
       input.swap.symbol = token.symbol;
       // Lock the vault to only the Uniswap router + swap function, and hold
-      // exactly the swap input so nothing else can be spent.
+      // exactly the total across all scheduled buys so nothing else is spent.
+      const totalWei = parseEther(input.swap.amountIn) * BigInt(input.swap.buys);
+      if (totalWei > parseEther("10"))
+        throw Error("Total swap budget must be 10 or less");
       input.target = UNISWAP.router;
       input.selector = SWAP_SELECTOR;
-      input.budget = input.swap.amountIn;
+      input.budget = formatEther(totalWei);
       input.url = "";
     }
     if (

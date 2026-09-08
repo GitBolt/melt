@@ -553,6 +553,10 @@ function Composer({
   const [slippagePct, setSlippagePct] = useState(
     (initial?.swap?.slippageBps ?? 50) / 100,
   );
+  const [buys, setBuys] = useState(initial?.swap?.buys || 1);
+  const [intervalSec, setIntervalSec] = useState(
+    initial?.swap?.intervalSec || 60,
+  );
   const [quote, setQuote] = useState<any>(null);
   const [quoteErr, setQuoteErr] = useState("");
   const [quoting, setQuoting] = useState(false);
@@ -676,12 +680,21 @@ function Composer({
         onSubmit={(e) => {
           e.preventDefault();
           if (!chosenToken) return;
+          const recurring = buys > 1;
+          // Ensure the session window covers every scheduled buy.
+          const needMinutes = recurring
+            ? Math.ceil((buys * intervalSec) / 60) + 2
+            : minutes;
           onSubmit({
             url: "",
-            title: `Swap ${config.chain.symbol} for ${chosenToken.symbol}`,
-            instruction: `Swap ${swapAmount} ${config.chain.symbol} for ${chosenToken.symbol} on Uniswap`,
+            title: recurring
+              ? `Recurring buy: ${chosenToken.symbol}`
+              : `Swap ${config.chain.symbol} for ${chosenToken.symbol}`,
+            instruction: recurring
+              ? `Buy ${chosenToken.symbol} with ${swapAmount} ${config.chain.symbol}, ${buys} times, on Uniswap`
+              : `Swap ${swapAmount} ${config.chain.symbol} for ${chosenToken.symbol} on Uniswap`,
             budget: swapAmount,
-            durationMinutes: minutes,
+            durationMinutes: Math.min(60, Math.max(minutes, needMinutes)),
             target: "",
             selector: "",
             recovery: owner,
@@ -691,6 +704,8 @@ function Composer({
               symbol: chosenToken.symbol,
               amountIn: swapAmount,
               slippageBps: Math.round(slippagePct * 100),
+              buys,
+              intervalSec,
             },
           });
         }}
@@ -794,18 +809,58 @@ function Composer({
             <option value={1}>1%</option>
           </select>
         </label>
-        <label className="duration-label">
-          Session length<span>{minutes} min</span>
-          <input
-            aria-label="Session length"
-            type="range"
-            min="5"
-            max="60"
-            step="5"
-            value={minutes}
-            onChange={(e) => setMinutes(Number(e.target.value))}
-          />
+        <label className="swap-slippage">
+          Repeat (dollar-cost average)
+          <select
+            value={buys}
+            onChange={(e) => setBuys(Number(e.target.value))}
+          >
+            <option value={1}>Once</option>
+            <option value={3}>3 buys</option>
+            <option value={5}>5 buys</option>
+            <option value={10}>10 buys</option>
+          </select>
         </label>
+        {buys > 1 && (
+          <>
+            <label className="swap-slippage">
+              Every
+              <select
+                value={intervalSec}
+                onChange={(e) => setIntervalSec(Number(e.target.value))}
+              >
+                <option value={30}>30 seconds</option>
+                <option value={60}>1 minute</option>
+                <option value={300}>5 minutes</option>
+                <option value={900}>15 minutes</option>
+              </select>
+            </label>
+            <p className="helper">
+              {buys} buys of {swapAmount} {config.chain.symbol} ={" "}
+              <strong>
+                {(Number(swapAmount) * buys).toLocaleString(undefined, {
+                  maximumFractionDigits: 6,
+                })}{" "}
+                {config.chain.symbol}
+              </strong>{" "}
+              total, all capped by one onchain limit.
+            </p>
+          </>
+        )}
+        {buys <= 1 && (
+          <label className="duration-label">
+            Session length<span>{minutes} min</span>
+            <input
+              aria-label="Session length"
+              type="range"
+              min="5"
+              max="60"
+              step="5"
+              value={minutes}
+              onChange={(e) => setMinutes(Number(e.target.value))}
+            />
+          </label>
+        )}
         <div className="recovery-line">
           <ArrowRight size={14} />
           <span>{chosenToken?.symbol || "Tokens"} return to {short(owner)}</span>
@@ -819,7 +874,7 @@ function Composer({
           )}
           <button className="primary" disabled={!!busy || !canSwap}>
             {busy === "create" ? <MeltLoader size={16} /> : <ArrowUpRight size={16} />}
-            Create swap wallet
+            {buys > 1 ? "Create recurring buy" : "Create swap wallet"}
             <ArrowRight size={16} />
           </button>
         </div>

@@ -67,6 +67,30 @@ export const TOKENS: TokenInfo[] = [
     decimals: 18,
   },
   {
+    symbol: "AAVE",
+    name: "Aave",
+    address: getAddress("0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9"),
+    decimals: 18,
+  },
+  {
+    symbol: "PEPE",
+    name: "Pepe",
+    address: getAddress("0x6982508145454Ce325dDbE47a25d4ec3d2311933"),
+    decimals: 18,
+  },
+  {
+    symbol: "LDO",
+    name: "Lido DAO",
+    address: getAddress("0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32"),
+    decimals: 18,
+  },
+  {
+    symbol: "COMP",
+    name: "Compound",
+    address: getAddress("0xc00e94Cb662C3520282E6f5717214004A7f26888"),
+    decimals: 18,
+  },
+  {
     symbol: "WETH",
     name: "Wrapped Ether",
     address: UNISWAP.weth,

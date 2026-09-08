@@ -37,6 +37,10 @@ export const swapRequest = z.object({
   symbol: z.string().trim().min(1).max(20),
   amountIn: amount,
   slippageBps: z.number().int().min(1).max(5000).default(50),
+  // Recurring buys (dollar-cost averaging): `buys` swaps of `amountIn` spaced
+  // `intervalSec` apart, all bounded by one onchain budget.
+  buys: z.number().int().min(1).max(20).default(1),
+  intervalSec: z.number().int().min(5).max(86400).default(60),
 });
 export type SwapRequest = z.infer<typeof swapRequest>;
 export const createTask = z
