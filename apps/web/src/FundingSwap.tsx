@@ -8,6 +8,8 @@ export function FundingSwap({
   auth,
   owner,
   symbol,
+  explorer,
+  chainId,
   act,
   busy,
 }: {
@@ -15,6 +17,8 @@ export function FundingSwap({
   auth: Auth;
   owner: string;
   symbol: string;
+  explorer?: string;
+  chainId?: number;
   act: any;
   busy: string;
 }) {
@@ -22,6 +26,8 @@ export function FundingSwap({
     [amount, setAmount] = useState(""),
     [quote, setQuote] = useState<any>(),
     [hash, setHash] = useState("");
+  const sepoliaUsdc =
+    chainId === 11155111 ? "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" : "";
   const approveAndQuote = () =>
     act("quote", async () => {
       setQuote(undefined);
@@ -69,9 +75,22 @@ export function FundingSwap({
         Swap tokens to fund this task
       </summary>
       <p className="helper">
-        Swap a token for {symbol} with Uniswap, then add funds to this session.
-        You approve each step in your own wallet. Slippage limit: 0.5%.
+        Swap a token for {symbol} with Uniswap in this wallet, then add funds to
+        the session. The agent browser never sees this wallet. Slippage limit:
+        0.5%.
       </p>
+      {sepoliaUsdc && (
+        <button
+          type="button"
+          className="quiet-button"
+          onClick={() => {
+            setToken(sepoliaUsdc);
+            setQuote(undefined);
+          }}
+        >
+          Use Sepolia USDC
+        </button>
+      )}
       <label>
         Token address
         <input
@@ -107,8 +126,8 @@ export function FundingSwap({
       {quote && (
         <div className="swap-quote">
           <p>
-            Estimated amount: {Number(quote.quote.output.amount) / 1e18}{" "}
-            {symbol}
+            Estimated amount:{" "}
+            {(Number(quote.quote.output.amount) / 1e18).toPrecision(6)} {symbol}
           </p>
           <button
             className="primary"
@@ -141,7 +160,19 @@ export function FundingSwap({
           </button>
         </div>
       )}
-      {hash && <p className="identifier">Transaction: {hash}</p>}
+      {hash &&
+        (explorer ? (
+          <a
+            className="identifier"
+            href={`${explorer}/tx/${hash}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Transaction: {hash.slice(0, 10)}…{hash.slice(-6)}
+          </a>
+        ) : (
+          <p className="identifier">Transaction: {hash}</p>
+        ))}
     </details>
   );
 }

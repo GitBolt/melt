@@ -3,10 +3,12 @@ import React, { Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Config } from "../../../packages/shared/src/index";
 import App from "./App";
+import Landing from "./Landing";
 import { DirectRecovery } from "./DirectRecovery";
 import "./style.css";
 const PrivyApp = React.lazy(() => import("./PrivyApp"));
 const recovery = location.pathname === "/recover";
+const product = location.pathname === "/app";
 const recoveryConfig: Config = {
   mode: "configured",
   chain: {
@@ -37,7 +39,7 @@ function Root() {
     ),
     [error, setError] = useState("");
   useEffect(() => {
-    if (recovery) return;
+    if (recovery || !product) return;
     fetch("/api/config")
       .then((r) => {
         if (!r.ok) throw Error("Could not connect to Melt");
@@ -46,6 +48,7 @@ function Root() {
       .then(setConfig)
       .catch((e) => setError(e.message));
   }, []);
+  if (!product && !recovery) return <Landing />;
   if (!config && !error) return <MeltLoading />;
   if (!config)
     return (

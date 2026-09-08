@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 const base = "http://127.0.0.1:5173";
+const workspace = base + "/app";
 async function chooseExample(page: Page, name: "Mint" | "Pay") {
   await page.getByRole("button", { name, exact: true }).click();
 }
@@ -64,12 +65,25 @@ async function mintThroughManualBrowser(page: Page) {
   return closed;
 }
 
+test("product page explains the task wallet before the workspace", async ({
+  page,
+}) => {
+  await page.goto(base);
+  await expect(
+    page.getByRole("heading", { name: "A wallet for one task." }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Open Melt" }).first().click();
+  await expect(
+    page.getByRole("button", { name: "Open local workspace" }),
+  ).toBeVisible();
+});
+
 test("real browser mint returns NFT and remainder; receipt remains accessible", async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(base);
+  await page.goto(workspace);
   await page.getByRole("button", { name: "Open local workspace" }).click();
   await chooseExample(page, "Mint");
   await expect(
@@ -193,7 +207,7 @@ test("second fixture layout works and narrow UI has no horizontal overflow", asy
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto(base);
+  await page.goto(workspace);
   await page.getByRole("button", { name: "Open local workspace" }).click();
   await chooseExample(page, "Mint");
   await page
@@ -243,7 +257,7 @@ test("browser rejects oversized spend, completes allowed mint, and recovers late
     chain: foundry,
     transport: http("http://127.0.0.1:8545"),
   });
-  await page.goto(base);
+  await page.goto(workspace);
   await page.getByRole("button", { name: "Open local workspace" }).click();
   await chooseExample(page, "Mint");
   await page
@@ -323,7 +337,7 @@ test("manual agent controls and MCP operate only owner-authorized sessions", asy
   const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
   const { StdioClientTransport } =
     await import("@modelcontextprotocol/sdk/client/stdio.js");
-  await page.goto(base);
+  await page.goto(workspace);
   await page.getByRole("button", { name: "Open local workspace" }).click();
   await chooseExample(page, "Mint");
   await page.getByRole("button", { name: "Create task wallet" }).click();
@@ -477,7 +491,7 @@ test("request validation blocks private URLs, changed idempotency bodies and cro
 test("a spending-limit session can complete a different job without a contract lock", async ({
   page,
 }) => {
-  await page.goto(base);
+  await page.goto(workspace);
   await page.getByRole("button", { name: "Open local workspace" }).click();
   await chooseExample(page, "Pay");
   await page.getByRole("button", { name: "Create task wallet" }).click();
@@ -548,7 +562,7 @@ test("developer UI creates and revokes a key, clears revealed secret on logout, 
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(base);
+  await page.goto(workspace);
   await page.getByRole("button", { name: "Open local workspace" }).click();
   await page.getByRole("link", { name: "Developers", exact: true }).click();
   await page.getByRole("button", { name: "Create API key" }).click();

@@ -16,7 +16,7 @@ npx playwright install chromium
 npm run dev
 ```
 
-Open [the local app](http://127.0.0.1:5173), choose **Open local workspace**, create a task wallet, then **Open task browser**. Under **View browser controls**, connect the wallet, refresh the controls, and choose the mint button. End the session to return the collectible and remaining ETH.
+Open [the local site](http://127.0.0.1:5173), choose **Open Melt**, then **Open local workspace**. Create a task wallet, then **Open task browser**. Under **View browser controls**, connect the wallet, refresh the controls, and choose the mint button. End the session to return the collectible and remaining ETH.
 
 Without model credentials, you or an external agent control the browser through visible controls. There is no scripted production driver. With a configured model, Melt chooses actions from page observations and finishes when the job is done or a locked session confirms its permitted transaction. The browser tests choose fixture buttons explicitly inside the test suite.
 
@@ -52,6 +52,10 @@ The client includes status polling, cancellation, screenshots, receipts and clea
 - Built-in model integration and external-agent HTTP, JavaScript and MCP access. Seven browser action types; no arbitrary script execution.
 - A light interface with custom paper-wallet motion, a spending ribbon and reduced-motion support.
 
+Privy is the owner identity and wallet: email or external wallet login, an embedded Ethereum wallet, passkeys, and the relayer that signs outer task-wallet transactions. The live financial flow is sign in → owner wallet → fund the session → the agent spends inside the limit → unused funds and supported assets return. Implementation: [`apps/web/src/PrivyApp.tsx`](apps/web/src/PrivyApp.tsx).
+
+Uniswap is an owner-only conversion used to fund a session. The agent browser never receives that wallet. Adapter: [`apps/api/src/uniswap.ts`](apps/api/src/uniswap.ts) (`checkApproval`, `uniswapQuote`, `prepareSwap`). UI: [`apps/web/src/FundingSwap.tsx`](apps/web/src/FundingSwap.tsx). Review notes: [`FEEDBACK.md`](FEEDBACK.md).
+
 Implementation is not the same as live verification. [The verification record](docs/verification.md) distinguishes local transaction evidence, mocked provider tests and outstanding public-network checks.
 
 ## Use a public testnet
@@ -64,7 +68,7 @@ Testnet ETH has no monetary value. Mainnet gas, hosted models and infrastructure
 
 | Location          | Responsibility                                                                    |
 | ----------------- | --------------------------------------------------------------------------------- |
-| `apps/web`        | React app, authentication, funding and session UI                                 |
+| `apps/web`        | Product page, React workspace, authentication, funding and session UI             |
 | `apps/api`        | HTTP API, browser worker, model/Uniswap adapters, persistence and chain execution |
 | `packages/shared` | Shared validation and domain types                                                |
 | `packages/sdk`    | Standalone JavaScript client, types and stdio MCP server                          |
