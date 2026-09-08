@@ -226,6 +226,51 @@ export interface SwapQuote {
   minOut: string;
   slippageBps: number;
   rate: string; // token units per 1 ETH
+  priceImpactBps: number;
+}
+
+export function priceImpactBps(
+  spotOut: bigint,
+  spotIn: bigint,
+  execOut: bigint,
+  execIn: bigint,
+): number {
+  if (spotIn <= 0n || execIn <= 0n || spotOut <= 0n) return 0;
+  const spot = (spotOut * 10n ** 18n) / spotIn;
+  const exec = (execOut * 10n ** 18n) / execIn;
+  if (exec >= spot) return 0;
+  const bps = ((spot - exec) * 10000n) / spot;
+  return Number(bps > 10_000n ? 10_000n : bps);
+}
+
+export function knownToken(address: string): TokenInfo | undefined {
+  return TOKENS.find((t) => t.address.toLowerCase() === address.toLowerCase());
+}
+
+async function quoteFee(
+  tokenOut: Address,
+  amountInWei: bigint,
+  fee: number,
+): Promise<bigint | undefined> {
+  try {
+    const result = (await client.readContract({
+      address: UNISWAP.quoter,
+      abi: quoterAbi,
+      functionName: "quoteExactInputSingle",
+      args: [
+        {
+          tokenIn: UNISWAP.weth,
+          tokenOut,
+          amountIn: amountInWei,
+          fee,
+          sqrtPriceLimitX96: 0n,
+        },
+      ],
+    })) as readonly [bigint, bigint, number, bigint];
+    return result[0] > 0n ? result[0] : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function bestQuote(tokenOut: Address, amountInWei: bigint) {
@@ -233,21 +278,9 @@ async function bestQuote(tokenOut: Address, amountInWei: bigint) {
   // latency tier by tier.
   const results = await Promise.allSettled(
     FEE_TIERS.map(async (fee) => {
-      const result = (await client.readContract({
-        address: UNISWAP.quoter,
-        abi: quoterAbi,
-        functionName: "quoteExactInputSingle",
-        args: [
-          {
-            tokenIn: UNISWAP.weth,
-            tokenOut,
-            amountIn: amountInWei,
-            fee,
-            sqrtPriceLimitX96: 0n,
-          },
-        ],
-      })) as readonly [bigint, bigint, number, bigint];
-      return { fee, amountOut: result[0] };
+      const amountOut = await quoteFee(tokenOut, amountInWei, fee);
+      if (!amountOut) throw Error("empty");
+      return { fee, amountOut };
     }),
   );
   let best: { fee: number; amountOut: bigint } | undefined;
@@ -288,6 +321,13 @@ export async function quoteSwap(params: {
   if (!best) throw Error("No Uniswap pool found for this pair");
   const minOutWei = (best.amountOut * BigInt(10000 - slippageBps)) / 10000n;
   const amountOut = formatUnits(best.amountOut, token.decimals);
+  const probeIn = amountInWei / 50n;
+  let impact = 0;
+  if (probeIn >= 10n ** 12n) {
+    const probeOut = await quoteFee(token.address, probeIn, best.fee);
+    if (probeOut)
+      impact = priceImpactBps(probeOut, probeIn, best.amountOut, amountInWei);
+  }
   const quote: SwapQuote = {
     tokenOut: token.address,
     symbol: token.symbol,
@@ -304,11 +344,11 @@ export async function quoteSwap(params: {
       (best.amountOut * 10n ** 18n) / amountInWei,
       token.decimals,
     ),
+    priceImpactBps: impact,
   };
   quoteCache.set(cacheKey, { expires: Date.now() + 12000, quote });
   return quote;
 }
-
 
 // Build the native-value router call the vault executes. Because ETH is sent
 // as msg.value and tokenIn is WETH, SwapRouter02 wraps it internally: no

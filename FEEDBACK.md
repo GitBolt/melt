@@ -42,7 +42,8 @@ Feedback: QuoterV2's `quoteExactInputSingle` is not `view` but returns cleanly
 over `eth_call`; documenting that explicitly (and that native ETH input via
 `msg.value` avoids a WETH approval on SwapRouter02) would save integrators time.
 Probing fee tiers in parallel and caching quotes was necessary for responsive
-UX on a cold fork.
+UX on a cold fork. Quotes also probe a smaller size on the winning fee tier to
+surface `priceImpactBps` before the agent spends.
 
 Recurring buys (dollar-cost averaging) run several of these native-value swaps
 across time under one onchain budget (`runSwaps` in `apps/api/src/browser.ts`),
