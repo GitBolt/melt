@@ -22,6 +22,7 @@ import {
   X,
   ShieldCheck,
   MousePointer2,
+  Repeat,
 } from "lucide-react";
 import { parseEther, toHex } from "viem";
 import type {
@@ -74,6 +75,57 @@ const pageFromHash = () =>
   ({ "#developers": "Developers", "#receipts": "Receipts" })[
     window.location.hash as "#developers" | "#receipts"
   ] || "Sessions";
+const SWAP_PRESET = "melt-swap-preset";
+function loadSwapPreset(): {
+  symbol?: string;
+  amount?: string;
+  slippagePct?: number;
+  buys?: number;
+  intervalSec?: number;
+} | null {
+  try {
+    return JSON.parse(localStorage.getItem(SWAP_PRESET) || "null");
+  } catch {
+    return null;
+  }
+}
+function confirmedBuys(task: Task) {
+  return task.transactions.filter(
+    (tx) => tx.kind === "Execute dapp transaction" && tx.status === "success",
+  ).length;
+}
+function formatAmount(n: number, digits = 4) {
+  if (!Number.isFinite(n) || n === 0) return "0";
+  return n.toLocaleString(undefined, { maximumFractionDigits: digits });
+}
+function remainingLabel(expiresAt: number, now: number, closed: boolean) {
+  if (closed) return "Ended";
+  const remaining = Math.max(0, expiresAt - Math.floor(now / 1000));
+  if (remaining <= 0) return "Expired";
+  return `${Math.floor(remaining / 60)}m ${String(remaining % 60).padStart(2, "0")}s`;
+}
+function sessionOverview(tasks: Task[]) {
+  const spent = tasks.reduce((n, t) => n + Number(t.spent || 0), 0);
+  const returned = tasks.reduce((n, t) => n + Number(t.returned || 0), 0);
+  const succeeded = tasks.filter((t) => t.outcome === "succeeded").length;
+  const tokens = new Map<
+    string,
+    { symbol: string; amount: number; recovered: number }
+  >();
+  for (const t of tasks)
+    for (const a of t.assets.filter((x) => x.kind === "erc20")) {
+      const key = a.token.toLowerCase();
+      const cur = tokens.get(key) || {
+        symbol: a.symbol || `${a.token.slice(0, 6)}…`,
+        amount: 0,
+        recovered: 0,
+      };
+      if (a.amount) cur.amount += Number(a.amount) || 0;
+      if (a.recovered) cur.recovered += 1;
+      tokens.set(key, cur);
+    }
+  return { spent, returned, succeeded, tokens: [...tokens.values()] };
+}
 
 export default function App({ config, auth }: { config: Config; auth?: Auth }) {
   const [user, setUser] = useState<{ id: string; owner: string } | null>(null),
@@ -84,7 +136,9 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [newTask, setNewTask] = useState(false),
-    [draft, setDraft] = useState<CreateTask>();
+    [draft, setDraft] = useState<CreateTask>(),
+    [kindFilter, setKindFilter] = useState<"all" | "browse" | "swap">("all"),
+    [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const onHashChange = () => {
       setPage(pageFromHash());
@@ -148,6 +202,10 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     const t = setTimeout(() => setNotice(""), 5000);
     return () => clearTimeout(t);
   }, [notice]);
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
   const act = async (name: string, fn: () => Promise<unknown>) => {
     setBusy(name);
     setError("");
@@ -168,7 +226,9 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
           setNewTask(true);
         });
   const task = tasks.find((t) => t.id === selected),
-    active = tasks.filter((t) => t.status !== "closed");
+    listed = tasks.filter((t) => kindFilter === "all" || t.kind === kindFilter),
+    active = listed.filter((t) => t.status !== "closed"),
+    overview = sessionOverview(listed);
   async function download(t: Task) {
     const data = await request(`/sessions/${t.id}/receipt`);
     const url = URL.createObjectURL(
@@ -182,7 +242,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
   }
   return (
     <div className="app-shell">
-      <header>
+      <header className="app-top">
         <a
           className="wordmark"
           href="#"
@@ -195,6 +255,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
           <MeltWordmark />
         </a>
         <GooeyNav
+          className="app-nav"
           activeColor="#e9edf9"
           activeLabelColor="#5363ac"
           size="sm"
@@ -284,6 +345,8 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               act={act}
               auth={auth}
               owner={user?.owner || ""}
+              notify={setNotice}
+              now={now}
               download={() => download(task)}
               repeat={() => {
                 setDraft(task);
@@ -322,7 +385,11 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               )}
             </section>
             {page === "Sessions" && (!user || newTask || !tasks.length) ? (
-              <div className="launch-grid">
+              <div
+                className={
+                  user && tasks.length ? "compose-solo" : "launch-grid"
+                }
+              >
                 <section className="compose panel">
                   <div className="section-top">
                     <h2>Start with a task</h2>
@@ -365,7 +432,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                         <ArrowUpRight size={17} />
                       </div>
                       <button
-                        className="primary wide"
+                        className="primary sign-in-cta"
                         onClick={signIn}
                         disabled={!!busy}
                       >
@@ -377,7 +444,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                       </button>
                       {auth?.passkey && (
                         <button
-                          className="quiet-button wide"
+                          className="quiet-button"
                           onClick={() => act("passkey", auth.passkey!)}
                         >
                           Sign in with a passkey
@@ -391,31 +458,96 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                     </>
                   )}
                 </section>
-                <aside className="welcome-wallet panel">
-                  <SessionSeal />
-                  <div>
-                    <h2>Keep your main wallet separate.</h2>
-                    <p>
-                      Your agent spends from a task wallet with a limit you set.
-                      Unused funds return when the session ends.
-                    </p>
-                  </div>
-                  <div className="wallet-footer">
-                    <ShieldCheck size={14} />
-                    Spending limits enforced onchain
-                  </div>
-                </aside>
+                {!(user && tasks.length) && (
+                  <aside className="welcome-wallet panel">
+                    <SessionSeal />
+                    <div>
+                      <h2>Keep your main wallet separate.</h2>
+                      <p>
+                        Your agent spends from a task wallet with a limit you
+                        set. Unused funds return when the session ends.
+                      </p>
+                    </div>
+                    <div className="wallet-footer">
+                      <ShieldCheck size={14} />
+                      Spending limits enforced onchain
+                    </div>
+                  </aside>
+                )}
               </div>
             ) : null}
             {user && tasks.length > 0 && (
               <section className="session-list">
+                {page === "Receipts" && (
+                  <>
+                    <div className="overview-grid">
+                      <article className="overview-card panel">
+                        <span>Spent</span>
+                        <strong>
+                          {formatAmount(overview.spent, 5)}
+                          <small>{config.chain.symbol}</small>
+                        </strong>
+                      </article>
+                      <article className="overview-card panel">
+                        <span>Returned</span>
+                        <strong>
+                          {formatAmount(overview.returned, 5)}
+                          <small>{config.chain.symbol}</small>
+                        </strong>
+                      </article>
+                      <article className="overview-card panel">
+                        <span>Confirmed jobs</span>
+                        <strong>
+                          {overview.succeeded}
+                          <small>/ {listed.length}</small>
+                        </strong>
+                      </article>
+                      <article className="overview-card panel">
+                        <span>Tokens recovered</span>
+                        <strong>{overview.tokens.length}</strong>
+                      </article>
+                    </div>
+                    {overview.tokens.length > 0 && (
+                      <div className="portfolio-row">
+                        {overview.tokens.map((token) => (
+                          <span className="portfolio-chip" key={token.symbol}>
+                            <strong>
+                              {token.amount
+                                ? formatAmount(token.amount)
+                                : token.recovered}
+                            </strong>
+                            {token.symbol}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
                 <div className="section-top">
                   <h2>
                     {page === "Receipts" ? "Session history" : "Your sessions"}
                   </h2>
                   <span className="quiet">{active.length} open</span>
                 </div>
-                {tasks.map((t) => (
+                <div className="filter-row">
+                  {(
+                    [
+                      ["all", "All"],
+                      ["swap", "Swaps"],
+                      ["browse", "Browser jobs"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={kindFilter === value ? "chosen" : ""}
+                      onClick={() => setKindFilter(value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {listed.map((t) => (
                   <button
                     key={t.id}
                     className="session-row"
@@ -426,6 +558,8 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                     >
                       {t.status === "closed" ? (
                         <Check size={19} />
+                      ) : t.kind === "swap" ? (
+                        <Repeat size={18} />
                       ) : (
                         <ArrowUpRight size={19} />
                       )}
@@ -433,13 +567,24 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                     <div className="row-name">
                       <strong>{t.title}</strong>
                       <span>
-                        {siteHost(t.url)} ·{" "}
+                        {t.kind === "swap"
+                          ? t.swap?.buys && t.swap.buys > 1
+                            ? `${confirmedBuys(t)}/${t.swap.buys} buys · ${t.swap.symbol}`
+                            : `Uniswap · ${t.swap?.symbol || "token"}`
+                          : siteHost(t.url)}{" "}
+                        ·{" "}
                         {new Date(t.createdAt).toLocaleDateString(undefined, {
                           month: "short",
                           day: "numeric",
                         })}
+                        {t.status !== "closed"
+                          ? ` · ${remainingLabel(t.expiresAt, now, false)}`
+                          : ""}
                       </span>
                     </div>
+                    <span className={`kind-pill ${t.kind}`}>
+                      {t.kind === "swap" ? "Swap" : "Browse"}
+                    </span>
                     <span className={`status status-${t.status}`}>
                       {statusLabel[t.status]}
                     </span>
@@ -449,6 +594,9 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                     <ArrowUpRight size={16} />
                   </button>
                 ))}
+                {listed.length === 0 && (
+                  <p className="helper">No sessions in this view yet.</p>
+                )}
               </section>
             )}
             {!user && page === "Receipts" && (
@@ -531,6 +679,7 @@ function Composer({
     : undefined;
   const swapTokens = config.swap?.tokens || [];
   const swapEnabled = !!config.swap?.available && swapTokens.length > 0;
+  const preset = initial?.swap ? null : loadSwapPreset();
   const [example, setExample] = useState(
     initial?.kind === "swap" ? "swap" : "custom",
   );
@@ -545,17 +694,19 @@ function Composer({
   const [target, setTarget] = useState(initial?.target || "");
   const [selector, setSelector] = useState(initial?.selector || "");
   const [swapSymbol, setSwapSymbol] = useState(
-    initial?.swap?.symbol || swapTokens[0]?.symbol || "USDC",
+    initial?.swap?.symbol || preset?.symbol || swapTokens[0]?.symbol || "USDC",
   );
   const [swapAmount, setSwapAmount] = useState(
-    initial?.swap?.amountIn || "0.05",
+    initial?.swap?.amountIn || preset?.amount || "0.05",
   );
   const [slippagePct, setSlippagePct] = useState(
-    (initial?.swap?.slippageBps ?? 50) / 100,
+    initial?.swap
+      ? (initial.swap.slippageBps ?? 50) / 100
+      : (preset?.slippagePct ?? 0.5),
   );
-  const [buys, setBuys] = useState(initial?.swap?.buys || 1);
+  const [buys, setBuys] = useState(initial?.swap?.buys || preset?.buys || 1);
   const [intervalSec, setIntervalSec] = useState(
-    initial?.swap?.intervalSec || 60,
+    initial?.swap?.intervalSec || preset?.intervalSec || 60,
   );
   const [quote, setQuote] = useState<any>(null);
   const [quoteErr, setQuoteErr] = useState("");
@@ -610,67 +761,89 @@ function Composer({
     setSelector(next.selector);
   };
   const tabs = (
-    <div className="template-options">
-      <button
-        className={example === "custom" ? "chosen" : ""}
-        type="button"
-        onClick={() => {
-          setExample("custom");
-          apply({
-            title: "",
-            instruction: "",
-            url: "",
-            target: "",
-            selector: "",
-          });
-        }}
-      >
-        Custom
-      </button>
+    <>
       {swapEnabled && (
-        <button
-          className={example === "swap" ? "chosen" : ""}
-          type="button"
-          onClick={() => setExample("swap")}
-        >
-          Swap
-        </button>
+        <div className="job-modes">
+          <button
+            className={example !== "swap" ? "chosen" : ""}
+            type="button"
+            onClick={() => {
+              setExample("custom");
+              apply({
+                title: "",
+                instruction: "",
+                url: "",
+                target: "",
+                selector: "",
+              });
+            }}
+          >
+            Browser job
+          </button>
+          <button
+            className={example === "swap" ? "chosen" : ""}
+            type="button"
+            onClick={() => setExample("swap")}
+          >
+            Uniswap swap
+          </button>
+        </div>
       )}
-      <button
-        className={example === "site" ? "chosen" : ""}
-        type="button"
-        onClick={() => {
-          setExample("site");
-          apply(site);
-        }}
-      >
-        New site
-      </button>
-      {config.fixture.available && (
-        <button
-          className={example === "mint" ? "chosen" : ""}
-          type="button"
-          onClick={() => {
-            setExample("mint");
-            apply(mint);
-          }}
-        >
-          Mint
-        </button>
+      {example !== "swap" && (
+        <div className="template-options">
+          <button
+            className={example === "custom" ? "chosen" : ""}
+            type="button"
+            onClick={() => {
+              setExample("custom");
+              apply({
+                title: "",
+                instruction: "",
+                url: "",
+                target: "",
+                selector: "",
+              });
+            }}
+          >
+            Custom
+          </button>
+          <button
+            className={example === "site" ? "chosen" : ""}
+            type="button"
+            onClick={() => {
+              setExample("site");
+              apply(site);
+            }}
+          >
+            New site
+          </button>
+          {config.fixture.available && (
+            <button
+              className={example === "mint" ? "chosen" : ""}
+              type="button"
+              onClick={() => {
+                setExample("mint");
+                apply(mint);
+              }}
+            >
+              Mint
+            </button>
+          )}
+          {pay && (
+            <button
+              className={example === "pay" ? "chosen" : ""}
+              type="button"
+              onClick={() => {
+                setExample("pay");
+                apply(pay);
+              }}
+            >
+              Pay
+            </button>
+          )}
+        </div>
       )}
-      {pay && (
-        <button
-          className={example === "pay" ? "chosen" : ""}
-          type="button"
-          onClick={() => {
-            setExample("pay");
-            apply(pay);
-          }}
-        >
-          Pay
-        </button>
-      )}
-    </div>
+    </>
   );
   if (example === "swap") {
     const canSwap = !!chosenToken && !!quote && !quoteErr;
@@ -708,6 +881,20 @@ function Composer({
               intervalSec,
             },
           });
+          try {
+            localStorage.setItem(
+              SWAP_PRESET,
+              JSON.stringify({
+                symbol: chosenToken.symbol,
+                amount: swapAmount,
+                slippagePct,
+                buys,
+                intervalSec,
+              }),
+            );
+          } catch {
+            /* Ignore private-mode storage. */
+          }
         }}
       >
         {tabs}
@@ -737,20 +924,39 @@ function Composer({
           </div>
           <label className="swap-field">
             You receive
-            <select
-              aria-label="Token to buy"
-              value={swapSymbol}
-              onChange={(e) => setSwapSymbol(e.target.value)}
-            >
-              {swapTokens
-                .filter((t) => t.symbol !== "WETH")
-                .map((t) => (
-                  <option key={t.address} value={t.symbol}>
-                    {t.symbol} · {t.name}
-                  </option>
-                ))}
-            </select>
+            <span className="amount-input">
+              <input
+                aria-label="Estimated tokens received"
+                readOnly
+                value={
+                  quote
+                    ? Number(quote.amountOut).toLocaleString(undefined, {
+                        maximumFractionDigits: 4,
+                      })
+                    : quoting
+                      ? "…"
+                      : "—"
+                }
+              />
+              <span>{chosenToken?.symbol || "Token"}</span>
+            </span>
           </label>
+        </div>
+        <div className="token-chips" role="listbox" aria-label="Token to buy">
+          {swapTokens
+            .filter((t) => t.symbol !== "WETH")
+            .map((t) => (
+              <button
+                key={t.address}
+                type="button"
+                role="option"
+                aria-selected={swapSymbol === t.symbol}
+                className={swapSymbol === t.symbol ? "chosen" : ""}
+                onClick={() => setSwapSymbol(t.symbol)}
+              >
+                {t.symbol}
+              </button>
+            ))}
         </div>
         <div className={`swap-quote ${quoteErr ? "swap-quote-error" : ""}`}>
           {quoteErr ? (
@@ -760,7 +966,8 @@ function Composer({
               <div className="swap-quote-main">
                 <span>Estimated received</span>
                 <strong>
-                  ≈ {Number(quote.amountOut).toLocaleString(undefined, {
+                  ≈{" "}
+                  {Number(quote.amountOut).toLocaleString(undefined, {
                     maximumFractionDigits: 4,
                   })}{" "}
                   {quote.symbol}
@@ -790,11 +997,36 @@ function Composer({
                   <dt>Route</dt>
                   <dd>Uniswap V3 · {(quote.fee / 10000).toFixed(2)}% pool</dd>
                 </div>
+                {typeof quote.priceImpactBps === "number" && (
+                  <div
+                    className={
+                      quote.priceImpactBps >= 300
+                        ? "impact-high"
+                        : quote.priceImpactBps >= 100
+                          ? "impact-warn"
+                          : undefined
+                    }
+                  >
+                    <dt>Price impact</dt>
+                    <dd>
+                      {quote.priceImpactBps < 1
+                        ? "< 0.01%"
+                        : `${(quote.priceImpactBps / 100).toFixed(2)}%`}
+                      {quote.priceImpactBps >= 300
+                        ? " · high"
+                        : quote.priceImpactBps >= 100
+                          ? " · review size"
+                          : ""}
+                    </dd>
+                  </div>
+                )}
               </dl>
             </>
           ) : (
             <span className="quiet">
-              {quoting ? "Fetching best Uniswap price…" : "Enter an amount to price this swap."}
+              {quoting
+                ? "Fetching best Uniswap price…"
+                : "Enter an amount to price this swap."}
             </span>
           )}
         </div>
@@ -863,7 +1095,9 @@ function Composer({
         )}
         <div className="recovery-line">
           <ArrowRight size={14} />
-          <span>{chosenToken?.symbol || "Tokens"} return to {short(owner)}</span>
+          <span>
+            {chosenToken?.symbol || "Tokens"} return to {short(owner)}
+          </span>
           <span>Gas is separate</span>
         </div>
         <div className="form-actions">
@@ -873,7 +1107,11 @@ function Composer({
             </button>
           )}
           <button className="primary" disabled={!!busy || !canSwap}>
-            {busy === "create" ? <MeltLoader size={16} /> : <ArrowUpRight size={16} />}
+            {busy === "create" ? (
+              <MeltLoader size={16} />
+            ) : (
+              <ArrowUpRight size={16} />
+            )}
             {buys > 1 ? "Create recurring buy" : "Create swap wallet"}
             <ArrowRight size={16} />
           </button>
@@ -1034,6 +1272,8 @@ function SessionDetail({
   busy,
   auth,
   owner,
+  notify,
+  now,
   download,
   repeat,
 }: {
@@ -1044,6 +1284,8 @@ function SessionDetail({
   busy: string;
   auth?: Auth;
   owner: string;
+  notify: (s: string) => void;
+  now: number;
   download: () => void;
   repeat: () => void;
 }) {
@@ -1102,12 +1344,15 @@ function SessionDetail({
       ),
     );
   }
-  const remaining = Math.max(0, t.expiresAt - Math.floor(Date.now() / 1000)),
-    gas = t.transactions.reduce(
+  const gas = t.transactions.reduce(
       (n, tx) => n + Number(tx.gasWei || 0) / 1e18,
       0,
     ),
-    returnedAssets = t.assets.filter((asset) => asset.recovered).length;
+    returnedAssets = t.assets.filter((asset) => asset.recovered).length,
+    recoveredTokens = t.assets.filter(
+      (asset) => asset.kind === "erc20" && asset.recovered,
+    ),
+    buysDone = confirmedBuys(t);
   return (
     <>
       <section className="detail-heading">
@@ -1121,7 +1366,9 @@ function SessionDetail({
             ) : (
               <>
                 {siteHost(t.url)} <span className="divider-dot">·</span>{" "}
-                {t.agentMode === "model" ? "AI browser agent" : "Manual control"}
+                {t.agentMode === "model"
+                  ? "AI browser agent"
+                  : "Manual control"}
               </>
             )}
           </p>
@@ -1170,9 +1417,31 @@ function SessionDetail({
               <dd>
                 {t.status === "closed"
                   ? "Session ended"
-                  : `${Math.floor(remaining / 60)}m ${remaining % 60}s`}
+                  : remainingLabel(t.expiresAt, now, false)}
               </dd>
             </div>
+            {t.kind === "swap" && (t.swap?.buys || 1) > 1 && (
+              <div>
+                <dt>Buys</dt>
+                <dd>
+                  {buysDone} / {t.swap?.buys}
+                </dd>
+              </div>
+            )}
+            {recoveredTokens.length > 0 && (
+              <div>
+                <dt>Recovered</dt>
+                <dd>
+                  {recoveredTokens
+                    .map((a) =>
+                      a.amount && a.symbol
+                        ? `${formatAmount(Number(a.amount))} ${a.symbol}`
+                        : a.symbol || short(a.token),
+                    )
+                    .join(", ")}
+                </dd>
+              </div>
+            )}
             <div>
               <dt>Return wallet</dt>
               <dd>{short(t.recovery)}</dd>
@@ -1180,7 +1449,22 @@ function SessionDetail({
           </dl>
           <details>
             <summary>Wallet details</summary>
-            <p className="identifier">{t.vault}</p>
+            <p className="identifier vault-line">
+              {t.vault}
+              {t.vault && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void navigator.clipboard
+                      .writeText(t.vault)
+                      .then(() => notify("Task wallet copied"))
+                  }
+                >
+                  <Copy size={13} />
+                  Copy
+                </button>
+              )}
+            </p>
             <p className="helper">
               {t.target && t.selector ? (
                 <>
@@ -1322,7 +1606,9 @@ function SessionDetail({
                   {t.kind === "swap"
                     ? t.status === "closed"
                       ? t.assets.some((a) => a.recovered)
-                        ? `${t.swap?.symbol || "Token"} returned to your wallet`
+                        ? recoveredTokens[0]?.amount
+                          ? `${formatAmount(Number(recoveredTokens[0].amount))} ${recoveredTokens[0].symbol || t.swap?.symbol} returned to your wallet`
+                          : `${t.swap?.symbol || "Token"} returned to your wallet`
                         : "Swap session closed"
                       : t.status === "closing"
                         ? "Returning your token"

@@ -94,10 +94,14 @@ svg {
   padding: 0 46px;
 }
 header {
-  height: 96px;
+  height: 76px;
   display: flex;
   align-items: center;
-  gap: 55px;
+  gap: 20px;
+}
+header.app-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 .wordmark {
   font-size: 33px;
@@ -106,16 +110,26 @@ header {
   color: #33353e;
 }
 .account {
-  margin-left: auto;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 9px;
   background: white;
   border: 1px solid var(--line);
-  padding: 9px 14px;
+  padding: 8px 13px;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 13px;
   color: #595c69;
+  width: max-content;
+  justify-self: end;
+  margin-left: auto;
+  white-space: nowrap;
+}
+header.app-top .account {
+  margin-left: 0;
+}
+header.app-top [data-slot="gooey-nav"],
+.app-nav {
+  justify-self: center;
 }
 [data-slot="gooey-nav"] ul {
   padding: 0;
@@ -132,9 +146,11 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  min-height: 33px;
+  min-height: 36px;
   color: #646b7b;
   font-size: 12px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
 }
 .environment > span {
   display: flex;
@@ -162,8 +178,8 @@ main {
 .intro {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 50px 0 47px;
+  align-items: flex-end;
+  padding: 36px 0 28px;
   gap: 20px;
 }
 .intro p {
