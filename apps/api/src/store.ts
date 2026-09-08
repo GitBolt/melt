@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
-import { randomUUID, createHash } from "node:crypto";
+import { randomUUID, randomBytes, createHash } from "node:crypto";
 import type { Task } from "../../../packages/shared/src/index.js";
 mkdirSync(process.env.DATA_DIR || "data/task-wallet", {
   recursive: true,
@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS tokens(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL,name TEXT NOT NULL,created TEXT NOT NULL,revoked INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS auth_sessions(hash TEXT PRIMARY KEY,user_id TEXT NOT NULL,owner TEXT NOT NULL,expires INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS idempotency(key TEXT PRIMARY KEY,task_id TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS receipts(token TEXT PRIMARY KEY,task_id TEXT NOT NULL);
 `);
 export const digest = (s: string) =>
   createHash("sha256").update(s).digest("hex");
@@ -26,13 +27,22 @@ export const setting = (key: string) =>
 export const setSetting = (key: string, value: string) =>
   db.prepare("INSERT OR REPLACE INTO settings VALUES(?,?)").run(key, value);
 const cache = new Map<string, Task>();
+function ensureReceiptToken(task: Task) {
+  if (task.receiptToken && /^[0-9a-f]{48}$/i.test(task.receiptToken))
+    return task.receiptToken.toLowerCase();
+  const token = randomBytes(24).toString("hex");
+  task.receiptToken = token;
+  return token;
+}
 export function save(task: Task) {
+  const token = ensureReceiptToken(task);
   cache.set(task.id, task);
   db.prepare("INSERT OR REPLACE INTO tasks VALUES(?,?,?)").run(
     task.id,
     task.userId,
     JSON.stringify(task),
   );
+  db.prepare("INSERT OR REPLACE INTO receipts VALUES(?,?)").run(token, task.id);
   return task;
 }
 export function get(id: string): Task {
@@ -43,8 +53,19 @@ export function get(id: string): Task {
     throw Object.assign(Error("Session not found"), { statusCode: 404 });
   const task = JSON.parse(row.body);
   if (task.agentMode === "local-script") task.agentMode = "manual";
-  cache.set(id, task);
+  if (!task.receiptToken) save(task);
+  else cache.set(id, task);
   return task;
+}
+export function getByReceiptToken(token: string): Task {
+  if (!/^[0-9a-f]{48}$/i.test(token))
+    throw Object.assign(Error("Receipt not found"), { statusCode: 404 });
+  const row = db
+    .prepare("SELECT task_id FROM receipts WHERE token=?")
+    .get(token.toLowerCase()) as { task_id?: string } | undefined;
+  if (!row?.task_id)
+    throw Object.assign(Error("Receipt not found"), { statusCode: 404 });
+  return get(row.task_id);
 }
 export function list(userId?: string): Task[] {
   const rows = userId

@@ -1,0 +1,147 @@
+.receipt-shell > header {
+  justify-content: space-between;
+}
+.receipt-hero {
+  padding: 28px 32px 24px;
+  margin-bottom: 24px;
+}
+.receipt-hero h1 {
+  margin: 8px 0 12px;
+  letter-spacing: -0.6px;
+}
+.mandate {
+  max-width: 46em;
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--ink);
+}
+.receipt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+.receipt-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.receipt-grid .panel,
+.webhook-log {
+  padding: 22px 24px;
+}
+.receipt-tx {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.receipt-tx:first-of-type {
+  border-top: 0;
+}
+.receipt-tx a,
+.receipt-tx code {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+.receipt-assets {
+  margin: 12px 0 0;
+  padding-left: 18px;
+}
+.session-mandate {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #f4f6fb;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+.event-row,
+.hook-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.event-row:first-of-type,
+.hook-row:first-of-type {
+  border-top: 0;
+}
+.event-row code,
+.hook-row code {
+  font-size: 12px;
+}
+.status-requires_funding,
+.status-open,
+.status-processing,
+.status-settling,
+.status-succeeded,
+.status-failed,
+.status-cancelled,
+.status-needs_recovery {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  background: #edf0fb;
+  color: var(--accent);
+}
+.status-succeeded {
+  background: #e8f6ee;
+  color: #1f7a45;
+}
+.status-failed,
+.status-needs_recovery {
+  background: #fdeeee;
+  color: #a33b3b;
+}
+.hook-url {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+.hook-url input {
+  width: 100%;
+}
+.hook-events {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0 0 16px;
+  font-size: 12px;
+}
+.hook-events label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.hook-events input[type="checkbox"] {
+  width: auto;
+  padding: 0;
+  box-shadow: none;
+}
+.hook-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.developers-webhooks {
+  margin-top: 24px;
+}
+@media (max-width: 800px) {
+  .receipt-grid {
+    grid-template-columns: 1fr;
+  }
+}

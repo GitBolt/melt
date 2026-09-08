@@ -10,7 +10,16 @@ import { z } from "zod";
 import { toFunctionSelector, parseEther, formatEther } from "viem";
 import { createTask, type Task } from "../../../packages/shared/src/index.js";
 import { forbiddenSelectors } from "./policy.js";
-import { db, digest, get, list, save, event, serial } from "./store.js";
+import {
+  db,
+  digest,
+  get,
+  getByReceiptToken,
+  list,
+  save,
+  event,
+  serial,
+} from "./store.js";
 import {
   local,
   chain,
@@ -50,6 +59,17 @@ import {
 } from "./swap.js";
 import { parseSwapIntent } from "./intent.js";
 import { address } from "../../../packages/shared/src/index.js";
+import { publicReceipt } from "./receipt.js";
+import {
+  WEBHOOK_TYPES,
+  createWebhook,
+  deleteWebhook,
+  emit,
+  listEvents,
+  listWebhooks,
+  pingWebhook,
+  type WebhookType,
+} from "./webhooks.js";
 let browserAvailable = false;
 let lastBrowserCheck = 0;
 let browserCheck: Promise<void> | undefined;
@@ -321,6 +341,7 @@ app.post(
       event(task, "info", "Spending limit set");
       try {
         await deployTask(task);
+        emit(user.id, "session.created", task);
       } catch (e) {
         task.status = "attention";
         task.error = errorMessage(e);
@@ -388,7 +409,9 @@ app.post("/api/sessions/:id/recover", async (req) => {
   else task.assets.push({ ...input, recovered: false });
   save(task);
   await finish(task.id);
-  return task;
+  const closed = get(task.id);
+  emit(closed.userId, "session.recovered", closed);
+  return closed;
 });
 app.post("/api/sessions/:id/funding", async (req) => {
   const { task, user } = await owned(req);
@@ -420,9 +443,11 @@ app.post("/api/sessions/:id/funding", async (req) => {
     event(task, "success", "Funds added to your task wallet", hash);
   }
   await refreshBalance(task);
-  if (task.status === "funding" && Number(task.balance) > 0)
+  if (task.status === "funding" && Number(task.balance) > 0) {
     task.status = "ready";
-  save(task);
+    save(task);
+    emit(task.userId, "session.funded", task);
+  } else save(task);
   return task;
 });
 app.post("/api/sessions/:id/refresh", async (req) => {
@@ -433,6 +458,7 @@ app.post("/api/sessions/:id/refresh", async (req) => {
     if (task.status === "funding" && Number(task.balance) > 0) {
       task.status = "ready";
       save(task);
+      emit(task.userId, "session.funded", task);
     }
     return task;
   });
@@ -465,6 +491,61 @@ app.get("/api/sessions/:id/receipt", async (req, reply) => {
       chainId: chain.id,
       network: chain.name,
     });
+});
+app.get(
+  "/api/public/receipts/:token",
+  { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+  async (req) => {
+    const token = String((req.params as { token: string }).token || "");
+    const task = getByReceiptToken(token);
+    return publicReceipt(task, {
+      id: chain.id,
+      name: chain.name,
+      symbol: chain.nativeCurrency.symbol,
+      explorer: process.env.EXPLORER_URL,
+    });
+  },
+);
+app.get("/api/events", async (req) => {
+  const user = await authenticate(req);
+  if (user.apiKey) throw Error("Owner sign-in required");
+  return listEvents(user.id);
+});
+app.get("/api/webhooks", async (req) => {
+  const user = await authenticate(req);
+  if (user.apiKey) throw Error("Owner sign-in required");
+  return listWebhooks(user.id);
+});
+app.post("/api/webhooks", async (req) => {
+  const user = await authenticate(req);
+  if (user.apiKey) throw Error("Owner sign-in required");
+  const body = z
+    .object({
+      url: z.string().trim().url().max(2048),
+      events: z
+        .array(z.enum(WEBHOOK_TYPES))
+        .min(1)
+        .max(WEBHOOK_TYPES.length)
+        .default(
+          WEBHOOK_TYPES.filter((type) => type !== "webhook.test") as [
+            WebhookType,
+            ...WebhookType[],
+          ],
+        ),
+    })
+    .parse(req.body);
+  return createWebhook(user.id, body.url, body.events);
+});
+app.post("/api/webhooks/:id/ping", async (req) => {
+  const user = await authenticate(req);
+  if (user.apiKey) throw Error("Owner sign-in required");
+  return pingWebhook(user.id, (req.params as { id: string }).id);
+});
+app.delete("/api/webhooks/:id", async (req) => {
+  const user = await authenticate(req);
+  if (user.apiKey) throw Error("Owner sign-in required");
+  deleteWebhook(user.id, (req.params as { id: string }).id);
+  return { ok: true };
 });
 app.get("/api/keys", async (req) => {
   const user = await authenticate(req);

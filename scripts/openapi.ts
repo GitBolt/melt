@@ -202,6 +202,75 @@ schemas.Session = {
     events: { type: "array", items: ref("Event") },
     assets: { type: "array", items: ref("Asset") },
     transactions: { type: "array", items: ref("Transaction") },
+    receiptToken: {
+      type: "string",
+      pattern: "^[0-9a-fA-F]{48}$",
+      description:
+        "Unguessable token for the public receipt page at /r/{token}",
+    },
+  },
+};
+schemas.PublicReceipt = {
+  type: "object",
+  required: ["object", "id", "status", "title", "mandate", "budget", "spent"],
+  properties: {
+    object: { const: "receipt" },
+    id: { type: "string", format: "uuid" },
+    receiptToken: { type: "string", pattern: "^[0-9a-fA-F]{48}$" },
+    url: str,
+    status: {
+      enum: [
+        "requires_funding",
+        "open",
+        "processing",
+        "settling",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "needs_recovery",
+      ],
+    },
+    outcome: { enum: ["pending", "succeeded", "failed", "cancelled"] },
+    outcomeReason: str,
+    title: str,
+    instruction: str,
+    mandate: str,
+    kind: { enum: ["browse", "swap"] },
+    budget: str,
+    spent: str,
+    remaining: str,
+    returned: str,
+    balance: str,
+    vault: str,
+    recovery: str,
+    createdAt: { type: "string", format: "date-time" },
+    chain: obj,
+    transactions: { type: "array", items: obj },
+    assets: { type: "array", items: ref("Asset") },
+    recover: obj,
+  },
+};
+schemas.Webhook = {
+  type: "object",
+  properties: {
+    id: { type: "string", format: "uuid" },
+    url: str,
+    secret: {
+      type: "string",
+      description: "Signing secret, prefixed whsec_, returned only at creation",
+    },
+    created: { type: "string", format: "date-time" },
+    events: { type: "array", items: str },
+  },
+};
+schemas.MeltEvent = {
+  type: "object",
+  properties: {
+    id: str,
+    type: str,
+    taskId: str,
+    created: { type: "string", format: "date-time" },
+    data: obj,
   },
 };
 schemas.Receipt = {
@@ -364,6 +433,77 @@ route(
   "Download session receipt",
   ref("Receipt"),
 );
+const publicReceiptRoute = route(
+  "get",
+  "/public/receipts/{token}",
+  "Read a shareable public receipt. No authentication. Omits the owner account id.",
+  ref("PublicReceipt"),
+  undefined,
+  { public: true },
+);
+publicReceiptRoute.parameters = [
+  {
+    name: "token",
+    in: "path",
+    required: true,
+    schema: { type: "string", pattern: "^[0-9a-fA-F]{48}$" },
+  },
+];
+route(
+  "get",
+  "/events",
+  "List recent account events",
+  { type: "array", items: ref("MeltEvent") },
+  undefined,
+  { owner: true },
+);
+route(
+  "get",
+  "/webhooks",
+  "List webhook endpoints",
+  { type: "array", items: ref("Webhook") },
+  undefined,
+  { owner: true },
+);
+route(
+  "post",
+  "/webhooks",
+  "Create a webhook endpoint, secret shown once",
+  ref("Webhook"),
+  {
+    type: "object",
+    required: ["url"],
+    properties: {
+      url: { type: "string", format: "uri" },
+      events: {
+        type: "array",
+        items: {
+          enum: [
+            "session.created",
+            "session.funded",
+            "session.started",
+            "swap.executed",
+            "session.closed",
+            "session.recovered",
+            "webhook.test",
+          ],
+        },
+      },
+    },
+  },
+  { owner: true },
+);
+route(
+  "post",
+  "/webhooks/{id}/ping",
+  "Send a signed webhook.test event to the endpoint",
+  obj,
+  obj,
+  { owner: true },
+);
+route("delete", "/webhooks/{id}", "Delete a webhook endpoint", obj, undefined, {
+  owner: true,
+});
 route(
   "get",
   "/keys",
@@ -436,9 +576,9 @@ writeFileSync(
       openapi: "3.1.0",
       info: {
         title: "Melt task wallet API",
-        version: "0.2.0",
+        version: "0.3.0",
         description:
-          "Owner-authorized wallets for browser tasks. Agent keys operate existing sessions in their account and cannot create wallets or increase spending limits. Financial writes require status and outcome inspection; HTTP success alone is not proof of execution. Download the dependency-free client at /api/client.mjs; no npm package is required.",
+          "Owner-authorized wallets for one browser or swap task. Agent keys operate existing sessions and cannot create wallets or increase spending limits. Public receipts at /public/receipts/{token} omit the owner account. Webhooks are HMAC-SHA256 signed with Melt-Signature (t=,v1=). Financial writes require status and outcome inspection; HTTP success alone is not proof of execution. Download the dependency-free client at /api/client.mjs; no npm package is required.",
       },
       servers: [
         { url: "https://melt-woad.vercel.app/api", description: "Hosted app" },

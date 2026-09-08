@@ -24,6 +24,8 @@ export interface Session {
   spent: string;
   returned: string;
   balance: string;
+  receiptToken?: string;
+  remaining?: string;
   events: {
     id: string;
     at: string;
@@ -42,6 +44,8 @@ export interface Session {
     tokenId?: string;
     kind: "erc721" | "erc20";
     recovered: boolean;
+    symbol?: string;
+    amount?: string;
   }[];
   browserUrl?: string;
   browserTitle?: string;
@@ -170,5 +174,26 @@ export class Melt {
     options?: RequestOptions,
   ): Promise<Session>;
   receipt(id: string, options?: RequestOptions): Promise<Receipt>;
+  publicReceipt(token: string, options?: RequestOptions): Promise<unknown>;
   wait(id: string, options?: WaitOptions): Promise<Session>;
+  static constructEvent(
+    payload: string,
+    header: string,
+    secret: string,
+    options?: { toleranceSec?: number },
+  ): Promise<unknown>;
+  static publicReceipt(
+    token: string,
+    options?: { baseUrl?: string; fetch?: typeof fetch },
+  ): Promise<unknown>;
 }
+export function publicReceipt(
+  token: string,
+  options?: { baseUrl?: string; fetch?: typeof fetch },
+): Promise<unknown>;
+export function constructEvent(
+  payload: string,
+  header: string,
+  secret: string,
+  options?: { toleranceSec?: number },
+): Promise<unknown>;
