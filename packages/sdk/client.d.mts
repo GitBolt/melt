@@ -61,6 +61,8 @@ export interface BrowserObservation {
     label: string;
     type?: string | null;
     disabled?: boolean;
+    href?: string;
+    value?: string;
     options?: {
       value: string;
       label: string;
@@ -79,6 +81,7 @@ export type BrowserAction = (
       key: "Enter" | "Tab" | "Escape" | "ArrowUp" | "ArrowDown";
     }
   | { type: "scroll"; direction: "up" | "down" }
+  | { type: "open"; url: string }
   | { type: "wait" }
   | { type: "finish" }
 ) & { reason?: string };

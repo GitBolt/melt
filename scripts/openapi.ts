@@ -77,6 +77,8 @@ const schemas: Record<string, any> = {
             label: str,
             type: { type: ["string", "null"] },
             disabled: { type: "boolean" },
+            href: str,
+            value: str,
             options: {
               type: "array",
               items: {

@@ -78,6 +78,33 @@ export function pause(id: string) {
 const sessions = new Map<string, { context: BrowserContext; page: Page }>();
 const browsers = new Map<string, Awaited<ReturnType<typeof chromium.launch>>>();
 const fixtureOrigin = process.env.FIXTURE_ORIGIN || "http://127.0.0.1:8788";
+function fixtureHostname() {
+  try {
+    return new URL(fixtureOrigin).hostname;
+  } catch {
+    return "";
+  }
+}
+function navigationHosts() {
+  return (process.env.BROWSER_ALLOWED_HOSTS || "")
+    .split(",")
+    .map((host) => host.trim())
+    .filter(Boolean);
+}
+export function jobStartUrl(task: Pick<Task, "url" | "instruction">) {
+  const explicit = task.url?.trim();
+  if (explicit) return explicit;
+  const match = task.instruction.match(/https:\/\/[^\s<>"'`)\]},]+/i);
+  if (!match) return "";
+  try {
+    const parsed = new URL(match[0].replace(/[.,;]+$/, ""));
+    if (parsed.protocol === "https:" && !parsed.username && !parsed.password)
+      return parsed.href;
+  } catch {
+    return "";
+  }
+  return "";
+}
 export function privateIP(ip: string) {
   return (
     /^(0\.|10\.|127\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|192\.0\.0\.|198\.(1[89])\.|22[4-9]\.|23\d\.|24\d\.|25[0-5]\.)/.test(
@@ -85,7 +112,16 @@ export function privateIP(ip: string) {
     ) || ip.includes(":")
   );
 }
-export async function checkURL(raw: string) {
+export async function checkURL(
+  raw: string,
+  kind: "navigation" | "resource" = "navigation",
+) {
+  if (
+    raw.startsWith("data:") ||
+    raw.startsWith("blob:") ||
+    raw.startsWith("about:")
+  )
+    return;
   const u = new URL(raw);
   if (u.username || u.password) throw Error("URLs cannot contain credentials");
   if (local && u.origin === fixtureOrigin) return;
@@ -93,12 +129,14 @@ export async function checkURL(raw: string) {
     throw Error("Public browsing requires HTTPS on port 443");
   if (u.hostname === "localhost" || u.hostname.endsWith(".local"))
     throw Error("Private networks are not accessible");
-  if (process.env.BROWSERLESS_TOKEN) {
-    const approved = (process.env.BROWSER_ALLOWED_HOSTS || "")
-      .split(",")
-      .map((host) => host.trim())
-      .filter(Boolean);
-    if (!approved.includes(u.hostname))
+  if (kind === "navigation" && process.env.BROWSERLESS_TOKEN) {
+    const approved = navigationHosts();
+    const fixtureHost = fixtureHostname();
+    if (
+      approved.length &&
+      !approved.includes(u.hostname) &&
+      u.hostname !== fixtureHost
+    )
       throw Error(
         "This site is not enabled on the hosted browser. Contact the operator to enable it.",
       );
@@ -159,6 +197,14 @@ export async function observe(id: string) {
           disabled:
             e.matches(":disabled") ||
             e.getAttribute("aria-disabled") === "true",
+          ...(e instanceof HTMLAnchorElement && e.href
+            ? { href: e.href.slice(0, 500) }
+            : {}),
+          ...((e instanceof HTMLInputElement ||
+            e instanceof HTMLTextAreaElement) &&
+          !(e instanceof HTMLInputElement && e.type === "password")
+            ? { value: String(e.value || "").slice(0, 200) }
+            : {}),
           ...(e instanceof HTMLSelectElement
             ? {
                 options: Array.from(e.options)
@@ -190,6 +236,12 @@ export async function doAction(id: string, raw: unknown) {
   }
   if (action.type === "scroll") {
     await run.page.mouse.wheel(0, action.direction === "down" ? 570 : -570);
+  } else if (action.type === "open") {
+    await checkURL(action.url);
+    await run.page.goto(action.url, {
+      waitUntil: "domcontentloaded",
+      timeout: 20000,
+    });
   } else {
     const control = run.page.locator(`[data-melt-control="${action.index}"]`);
     if (action.type === "click")
@@ -387,9 +439,9 @@ export async function discoverAssets(task: Task) {
   save(task);
 }
 export async function openBrowser(task: Task) {
-  const startUrl = task.url || `${fixtureOrigin}/start`;
-  if (task.url) await checkURL(task.url);
-  else if (local) await checkURL(startUrl);
+  const startUrl = jobStartUrl(task);
+  if (startUrl) await checkURL(startUrl);
+  else if (local) await checkURL(`${fixtureOrigin}/start`);
   const browser = await launchBrowser(["--disable-quic"]);
   browsers.set(task.id, browser);
   browser.on("disconnected", () => {
@@ -413,7 +465,10 @@ export async function openBrowser(task: Task) {
   });
   await context.route("**/*", async (route) => {
     try {
-      await checkURL(route.request().url());
+      const kind = route.request().isNavigationRequest()
+        ? "navigation"
+        : "resource";
+      await checkURL(route.request().url(), kind);
       await route.continue();
     } catch {
       await route.abort("blockedbyclient");
@@ -455,12 +510,12 @@ export async function openBrowser(task: Task) {
   const page = await context.newPage();
   sessions.set(task.id, { context, page });
   try {
-    if (!task.url && !local) {
+    if (!startUrl && !local) {
       await page.setContent(
         `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Start the task</title><style>body{margin:0;background:#fafafa;color:#35363e;font:16px system-ui}main{max-width:560px;margin:72px auto;padding:0 24px}h1{font-weight:500;font-size:36px;letter-spacing:-1.5px}p{color:#747783;line-height:1.7}label{display:block;margin:24px 0 12px;font-size:13px}input{width:100%;padding:12px 14px;border:1px solid #d7dbe7;border-radius:10px;font:inherit}button{margin-top:16px;border:0;border-radius:9px;background:#424a64;color:#fff;padding:13px 22px;font:inherit;cursor:pointer}</style><main><h1>Open a website</h1><p>This session can spend only the limit you set. Enter the site for the job.</p><label>Website<input id="url" type="url" placeholder="https://"></label><button id="go">Open site</button></main><script>document.getElementById('go').onclick=()=>{const v=document.getElementById('url').value.trim();if(v)location.href=v;}</script></html>`,
       );
     } else {
-      await page.goto(task.url || startUrl, {
+      await page.goto(startUrl || `${fixtureOrigin}/start`, {
         waitUntil: "domcontentloaded",
         timeout: 30000,
       });

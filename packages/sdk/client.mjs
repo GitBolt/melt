@@ -280,12 +280,13 @@ export class Melt {
         "select",
         "press",
         "scroll",
+        "open",
         "wait",
         "finish",
       ].includes(action.type)
     )
       throw new TypeError(
-        "Use a click, fill, select, press, scroll, wait or finish action",
+        "Use a click, fill, select, press, scroll, open, wait or finish action",
       );
     if (
       ["click", "fill", "select", "press"].includes(action.type) &&
@@ -323,6 +324,23 @@ export class Melt {
     if (["fill", "select"].includes(action.type)) body.value = action.value;
     if (action.type === "scroll") body.direction = action.direction;
     if (action.type === "press") body.key = action.key;
+    if (action.type === "open") {
+      let parsed;
+      try {
+        parsed = new URL(action.url);
+      } catch {
+        throw new TypeError("Enter a website URL");
+      }
+      if (
+        typeof action.url !== "string" ||
+        action.url.length > 2048 ||
+        !["http:", "https:"].includes(parsed.protocol) ||
+        parsed.username ||
+        parsed.password
+      )
+        throw new TypeError("Enter a website URL");
+      body.url = action.url;
+    }
     if (action.reason !== undefined) body.reason = action.reason;
     return this.#request(`${sessionPath(id)}/action`, {
       ...options,

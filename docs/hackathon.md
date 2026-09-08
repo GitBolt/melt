@@ -2,9 +2,9 @@
 
 ## Positioning
 
-“Let an agent spend without your wallet. Give it a job and a spending limit, then close its spending access while keeping recovery.”
+“Let an agent spend without your wallet. ChatGPT and Claude already have a browser; they should not get your keys. Melt is the closable onchain allowance that browser uses.”
 
-We are not claiming to invent agent wallets, browser takeover or disposable sessions. The demonstration is a complete, understandable lifecycle with independently enforced permissions and persistent recovery. See the research report for direct competitors.
+We are not claiming to invent agent wallets, browser takeover or disposable sessions. The demonstration is a complete, understandable lifecycle with independently enforced permissions and persistent recovery: isolated Chromium, TaskVault spending cap, close = spending dies, leftovers return. See the research report for direct competitors.
 
 ## Rules checked September 7
 

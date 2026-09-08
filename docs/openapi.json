@@ -1329,7 +1329,9 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["hash"],
+                "required": [
+                  "hash"
+                ],
                 "properties": {
                   "hash": {
                     "type": "string",
@@ -2049,7 +2051,9 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["name"],
+                "required": [
+                  "name"
+                ],
                 "properties": {
                   "name": {
                     "type": "string",
@@ -2823,7 +2827,12 @@
             "pattern": "^0x[0-9a-fA-F]{40}$"
           }
         },
-        "required": ["title", "instruction", "budget", "recovery"],
+        "required": [
+          "title",
+          "instruction",
+          "budget",
+          "recovery"
+        ],
         "additionalProperties": false
       },
       "Action": {
@@ -2846,7 +2855,10 @@
                 "maxLength": 160
               }
             },
-            "required": ["type", "index"],
+            "required": [
+              "type",
+              "index"
+            ],
             "additionalProperties": false
           },
           {
@@ -2870,7 +2882,11 @@
                 "maxLength": 160
               }
             },
-            "required": ["type", "index", "value"],
+            "required": [
+              "type",
+              "index",
+              "value"
+            ],
             "additionalProperties": false
           },
           {
@@ -2894,7 +2910,11 @@
                 "maxLength": 160
               }
             },
-            "required": ["type", "index", "value"],
+            "required": [
+              "type",
+              "index",
+              "value"
+            ],
             "additionalProperties": false
           },
           {
@@ -2911,14 +2931,24 @@
               },
               "key": {
                 "type": "string",
-                "enum": ["Enter", "Tab", "Escape", "ArrowUp", "ArrowDown"]
+                "enum": [
+                  "Enter",
+                  "Tab",
+                  "Escape",
+                  "ArrowUp",
+                  "ArrowDown"
+                ]
               },
               "reason": {
                 "type": "string",
                 "maxLength": 160
               }
             },
-            "required": ["type", "index", "key"],
+            "required": [
+              "type",
+              "index",
+              "key"
+            ],
             "additionalProperties": false
           },
           {
@@ -2930,14 +2960,42 @@
               },
               "direction": {
                 "type": "string",
-                "enum": ["up", "down"]
+                "enum": [
+                  "up",
+                  "down"
+                ]
               },
               "reason": {
                 "type": "string",
                 "maxLength": 160
               }
             },
-            "required": ["type", "direction"],
+            "required": [
+              "type",
+              "direction"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "open"
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 2048
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 160
+              }
+            },
+            "required": [
+              "type",
+              "url"
+            ],
             "additionalProperties": false
           },
           {
@@ -2952,7 +3010,9 @@
                 "maxLength": 160
               }
             },
-            "required": ["type"],
+            "required": [
+              "type"
+            ],
             "additionalProperties": false
           },
           {
@@ -2967,14 +3027,18 @@
                 "maxLength": 160
               }
             },
-            "required": ["type"],
+            "required": [
+              "type"
+            ],
             "additionalProperties": false
           }
         ]
       },
       "Error": {
         "type": "object",
-        "required": ["error"],
+        "required": [
+          "error"
+        ],
         "properties": {
           "error": {
             "type": "string"
@@ -2983,7 +3047,11 @@
       },
       "Transaction": {
         "type": "object",
-        "required": ["hash", "kind", "status"],
+        "required": [
+          "hash",
+          "kind",
+          "status"
+        ],
         "properties": {
           "hash": {
             "type": "string",
@@ -2993,7 +3061,11 @@
             "type": "string"
           },
           "status": {
-            "enum": ["pending", "success", "reverted"]
+            "enum": [
+              "pending",
+              "success",
+              "reverted"
+            ]
           },
           "gasWei": {
             "type": "string"
@@ -3002,14 +3074,21 @@
       },
       "Asset": {
         "type": "object",
-        "required": ["token", "kind", "recovered"],
+        "required": [
+          "token",
+          "kind",
+          "recovered"
+        ],
         "properties": {
           "token": {
             "type": "string",
             "pattern": "^0x[0-9a-fA-F]{40}$"
           },
           "kind": {
-            "enum": ["erc20", "erc721"]
+            "enum": [
+              "erc20",
+              "erc721"
+            ]
           },
           "tokenId": {
             "type": "string"
@@ -3021,7 +3100,12 @@
       },
       "Event": {
         "type": "object",
-        "required": ["id", "at", "kind", "text"],
+        "required": [
+          "id",
+          "at",
+          "kind",
+          "text"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -3031,7 +3115,13 @@
             "format": "date-time"
           },
           "kind": {
-            "enum": ["info", "success", "blocked", "error", "transaction"]
+            "enum": [
+              "info",
+              "success",
+              "blocked",
+              "error",
+              "transaction"
+            ]
           },
           "text": {
             "type": "string"
@@ -3100,10 +3190,19 @@
                   "type": "string"
                 },
                 "type": {
-                  "type": ["string", "null"]
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "disabled": {
                   "type": "boolean"
+                },
+                "href": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
                 },
                 "options": {
                   "type": "array",
@@ -3132,10 +3231,16 @@
       },
       "Recover": {
         "type": "object",
-        "required": ["kind", "token"],
+        "required": [
+          "kind",
+          "token"
+        ],
         "properties": {
           "kind": {
-            "enum": ["erc20", "erc721"]
+            "enum": [
+              "erc20",
+              "erc721"
+            ]
           },
           "token": {
             "type": "string",
@@ -3150,7 +3255,10 @@
       },
       "Approval": {
         "type": "object",
-        "required": ["token", "amount"],
+        "required": [
+          "token",
+          "amount"
+        ],
         "properties": {
           "token": {
             "type": "string",
@@ -3164,7 +3272,11 @@
       },
       "Quote": {
         "type": "object",
-        "required": ["tokenIn", "tokenOut", "amount"],
+        "required": [
+          "tokenIn",
+          "tokenOut",
+          "amount"
+        ],
         "properties": {
           "tokenIn": {
             "type": "string",
@@ -3188,7 +3300,9 @@
       },
       "Swap": {
         "type": "object",
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -3317,10 +3431,18 @@
             "type": "string"
           },
           "agentMode": {
-            "enum": ["manual", "model"]
+            "enum": [
+              "manual",
+              "model"
+            ]
           },
           "outcome": {
-            "enum": ["pending", "succeeded", "failed", "cancelled"],
+            "enum": [
+              "pending",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
             "description": "Task result, independent of wallet status. Older sessions may omit this field."
           },
           "outcomeReason": {
@@ -3362,7 +3484,11 @@
           },
           {
             "type": "object",
-            "required": ["schemaVersion", "chainId", "network"],
+            "required": [
+              "schemaVersion",
+              "chainId",
+              "network"
+            ],
             "properties": {
               "schemaVersion": {
                 "const": 1

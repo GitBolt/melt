@@ -142,6 +142,11 @@
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
 }
+.use-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
 .step-card,
 .flow-card {
   padding: 22px 22px 24px;
@@ -254,6 +259,7 @@
     direction: ltr;
   }
   .step-grid,
+  .use-grid,
   .flow-grid,
   .fact-row {
     grid-template-columns: 1fr 1fr;
@@ -289,6 +295,7 @@
     padding-top: 28px;
   }
   .step-grid,
+  .use-grid,
   .flow-grid,
   .fact-row {
     grid-template-columns: 1fr;
