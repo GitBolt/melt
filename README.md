@@ -52,6 +52,8 @@ The client includes status polling, cancellation, screenshots, receipts and clea
 ## What's implemented
 
 - **Allowance-bounded Uniswap V3 swaps.** An agent (or one line of natural language) swaps ETH for a token from a task wallet capped by an onchain limit, then the token returns to the owner. Deterministic and reliable — it never depends on a model driving a UI. Because an ETH→token router call carries value and needs no `approve`, it runs inside the existing task-wallet security model.
+- **Recurring buys (dollar-cost averaging).** Schedule several swaps over time under one onchain budget — an automated strategy the agent runs to completion, with proceeds returned on close.
+- **Agent access to swaps.** The dependency-free client and MCP server expose Uniswap price discovery (`quote`, `tokens`), so an external agent (Cursor, Claude) can size and operate owner-authorized swaps within limits it cannot raise.
 - Owner-authorized wallet creation, separate funding, isolated browser execution, live preview, manual takeover, expiry, recovery and downloadable receipts.
 - Solidity task wallets with immutable owner, agent, optional permitted target/function, cumulative native-token budget and expiry.
 - ERC-20 and ERC-721 recovery, including late assets. Native refunds are derived from confirmed recovery logs.
