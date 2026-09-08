@@ -204,10 +204,14 @@ app.post(
         statusCode: 404,
       });
     const token = randomBytes(32).toString("hex");
+    const isolate =
+      String(_req.headers["x-melt-local-user"] || "") === "isolated";
     const prior = db
       .prepare("SELECT user_id FROM tasks ORDER BY rowid DESC LIMIT 1")
       .get() as { user_id?: string } | undefined;
-    const id = prior?.user_id || "local:playground";
+    const id = isolate
+      ? "local:" + randomUUID()
+      : prior?.user_id || "local:playground";
     db.prepare("INSERT INTO auth_sessions VALUES(?,?,?,?)").run(
       digest(token),
       id,
