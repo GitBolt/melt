@@ -10,7 +10,7 @@
   align-items: center;
   gap: 7px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   min-height: 40px;
 }
 .recovery-shell .recovery-intro {
@@ -31,7 +31,7 @@
   background: #edf0fb;
   border-radius: 7px;
   padding: 6px 9px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .recovery-grid {
   display: grid;
@@ -59,7 +59,7 @@
 }
 .recovery-controls .helper {
   margin: 10px 0 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 .recovery-connection {
@@ -73,13 +73,13 @@
   margin-top: 3px;
 }
 .recovery-connection strong {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 550;
 }
 .recovery-connection p,
 .recovery-step p {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.7;
   margin-top: 6px;
 }
@@ -105,7 +105,7 @@
   justify-content: center;
   width: 27px;
   height: 27px;
-  font-size: 11px;
+  font-size: 12px;
   border: 1px solid var(--line);
   border-radius: 9px;
   color: var(--muted);
@@ -128,7 +128,7 @@
   margin-top: 22px;
 }
 .recovery-token summary {
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   color: var(--muted);
   padding: 8px 0;
@@ -163,7 +163,7 @@
 .recovery-owner span,
 .recovery-owner code {
   display: block;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.7;
 }
 .recovery-owner span {
@@ -183,7 +183,7 @@
   margin-top: 6px;
 }
 .recovery-fine {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   line-height: 1.7;
   margin-top: 10px;
@@ -197,7 +197,7 @@
   font-weight: 500;
 }
 .recovery-empty p {
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.8;
   max-width: 240px;
   margin: 12px auto 25px;
@@ -206,14 +206,14 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 .recovery-error,
 .recovery-notice {
   padding: 12px 14px;
   margin-top: 18px;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.7;
   border-radius: 10px;
   overflow-wrap: anywhere;
@@ -240,7 +240,7 @@
   flex-wrap: wrap;
   gap: 8px;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
 }
 .recovery-transaction strong {
   font-weight: 500;
@@ -254,7 +254,7 @@
   align-items: center;
   gap: 5px;
   color: var(--accent);
-  font-size: 11px;
+  font-size: 12px;
   overflow-wrap: anywhere;
   margin-top: 8px;
 }

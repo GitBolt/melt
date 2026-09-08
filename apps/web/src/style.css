@@ -1,8 +1,8 @@
 @import "./base.css";
 :root {
-  --paper: #fafafa;
+  --paper: #f7f8fa;
   --panel: #fff;
-  --muted: #737783;
+  --muted: #626777;
   --ink: #282a32;
   --accent: #5867c8;
 }
@@ -41,8 +41,8 @@ input[type="range"] {
 }
 label {
   display: block;
-  font-size: 12px;
-  color: #727583;
+  font-size: 13px;
+  color: #626777;
   margin: 18px 0 8px;
 }
 label > input,
@@ -50,7 +50,7 @@ label > textarea {
   margin-top: 8px;
 }
 .quiet {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .panel {
@@ -66,7 +66,7 @@ label > textarea {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 11px 16px;
-  font-size: 12px;
+  font-size: 13px;
   background: white;
   min-height: 42px;
 }
@@ -76,7 +76,7 @@ label > textarea {
   justify-content: center;
   gap: 10px;
   border-radius: 10px;
-  font-size: 12px;
+  font-size: 13px;
   padding: 12px 20px;
   min-height: 44px;
 }
@@ -88,7 +88,7 @@ label > textarea {
   color: var(--accent);
 }
 .environment {
-  font-size: 11px;
+  font-size: 12px;
 }
 .account-exit {
   display: none;
@@ -115,13 +115,13 @@ footer {
   display: flex;
   justify-content: space-between;
   color: #9699a3;
-  font-size: 11px;
+  font-size: 12px;
 }
 footer button {
   display: flex;
   gap: 5px;
   align-items: center;
-  font-size: 11px;
+  font-size: 12px;
 }
 .launch-grid {
   display: grid;
@@ -151,22 +151,22 @@ footer button {
   background: #f7f8fb;
   border-radius: 12px;
   margin: 30px 0 26px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .example-task > span {
   flex: 1;
 }
 .example-task > span > span {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   color: #858897;
   margin-top: 7px;
 }
 .helper {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.65;
   margin: 12px 0;
-  color: #737b8b;
+  color: #626b7b;
 }
 .welcome-wallet {
   display: flex;
@@ -185,14 +185,14 @@ footer button {
   margin-top: 20px;
 }
 .welcome-wallet p {
-  font-size: 12px;
+  font-size: 13px;
   margin: 12px auto 34px;
 }
 .wallet-footer {
   display: flex;
   gap: 7px;
   align-items: center;
-  font-size: 10px;
+  font-size: 11px;
   color: #8c90a0;
   margin-top: auto;
 }
@@ -206,7 +206,7 @@ footer button {
 }
 .template-options button {
   flex: 1;
-  font-size: 11px;
+  font-size: 12px;
   border-radius: 7px;
   min-height: 33px;
   padding: 6px;
@@ -246,7 +246,7 @@ footer button {
   appearance: none;
 }
 .amount-input > span {
-  font-size: 11px;
+  font-size: 12px;
 }
 .allowance-picker .budget-ribbon {
   width: 180px;
@@ -264,8 +264,8 @@ footer button {
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 10px;
-  color: #9195a2;
+  font-size: 11px;
+  color: #6f7584;
   margin: 24px 0;
 }
 .recovery-line > span:last-child {
@@ -278,7 +278,7 @@ footer button {
   margin-top: 24px;
 }
 details {
-  font-size: 11px;
+  font-size: 12px;
   margin: 18px 0;
 }
 summary {
@@ -288,7 +288,7 @@ summary {
   color: #737887;
 }
 details label {
-  font-size: 11px;
+  font-size: 12px;
 }
 .session-list {
   margin: 38px 0;
@@ -336,27 +336,27 @@ details label {
 }
 .row-name strong {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 550;
 }
 .row-name > span {
   display: block;
-  font-size: 11px;
-  color: #9195a2;
+  font-size: 12px;
+  color: #6f7584;
   margin-top: 7px;
 }
 .row-amount {
-  font-size: 13px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   min-width: 135px;
   text-align: right;
 }
 .row-amount small {
-  font-size: 10px;
-  color: #737b8b;
+  font-size: 11px;
+  color: #626b7b;
 }
 .status {
-  font-size: 10px;
+  font-size: 11px;
   padding: 7px 10px;
   border-radius: 7px;
   background: #f2f3f6;
@@ -381,7 +381,7 @@ details label {
   color: #8776a9;
 }
 .back {
-  font-size: 11px;
+  font-size: 12px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -399,7 +399,7 @@ details label {
   font-size: 29px;
 }
 .detail-heading p {
-  font-size: 11px;
+  font-size: 12px;
   margin-top: 10px;
 }
 .divider-dot {
@@ -426,8 +426,8 @@ details label {
   margin: 8px 0 20px;
 }
 .balance-heading > span {
-  font-size: 11px;
-  color: #737b8b;
+  font-size: 12px;
+  color: #626b7b;
 }
 .balance-heading h2 {
   font-size: 31px;
@@ -436,8 +436,8 @@ details label {
   margin-top: 10px;
 }
 .balance-heading small {
-  font-size: 11px;
-  color: #737b8b;
+  font-size: 12px;
+  color: #626b7b;
   letter-spacing: 0;
   margin-left: 8px;
 }
@@ -452,10 +452,10 @@ details label {
   display: flex;
   justify-content: space-between;
   margin: 17px 0;
-  font-size: 10px;
+  font-size: 11px;
 }
 .wallet-facts dt {
-  color: #737b8b;
+  color: #626b7b;
 }
 .wallet-facts dd {
   margin: 0;
@@ -464,13 +464,13 @@ details label {
 }
 .identifier {
   font-family: ui-monospace, monospace;
-  font-size: 10px;
+  font-size: 11px;
   overflow-wrap: anywhere;
   line-height: 1.7;
 }
 .quiet-button {
   color: #6c7486;
-  font-size: 11px;
+  font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -491,8 +491,8 @@ details label {
   gap: 10px;
   padding: 10px 18px;
   background: #fcfcfd;
-  font-size: 10px;
-  color: #737b8b;
+  font-size: 11px;
+  color: #626b7b;
 }
 .browser-toolbar > span,
 .browser-toolbar button {
@@ -501,7 +501,7 @@ details label {
   gap: 8px;
 }
 .browser-toolbar button {
-  font-size: 10px;
+  font-size: 11px;
   padding: 6px 9px;
   min-height: 30px;
   border-radius: 7px;
@@ -533,7 +533,7 @@ details label {
   margin: 20px 0 10px;
 }
 .browser-idle p {
-  font-size: 11px;
+  font-size: 12px;
   max-width: 330px;
   margin: 0 auto 20px;
 }
@@ -575,7 +575,7 @@ details label {
   margin-bottom: 12px;
 }
 .activity h2 {
-  font-size: 12px;
+  font-size: 13px;
 }
 .event-list {
   display: flex;
@@ -589,7 +589,7 @@ details label {
   display: flex;
   align-items: start;
   gap: 10px;
-  font-size: 10px;
+  font-size: 11px;
   color: #878d9c;
 }
 .event > div {
@@ -638,7 +638,7 @@ details label {
   margin-top: 12px;
 }
 .control-list button {
-  font-size: 10px;
+  font-size: 11px;
 }
 .developer-grid {
   display: grid;
@@ -646,17 +646,18 @@ details label {
   gap: 24px;
 }
 .dev-panel {
+  min-width: 0;
   padding: 28px;
 }
 .dev-panel h2 {
   margin: 6px 0 12px;
 }
 .dev-panel p {
-  font-size: 12px;
+  font-size: 13px;
   margin-bottom: 20px;
 }
 .dev-panel pre {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.9;
   padding: 22px;
   border: 1px solid #e7eaf1;
@@ -682,12 +683,12 @@ details label {
   text-align: center;
 }
 .api-endpoints code {
-  font-size: 10px;
+  font-size: 11px;
   color: #707789;
 }
 .api-endpoints p {
   width: 100%;
-  font-size: 10px;
+  font-size: 11px;
   margin: 0 0 0 48px;
 }
 .key-reveal {
@@ -697,7 +698,7 @@ details label {
   margin: 16px 0;
 }
 .key-reveal code {
-  font-size: 10px;
+  font-size: 11px;
   overflow-wrap: anywhere;
   display: block;
   margin-bottom: 12px;
@@ -706,12 +707,12 @@ details label {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 13px;
   padding: 15px 0;
 }
 .key-row small {
   display: block;
-  font-size: 10px;
+  font-size: 11px;
   color: #969baa;
   margin-top: 5px;
 }
@@ -726,7 +727,7 @@ details label {
   background: #fffaf2;
   color: #94764e;
   border-radius: 10px;
-  font-size: 12px;
+  font-size: 13px;
   padding: 8px 14px;
   margin-top: 20px;
 }
@@ -741,7 +742,7 @@ details label {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: 13px;
   box-shadow: 0 15px 40px #2b3c4a14;
   z-index: 10;
 }
@@ -940,7 +941,7 @@ details label {
     width: 100%;
   }
   .account {
-    font-size: 10px;
+    font-size: 11px;
     margin-left: auto;
   }
   .environment {
@@ -958,7 +959,7 @@ details label {
     line-height: 1.25;
   }
   .intro p {
-    font-size: 11px;
+    font-size: 12px;
     max-width: 240px;
   }
   .intro .primary {
@@ -1009,7 +1010,7 @@ details label {
   }
   .wallet-panel .quiet-button,
   .wallet-panel .wide {
-    font-size: 10px;
+    font-size: 11px;
     margin: 0;
   }
   .detail-heading h1 {
@@ -1042,7 +1043,7 @@ details label {
   }
   .row-amount {
     margin-left: auto;
-    font-size: 11px;
+    font-size: 12px;
   }
   .session-row > .status {
     margin-left: 50px;
@@ -1075,7 +1076,7 @@ details label {
   }
   .dev-panel pre {
     padding: 16px;
-    font-size: 10px;
+    font-size: 11px;
   }
   footer {
     gap: 20px;
@@ -1143,7 +1144,7 @@ summary:focus-visible {
   margin: 20px 24px;
   display: grid;
   gap: 5px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .task-outcome span {
   color: var(--muted);
@@ -1156,7 +1157,7 @@ a.quiet-button {
   max-width: 100%;
   text-align: left;
   margin-top: 16px;
-  font-size: 12px;
+  font-size: 13px;
 }
 .funding-help code {
   display: block;
@@ -1168,4 +1169,49 @@ a.quiet-button {
   gap: 5px;
   padding: 10px;
   color: var(--accent);
+}
+
+/* The transparent native slider owns pointer, touch and keyboard input. */
+.budget-control {
+  display: block;
+  width: 180px;
+  flex-shrink: 0;
+}
+.budget-track {
+  display: block;
+  position: relative;
+  border-radius: 8px;
+}
+.budget-track:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+}
+.budget-track input[type="range"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+}
+.allowance-picker .budget-control .budget-ribbon {
+  width: 100%;
+}
+.budget-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.budget-used {
+  font-size: 12px;
+  margin: -4px 0 16px;
+}
+@media (max-width: 600px) {
+  .budget-control {
+    width: 130px;
+  }
 }

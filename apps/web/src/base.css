@@ -12,11 +12,11 @@
   font-family: Manrope, Arial, sans-serif;
   font-synthesis: none;
   color-scheme: light;
-  --paper: #fafafa;
+  --paper: #f7f8fa;
   --panel: #fff;
   --ink: #282a32;
-  --muted: #81838e;
-  --line: #e8e8ed;
+  --muted: #626777;
+  --line: #dfe2e9;
   --accent: #5867c8;
   --soft: #f0f2fd;
   background: var(--paper);
@@ -65,7 +65,7 @@ h4 {
   margin: 0;
 }
 p {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.7;
   color: var(--muted);
 }
@@ -114,7 +114,7 @@ header {
   border: 1px solid var(--line);
   padding: 9px 14px;
   border-radius: 10px;
-  font-size: 12px;
+  font-size: 13px;
   color: #595c69;
 }
 [data-slot="gooey-nav"] ul {
@@ -133,8 +133,8 @@ header {
   justify-content: space-between;
   align-items: center;
   min-height: 33px;
-  color: #747987;
-  font-size: 10px;
+  color: #646b7b;
+  font-size: 11px;
 }
 .environment > span {
   display: flex;
@@ -142,18 +142,18 @@ header {
   gap: 11px;
 }
 .environment-icon {
-  color: #747987;
+  color: #646b7b;
   font-size: 16px;
 }
 .env-detail {
-  color: #747987;
+  color: #646b7b;
 }
 .environment button {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
-  color: #747987;
+  font-size: 11px;
+  color: #646b7b;
   min-height: 32px;
 }
 main {
@@ -168,7 +168,7 @@ main {
 }
 .intro p {
   margin-top: 12px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .section-top {
   display: flex;
@@ -179,7 +179,7 @@ main {
 }
 .section-top h2 {
   color: #666a78;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 550;
 }
 .segmented {
@@ -197,7 +197,7 @@ main {
   border-radius: 9px;
   padding: 11px 16px;
   min-height: 43px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 550;
   transition:
     background 0.2s,
@@ -213,7 +213,7 @@ main {
 .secondary {
   background: #f1f3fb;
   border: 1px solid #e4e7f3;
-  color: #747987;
+  color: #646b7b;
 }
 .primary:active,
 .secondary:active {
@@ -224,8 +224,8 @@ main {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  font-size: 11px;
-  color: #747987;
+  font-size: 12px;
+  color: #646b7b;
 }
 .budget-ribbon {
   display: flex;

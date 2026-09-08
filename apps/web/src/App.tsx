@@ -1,3 +1,4 @@
+import { MeltLoader, MeltWordmark } from "./components/MeltMotion";
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ArrowUpRight,
@@ -19,7 +20,6 @@ import {
   KeyRound,
   Trash2,
   X,
-  Loader2,
   ShieldCheck,
   MousePointer2,
 } from "lucide-react";
@@ -184,7 +184,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
             setPage("Sessions");
           }}
         >
-          melt
+          <MeltWordmark />
         </a>
         <GooeyNav
           activeColor="#e9edf9"
@@ -360,9 +360,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                         onClick={signIn}
                         disabled={!!busy}
                       >
-                        {busy === "signin" ? (
-                          <Loader2 size={16} className="spin" />
-                        ) : null}
+                        {busy === "signin" ? <MeltLoader size={16} /> : null}
                         {config.mode === "local"
                           ? "Open local workspace"
                           : "Continue with email or wallet"}
@@ -504,6 +502,9 @@ function Composer({
           : ""),
     ),
     [budget, setBudget] = useState(initial?.budget || "0.0003"),
+    [budgetRange, setBudgetRange] = useState(
+      Math.max(0.001, Math.min(10, Number(initial?.budget) || 0)),
+    ),
     [minutes, setMinutes] = useState(initial?.durationMinutes || 15),
     [target, setTarget] = useState(
       initial?.target ||
@@ -596,13 +597,24 @@ function Composer({
                 max="10"
                 required
                 value={budget}
-                onChange={(e) => setBudget(e.target.value)}
+                onChange={(e) => {
+                  setBudget(e.target.value);
+                  setBudgetRange(
+                    Math.max(0.001, Math.min(10, Number(e.target.value) || 0)),
+                  );
+                }}
               />
               <span>{config.chain.symbol}</span>
             </span>
           </label>
         </div>
-        <BudgetRibbon value={Number(budget)} total={0.001} large />
+        <BudgetRibbon
+          value={Number(budget)}
+          total={budgetRange}
+          large
+          symbol={config.chain.symbol}
+          onChange={(value) => setBudget(String(value))}
+        />
       </div>
       <label className="duration-label">
         Session length<span>{minutes} min</span>
@@ -658,11 +670,7 @@ function Composer({
           className="primary"
           disabled={!!busy || config.browserAvailable === false}
         >
-          {busy === "create" ? (
-            <Loader2 size={16} className="spin" />
-          ) : (
-            <Plus size={16} />
-          )}
+          {busy === "create" ? <MeltLoader size={16} /> : <Plus size={16} />}
           Create task wallet
           <ArrowRight size={16} />
         </button>
@@ -771,10 +779,17 @@ function SessionDetail({
             </h2>
           </div>
           <BudgetRibbon
-            value={Math.max(0, Number(t.budget) - Number(t.spent))}
+            value={Number(t.spent)}
             total={Number(t.budget)}
             large
           />
+          <p className="budget-used">
+            {Math.min(
+              100,
+              Math.round((Number(t.spent) / Number(t.budget)) * 100),
+            )}
+            % of limit used
+          </p>
           <dl className="wallet-facts">
             <div>
               <dt>Spent</dt>
@@ -940,7 +955,7 @@ function SessionDetail({
                     onClick={() => command("start")}
                   >
                     {busy === "start" ? (
-                      <Loader2 className="spin" size={15} />
+                      <MeltLoader size={15} />
                     ) : (
                       <Play size={15} />
                     )}

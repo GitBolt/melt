@@ -1,10 +1,10 @@
+import { MeltLoader, MeltWordmark } from "./components/MeltMotion";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
   Check,
   Download,
-  Loader2,
   LockKeyhole,
   RotateCcw,
   Wallet,
@@ -379,7 +379,7 @@ export function DirectRecovery({
     <div className="app-shell recovery-shell">
       <header>
         <a className="wordmark" href="/">
-          melt
+          <MeltWordmark />
         </a>
         <a className="recovery-back" href="/">
           <ArrowLeft size={14} /> Back to Melt
@@ -421,7 +421,7 @@ export function DirectRecovery({
                   disabled={!!busy || pending || !client}
                 >
                   {busy === "load" ? (
-                    <Loader2 size={14} className="recovery-spin" />
+                    <MeltLoader size={14} />
                   ) : (
                     <ArrowUpRight size={14} />
                   )}{" "}
@@ -518,9 +518,7 @@ export function DirectRecovery({
                         disabled={!ownsVault || !!busy || pending}
                         onClick={() => void submit("close")}
                       >
-                        {busy === "close" && (
-                          <Loader2 size={14} className="recovery-spin" />
-                        )}
+                        {busy === "close" && <MeltLoader size={14} />}
                         Close agent access
                       </button>
                     )}
@@ -545,9 +543,7 @@ export function DirectRecovery({
                       }
                       onClick={() => void submit("native")}
                     >
-                      {busy === "native" && (
-                        <Loader2 size={14} className="recovery-spin" />
-                      )}
+                      {busy === "native" && <MeltLoader size={14} />}
                       Return {formatEther(vault.balance)} {config.chain.symbol}
                     </button>
                     <details className="recovery-token">
@@ -601,9 +597,7 @@ export function DirectRecovery({
                         }
                         onClick={() => void submit("asset")}
                       >
-                        {busy === "asset" && (
-                          <Loader2 size={14} className="recovery-spin" />
-                        )}
+                        {busy === "asset" && <MeltLoader size={14} />}
                         Return{" "}
                         {assetType === "erc721"
                           ? "collectible"

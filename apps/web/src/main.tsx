@@ -1,3 +1,4 @@
+import { MeltLoading } from "./components/MeltMotion";
 import React, { Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Config } from "../../../packages/shared/src/index";
@@ -45,6 +46,7 @@ function Root() {
       .then(setConfig)
       .catch((e) => setError(e.message));
   }, []);
+  if (!config && !error) return <MeltLoading />;
   if (!config)
     return (
       <div className="boot">
@@ -54,7 +56,7 @@ function Root() {
       </div>
     );
   return config.privyAppId ? (
-    <Suspense fallback={<div className="boot">Loading sign-in…</div>}>
+    <Suspense fallback={<MeltLoading label="Preparing your wallet…" />}>
       <PrivyApp config={config} recovery={recovery} />
     </Suspense>
   ) : recovery ? (
