@@ -504,22 +504,20 @@ function Composer({
     target: config.fixture.target,
     selector: config.fixture.selector,
   };
+  const site = {
+    title: "Use a site without my wallet",
+    instruction:
+      "Open the website, connect only the task wallet, and complete the job inside the spending limit. Do not connect any other wallet. Return leftover funds when done.",
+    url: "",
+    target: "",
+    selector: "",
+  };
   const pay = config.fixture.pay?.available
     ? {
         title: "Leave a tip",
         instruction:
           "Connect the wallet and leave a tip. Return unused funds when done.",
         url: config.fixture.pay.url,
-        target: "",
-        selector: "",
-      }
-    : undefined;
-  const swap = config.swapsConfigured
-    ? {
-        title: "Swap tokens",
-        instruction:
-          "Open Uniswap, connect the task wallet, and swap within the spending limit. Return leftover funds when done.",
-        url: "https://app.uniswap.org",
         target: "",
         selector: "",
       }
@@ -581,6 +579,16 @@ function Composer({
         >
           Custom
         </button>
+        <button
+          className={example === "site" ? "chosen" : ""}
+          type="button"
+          onClick={() => {
+            setExample("site");
+            apply(site);
+          }}
+        >
+          New site
+        </button>
         {config.fixture.available && (
           <button
             className={example === "mint" ? "chosen" : ""}
@@ -605,18 +613,6 @@ function Composer({
             Pay
           </button>
         )}
-        {swap && (
-          <button
-            className={example === "swap" ? "chosen" : ""}
-            type="button"
-            onClick={() => {
-              setExample("swap");
-              apply(swap);
-            }}
-          >
-            Swap
-          </button>
-        )}
       </div>
       <label>
         Task name
@@ -638,7 +634,7 @@ function Composer({
           maxLength={2000}
           rows={3}
           value={instruction}
-          placeholder="Connect, complete the job inside the spending limit, and return leftover funds."
+          placeholder="Connect only the task wallet, complete the job inside the spending limit, and return leftover funds."
           onChange={(e) => {
             setExample("custom");
             setInstruction(e.target.value);
@@ -651,7 +647,7 @@ function Composer({
           aria-label="Starting website"
           type="url"
           value={url}
-          placeholder="Optional"
+          placeholder="https:// — optional if the job already includes a link"
           onChange={(e) => setUrl(e.target.value)}
         />
       </label>
@@ -769,6 +765,7 @@ function SessionDetail({
   const [shot, setShot] = useState(""),
     [controls, setControls] = useState<any[]>([]),
     [input, setInput] = useState(""),
+    [siteUrl, setSiteUrl] = useState(""),
     [browserError, setBrowserError] = useState(""),
     [fundHash, setFundHash] = useState(
       () => localStorage.getItem("melt-funding:" + t.id) || "",
@@ -956,6 +953,33 @@ function SessionDetail({
               <Globe size={14} />
               {t.browserTitle || "Task browser"}
             </span>
+            {t.status === "paused" && (
+              <form
+                className="browser-url"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const next = siteUrl.trim();
+                  if (!next) return;
+                  void act("open", () =>
+                    request(`/sessions/${t.id}/action`, {
+                      type: "open",
+                      url: next,
+                    }),
+                  );
+                }}
+              >
+                <input
+                  type="url"
+                  value={siteUrl}
+                  placeholder={t.browserUrl || "https://"}
+                  onChange={(e) => setSiteUrl(e.target.value)}
+                  aria-label="Open website"
+                />
+                <button type="submit" disabled={!!busy}>
+                  Open
+                </button>
+              </form>
+            )}
             <div>
               {t.status === "running" && (
                 <button disabled={!!busy} onClick={() => command("pause")}>

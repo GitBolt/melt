@@ -27,6 +27,7 @@ Use exact technical terms where they help someone configure the product: contrac
 | Before                                                        | After                                                                              |
 | ------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | A wallet for one task.                                        | Let an agent spend without your wallet.                                            |
+| Tell Melt the job and how much it may spend.                  | ChatGPT and Claude already have a browser. They should not get your wallet.        |
 | A small allowance. An isolated browser. Everything back home. | Set a spending limit, let your agent work, and return unused funds to your wallet. |
 | Where are we going?                                           | Start with a task                                                                  |
 | Everything accounted for.                                     | See where your funds went.                                                         |

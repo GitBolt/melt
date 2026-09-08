@@ -91,6 +91,7 @@ test("browser actions expose bounded navigation controls without arbitrary execu
     { type: "press", index: 199, key: "Enter" },
     { type: "select", index: 0, value: "blue" },
     { type: "click", index: 0, reason: "Open the wallet connection" },
+    { type: "open", url: "https://app.uniswap.org/" },
   ])
     assert.equal(actionSchema.safeParse(action).success, true);
   for (const action of [
@@ -98,6 +99,8 @@ test("browser actions expose bounded navigation controls without arbitrary execu
     { type: "press", index: 0, key: "Control+L" },
     { type: "scroll", direction: "sideways" },
     { type: "navigate", url: "https://elsewhere.example" },
+    { type: "open", url: "javascript:alert(1)" },
+    { type: "open", url: "https://user:secret@example.com" },
     { type: "evaluate", code: "arbitrary()" },
     { type: "fill", index: 0, value: "a".repeat(2001) },
     { type: "wait", reason: "a".repeat(161) },
@@ -144,5 +147,9 @@ test("activity summaries describe controls without copying entered values", () =
       [{ index: 1, label: "Connect wallet" }],
     ),
     "Click Connect wallet · Connect the task wallet",
+  );
+  assert.equal(
+    actionSummary({ type: "open", url: "https://example.com/pay" }, []),
+    "Open https://example.com/pay",
   );
 });

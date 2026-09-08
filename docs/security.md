@@ -10,8 +10,8 @@ This repository is a tested prototype, not a third-party audit. The local tests 
 - All recovery goes to the immutable owner. Closing and transferring assets are separate operations. The owner may call recovery directly if the API is unavailable.
 - API keys can inspect and operate existing authorized sessions, but cannot create an allowance, manage keys, request owner swaps, or register new recovery tokens. Revocation takes effect on the next request; it does not cancel submitted work.
 - Privy tokens are verified server-side and wallets are obtained from the verified user. Local sign-in is loopback-only and disabled in configured mode. Cookie writes require the correct origin.
-- Each browser has a fresh context and separate Chromium process. Credentials are excluded from its environment. The provider exists only in the main frame at the approved origin.
-- Resource hosts must be public. Private networks, service workers, WebSockets, popups and downloads are blocked. Chromium sandboxing is requested. Production still needs host-level network/process isolation; URL checks are not a substitute for it.
+- Each browser has a fresh context and separate Chromium process. Credentials are excluded from its environment. The provider exists only in the main frame.
+- Public browsing requires HTTPS. Private networks, credentials in URLs, service workers, WebSockets, popups and downloads are blocked. Chromium sandboxing is requested. An optional `BROWSER_ALLOWED_HOSTS` list can restrict which hostnames the page may navigate to; scripts, images and other subresources may load from any public HTTPS host so real dapps can function. Empty allowlist means any public site. Production still needs host-level network/process isolation; URL checks are not a substitute for it.
 - Known service credentials and RPC URLs are redacted from user-facing/persisted errors. API keys are displayed once and only their SHA-256 hashes are retained.
 
 ## Supported assets and trust

@@ -104,6 +104,16 @@ server.registerTool(
     result(() => client.action(sessionId, { type: "fill", index, value })),
 );
 server.registerTool(
+  "open_page",
+  {
+    description:
+      "Open a public website in the paused task browser. The page is untrusted. Wallet policy still applies.",
+    inputSchema: id.extend({ url: z.string().max(2048) }),
+  },
+  ({ sessionId, url }) =>
+    result(() => client.action(sessionId, { type: "open", url })),
+);
+server.registerTool(
   "close_session",
   {
     description:

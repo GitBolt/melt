@@ -11,7 +11,7 @@ const steps = [
   {
     n: "01",
     title: "Write the job",
-    text: "Mint, swap, register a name, pay an invoice, or type your own instructions. You do not need a contract address to start.",
+    text: "Use a site you do not want your main wallet on, pay an invoice, mint, or type your own instructions.",
   },
   {
     n: "02",
@@ -27,6 +27,20 @@ const steps = [
     n: "04",
     title: "End the session",
     text: "Spending access closes onchain. Unused funds and supported assets return. Recovery stays available if something arrives later.",
+  },
+];
+const uses = [
+  {
+    title: "An agent is about to click Connect",
+    text: "ChatGPT, Claude, and Cursor already have a browser. They should not get your wallet. Melt opens the site with a disposable task wallet and a hard spending limit.",
+  },
+  {
+    title: "You are handing work to another agent",
+    text: "You create and fund the session. Your coding agent can operate the browser. It cannot raise the limit, change the return wallet, or keep leftover funds.",
+  },
+  {
+    title: "You want to try a site once",
+    text: "Connect a numbered allowance instead of your main wallet. When the session ends, spending dies onchain and leftovers return.",
   },
 ];
 const flow = [
@@ -70,8 +84,8 @@ export default function Landing() {
             <MeltWordmark />
           </a>
           <nav>
+            <a href="#when">When to use it</a>
             <a href="#how">How it works</a>
-            <a href="#product">Product</a>
             <a href={`${app}#developers`}>Developers</a>
           </nav>
           <a className="primary" href={app}>
@@ -88,9 +102,9 @@ export default function Landing() {
               Let an agent spend without your wallet.
             </h1>
             <p className="hero-lead">
-              Tell Melt the job and how much it may spend. It opens a separate
-              browser and a wallet that is not yours. When you end the session,
-              spending stops. Unused funds and what it bought come back.
+              ChatGPT and Claude already have a browser. They should not get
+              your wallet. Melt opens a separate wallet with a spending limit.
+              When you end the session, spending stops and leftovers return.
             </p>
             <div className="hero-actions">
               <a className="primary" href={app}>
@@ -125,6 +139,21 @@ export default function Landing() {
         </div>
       </section>
 
+      <motion.section id="when" className="landing-block" {...reveal}>
+        <div className="landing-wrap">
+          <p className="landing-kicker">When this is the right tool</p>
+          <h2>When your main wallet should stay disconnected.</h2>
+          <div className="use-grid">
+            {uses.map((item) => (
+              <article key={item.title} className="panel step-card">
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </motion.section>
+
       <motion.section id="how" className="landing-block" {...reveal}>
         <div className="landing-wrap">
           <p className="landing-kicker">How a session works</p>
@@ -148,9 +177,9 @@ export default function Landing() {
               <p className="landing-kicker">Any job you can describe</p>
               <h2>Start from the job, not a contract function.</h2>
               <p>
-                Mint, swap, register a name, pay a site, or type your own
-                instructions. Website and contract locks are optional if you
-                want to narrow where it can spend.
+                Use a site you do not want your main wallet on, pay an invoice,
+                mint, or type your own instructions. Website and contract locks
+                are optional if you want to narrow where it can spend.
               </p>
             </div>
             <figure className="feature-media panel">
@@ -225,8 +254,9 @@ export default function Landing() {
             <p className="landing-kicker">For your own agent</p>
             <h2>HTTP, a one-file client, or MCP.</h2>
             <p>
-              Create and fund a session in Melt, then let another agent operate
-              it. API keys cannot create wallets or raise spending limits.
+              Create and fund a session in Melt, then let Cursor or Claude
+              operate it. API keys cannot create wallets or raise spending
+              limits.
             </p>
             <a className="secondary" href={`${app}#developers`}>
               Connect an agent
@@ -246,7 +276,7 @@ const page = await melt.observe(sessionId);`}</pre>
             <h2>Set a spending limit and start.</h2>
             <p>
               Describe the job, choose how much it may spend, and open a
-              session. Spending stays isolated until you end it.
+              session. The site never sees your main wallet.
             </p>
             <a className="primary" href={app}>
               Open Melt

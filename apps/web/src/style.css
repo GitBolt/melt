@@ -497,6 +497,26 @@ details label {
   font-size: 12px;
   color: #626b7b;
 }
+.browser-url {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 6px;
+}
+.browser-url input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid #e4e6ee;
+  border-radius: 7px;
+  background: #fff;
+  font: inherit;
+  color: #3d4254;
+}
+.browser-url button {
+  flex: none;
+}
 .browser-toolbar > span,
 .browser-toolbar button {
   display: flex;

@@ -7,7 +7,7 @@ import type { Task } from "../../../packages/shared/src/index.js";
 
 const directory = mkdtempSync(join(tmpdir(), "melt-browser-policy-"));
 process.env.DATA_DIR = directory;
-const { estimatePermittedGas, provider, checkURL } =
+const { estimatePermittedGas, provider, checkURL, jobStartUrl } =
   await import("./browser.js");
 const { db } = await import("./store.js");
 const { client } = await import("./chain.js");
@@ -119,7 +119,7 @@ test("wallet supports chain reads, SIWE-style signatures, and still refuses perm
     await assert.rejects(provider(task, method, []), /does not sign/);
 });
 
-test("remote browsing requires an operator-approved public host", async () => {
+test("remote navigation can be host-limited while page resources stay public", async () => {
   const previousToken = process.env.BROWSERLESS_TOKEN;
   const previousHosts = process.env.BROWSER_ALLOWED_HOSTS;
   process.env.BROWSERLESS_TOKEN = "test-token";
@@ -128,10 +128,39 @@ test("remote browsing requires an operator-approved public host", async () => {
     await assert.rejects(checkURL("https://unapproved.invalid"), /not enabled/);
     await assert.rejects(checkURL("https://127.0.0.1"), /Private networks/);
     await checkURL("https://8.8.8.8");
+    await assert.rejects(checkURL("https://1.1.1.1"), /not enabled/);
+    await checkURL("https://1.1.1.1", "resource");
+    process.env.BROWSER_ALLOWED_HOSTS = "";
+    await checkURL("https://8.8.8.8");
   } finally {
     if (previousToken === undefined) delete process.env.BROWSERLESS_TOKEN;
     else process.env.BROWSERLESS_TOKEN = previousToken;
     if (previousHosts === undefined) delete process.env.BROWSER_ALLOWED_HOSTS;
     else process.env.BROWSER_ALLOWED_HOSTS = previousHosts;
   }
+});
+
+test("a job can name its starting site in the instructions", () => {
+  assert.equal(
+    jobStartUrl({
+      url: "https://pay.example/invoice",
+      instruction: "Also see https://ignored.example",
+    }),
+    "https://pay.example/invoice",
+  );
+  assert.equal(
+    jobStartUrl({
+      url: "",
+      instruction:
+        "Open https://app.uniswap.org/swap and connect the task wallet.",
+    }),
+    "https://app.uniswap.org/swap",
+  );
+  assert.equal(
+    jobStartUrl({
+      url: "",
+      instruction: "Mint something without a website",
+    }),
+    "",
+  );
 });

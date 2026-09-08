@@ -8,7 +8,7 @@ Updated September 7, 2026 (September 8 UTC in some logs). Local runtime: macOS, 
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TypeScript            | Current application and client declarations type-check.                                                                                                                                                                                                                                                                                                                                                              |
 | Standalone client     | 10 native HTTP tests pass. They cover decimal preservation, action validation, structured errors, Retry-After, cancelled and bounded polling, uncertain mutation responses, redirect credential protection and JPEG downloads. No model or chain is involved in these client tests.                                                                                                                                  |
-| MCP                   | A real stdio client handshake from outside the repository lists all 14 tools using the documented absolute-path configuration. Browser integration tests also exercise account-scoped keys and manual control.                                                                                                                                                                                                       |
+| MCP                   | A real stdio client handshake from outside the repository lists all 15 tools using the documented absolute-path configuration. Browser integration tests also exercise account-scoped keys and manual control.                                                                                                                                                                                                       |
 | Browser/API           | Tests use a real Chromium browser and local Ethereum. The test chooses visible fixture controls; production contains no deterministic driver. Assertions cover confirmed mint, onchain NFT ownership after return, correct ETH remainder, outcome separate from closure, account isolation, idempotency, key revocation, origin/private-URL rejection, late recovery, developer key UI and client/OpenAPI downloads. |
 | Restart recovery      | A separate worker is stopped after a confirmed browser mint. The test checks persisted authorization, transaction hashes, attention after restart, NFT/native recovery, the final outcome and the downloaded receipt.                                                                                                                                                                                                |
 | Solidity and adapters | Run through `npm test`. Contract tests enforce cumulative limits, expiry, authorized calls, closure and recovery. Model/Uniswap adapter tests use controlled HTTP responses; they do not establish live provider success.                                                                                                                                                                                            |
@@ -72,10 +72,12 @@ returns 503 while unavailable; receipt and recovery routes remain available.
 Browser teardown errors cannot interrupt on-chain recovery.
 
 The optional Browserless adapter uses Playwright's native protocol, keeps recording/replay off. Remote checks showed that local DNS launch rules
-are not enforced by this provider. Remote browsing therefore requires exact
-operator-configured trusted hostnames in BROWSER_ALLOWED_HOSTS, alongside request
-interception and public-address validation. Arbitrary user-supplied hosts are
-rejected. The remote browser has no access to the API container or its secrets. Free connections are
+are not enforced by this provider. Remote browsing therefore requires public
+HTTPS, private-network blocking, and request interception. Optional
+BROWSER_ALLOWED_HOSTS can restrict which hostnames the page may navigate to;
+subresources (scripts, images, CDNs) stay on public HTTPS even when that list
+is set. An empty list allows any public site for navigation. Arbitrary
+javascript: or credential-bearing URLs are rejected. The remote browser has no access to the API container or its secrets. Free connections are
 limited to two minutes; disconnects pause the task and allow reopening without
 creating another allowance. Live provider checks passed for native Playwright connection, page evaluation,
 and loading example.com through Melt’s browser setup. The configured free model

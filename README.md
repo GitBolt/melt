@@ -49,7 +49,7 @@ The client includes status polling, cancellation, screenshots, receipts and clea
 - SQLite persistence, idempotent creation, transaction reconciliation, account isolation and hashed, revocable agent keys.
 - Privy email/wallet authentication, embedded wallets, passkey support, verified owner identity and Privy-managed relayer signing in configured mode.
 - An owner-reviewed Uniswap funding conversion: bounded approvals, Permit2 validation, expiring owner-bound quotes and simulated unsigned swaps.
-- Built-in model integration and external-agent HTTP, JavaScript and MCP access. Seven browser action types; no arbitrary script execution.
+- Built-in model integration and external-agent HTTP, JavaScript and MCP access. Eight browser action types, including opening a public site; no arbitrary script execution.
 - A light interface with custom paper-wallet motion, a spending ribbon and reduced-motion support.
 
 Privy is the owner identity and wallet: email or external wallet login, an embedded Ethereum wallet, passkeys, and the relayer that signs outer task-wallet transactions. The live financial flow is sign in → owner wallet → fund the session → the agent spends inside the limit → unused funds and supported assets return. Implementation: [`apps/web/src/PrivyApp.tsx`](apps/web/src/PrivyApp.tsx).

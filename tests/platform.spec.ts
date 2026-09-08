@@ -377,6 +377,7 @@ test("manual agent controls and MCP operate only owner-authorized sessions", asy
         "read_session",
         "take_control",
         "observe_browser",
+        "open_page",
         "click_control",
         "fill_control",
         "close_session",

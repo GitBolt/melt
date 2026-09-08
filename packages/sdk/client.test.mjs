@@ -139,6 +139,10 @@ test("validates actions and rejects credential-bearing base URLs before contacti
     () => melt.action(id, { type: "fill", index: 1, value: "x".repeat(2001) }),
     /2000/,
   );
+  assert.throws(
+    () => melt.action(id, { type: "open", url: "javascript:alert(1)" }),
+    /website URL/,
+  );
   assert.throws(() => melt.session("../keys"), /session ID/);
   assert.throws(
     () => client("https://user:password@example.com"),
