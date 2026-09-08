@@ -12,60 +12,75 @@ import {
 import "./landing.css";
 
 const app = "/app";
+const examples = [
+  {
+    quote: "Dinner for two, anywhere you like, up to $120, before New Year.",
+    ok: "Any restaurant that is still dinner",
+    no: "Not groceries. Not cash.",
+  },
+  {
+    quote: "A flight home for Thanksgiving, up to $400.",
+    ok: "A real ticket in that window",
+    no: "Not hotel points. Not a transfer.",
+  },
+  {
+    quote: "Any concert you want this summer, up to $150.",
+    ok: "Tickets they actually want to see",
+    no: "Not merch, unless you said so.",
+  },
+  {
+    quote: "Mobile data for your Japan trip, up to $20.",
+    ok: "An eSIM or a local top-up",
+    no: "Not headphones. Not spending money.",
+  },
+  {
+    quote: "Something for your new apartment, except electronics.",
+    ok: "Kitchen, linens, a lamp",
+    no: "Not a laptop or a speaker.",
+  },
+  {
+    quote: "Any indie game under $40.",
+    ok: "A game that fits the cap",
+    no: "Not a Steam wallet dump.",
+  },
+];
 const steps = [
   {
     n: "01",
-    title: "Write the promise",
-    text: "Dinner for two. A flight home. Mobile data for a trip. You set the purpose, the amount, and when it expires.",
+    title: "Write the gift",
+    text: "Who it is for, what it is for, how much, and when it ends.",
   },
   {
     n: "02",
-    title: "Lock it onchain",
-    text: "The ETH is held in a Melt envelope. The recipient cannot cash it out. You cannot take it back early.",
+    title: "Lock the money",
+    text: "ETH sits in an envelope vault. They cannot withdraw it. You cannot take it back early.",
   },
   {
     n: "03",
-    title: "Their assistant chooses",
-    text: "Weeks later they ask ChatGPT, Claude, Codex or Grok to use the gift. Melt finds options that match the promise.",
+    title: "They choose later",
+    text: "In Melt, or in ChatGPT, Claude, Codex, or Grok. The assistant finds a match.",
   },
   {
     n: "04",
-    title: "Only a qualifying purchase settles",
-    text: "Uniswap converts just the required amount. Leftover funds stay in the envelope, then return to you when it expires.",
+    title: "Only a match pays",
+    text: "Melt checks the purchase, converts just enough on Uniswap, and leaves the rest.",
   },
 ];
-const uses = [
+const story = [
   {
-    title: "You want to send dinner, not a restaurant gift card",
-    text: "The recipient picks the place later. Any Italian restaurant, any Friday. Melt checks that the purchase is still dinner.",
+    who: "You",
+    when: "Today",
+    text: "Dinner for two, anywhere you like, up to $120, before New Year.",
   },
   {
-    title: "Someone you love is travelling",
-    text: "Mobile data for the trip, up to $20. Their assistant finds an eSIM. The money cannot become headphones.",
+    who: "Alex",
+    when: "A Friday in December",
+    text: "Use the dinner gift Sarah sent me. Find something Italian near me.",
   },
   {
-    title: "You share an assistant, not an app",
-    text: "You create the envelope on Melt. They redeem it from ChatGPT. Ethereum holds the conditions between those sessions.",
-  },
-  {
-    title: "You need proof of what it became",
-    text: "Every envelope has a public receipt: the mandate, the hashes, and how unused funds return. No Melt login required.",
-  },
-];
-const flow = [
-  { title: "Sign in", text: "Email or a wallet, through Privy." },
-  {
-    title: "Create an envelope",
-    text: "Purpose, amount, expiry, who it’s for.",
-  },
-  { title: "Fund it", text: "ETH is locked in the envelope vault." },
-  {
-    title: "They choose later",
-    text: "Melt or their existing assistant finds a match.",
-  },
-  {
-    title: "Settle the purchase",
-    text: "Uniswap converts only what is needed.",
+    who: "Melt",
+    when: "Same night",
+    text: "Italian dinner matches. $86 settles. The rest stays in the envelope.",
   },
 ];
 
@@ -73,9 +88,18 @@ export default function Landing() {
   const reduced = useReducedMotion();
   const [scrolled, setScrolled] = useState(false);
   const [mainnetNote, setMainnetNote] = useState(false);
-  const hostedChainId = Number(import.meta.env.VITE_CHAIN_ID || 11155111);
+  const [hostedChainId, setHostedChainId] = useState(
+    Number(import.meta.env.VITE_CHAIN_ID || 31337),
+  );
+  const [hostedName, setHostedName] = useState(
+    String(import.meta.env.VITE_CHAIN_NAME || "Local Ethereum"),
+  );
+  const [faucetUrl, setFaucetUrl] = useState(
+    Number(import.meta.env.VITE_CHAIN_ID) === 11155111
+      ? SEPOLIA_FAUCET
+      : undefined,
+  );
   const hostedNetwork = networkKind(hostedChainId);
-  const hostedName = import.meta.env.VITE_CHAIN_NAME || "Sepolia";
   const reveal = reduced
     ? {}
     : {
@@ -99,6 +123,15 @@ export default function Landing() {
       location.replace(app + location.hash);
       return;
     }
+    fetch("/api/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => {
+        if (!cfg?.chain?.id) return;
+        setHostedChainId(cfg.chain.id);
+        if (cfg.chain.name) setHostedName(cfg.chain.name);
+        setFaucetUrl(cfg.faucetUrl || undefined);
+      })
+      .catch(() => {});
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -112,12 +145,12 @@ export default function Landing() {
             <MeltWordmark />
           </a>
           <nav>
-            <a href="#when">When to use it</a>
+            <a href="#examples">Examples</a>
             <a href="#how">How it works</a>
             <a href={`${app}#developers`}>Developers</a>
           </nav>
           <a className="primary" href={app}>
-            Open Melt
+            Create an envelope
             <ArrowRight size={16} />
           </a>
         </div>
@@ -126,32 +159,32 @@ export default function Landing() {
       <section className="landing-hero">
         <div className="landing-wrap hero-grid">
           <div>
-            <h1 className="hero-title">Gift cards without stores.</h1>
+            <h1 className="hero-title">
+              Send money that knows what it is for.
+            </h1>
             <p className="hero-lead">
-              Send purchasing power for a purpose — dinner, a flight home, a
-              concert — and let their AI choose how to use it later. The money
-              can only become what you meant.
+              You lock a purpose and an amount. They spend it later on dinner, a
+              flight, or an eSIM, in Melt or in the assistant they already use.
+              Cash is too loose. A store card is too tight.
             </p>
             <div className="hero-actions">
               <a className="primary" href={app}>
-                Open Melt
+                Create an envelope
                 <ArrowRight size={16} />
               </a>
-              <a className="secondary" href="#how">
-                See how it works
+              <a className="secondary" href="#examples">
+                See examples
               </a>
             </div>
             <div className="hero-network">
               <NetworkStrip
                 network={hostedNetwork}
                 chainName={hostedName}
-                faucetUrl={
-                  hostedNetwork === "testnet" ? SEPOLIA_FAUCET : undefined
-                }
+                faucetUrl={faucetUrl}
                 onExplainMainnet={() => setMainnetNote(true)}
               />
               {mainnetNote ? (
-                <p className="helper">
+                <p>
                   This hosted Melt is Sepolia. Mainnet would spend real ETH and
                   is not this deployment.
                 </p>
@@ -161,7 +194,7 @@ export default function Landing() {
           <div className="hero-stage panel">
             <SessionSeal status="running" />
             <div className="hero-stage-copy">
-              <span>Envelope</span>
+              <span>Envelope for Alex</span>
               <strong>
                 0.05 <small>ETH</small>
               </strong>
@@ -174,22 +207,29 @@ export default function Landing() {
 
       <section className="landing-facts">
         <div className="landing-wrap fact-row">
-          <p>Purpose-bound gifts, not cash</p>
-          <p>Redeemed through any assistant</p>
-          <p>Uniswap converts only what’s needed</p>
-          <p>Unused funds return to the sender</p>
+          <p>Dinner for two, up to $120</p>
+          <p>A flight home for Thanksgiving</p>
+          <p>Any concert this summer</p>
+          <p>An eSIM for Japan</p>
         </div>
       </section>
 
-      <motion.section id="when" className="landing-block" {...reveal}>
+      <motion.section id="examples" className="landing-block" {...reveal}>
         <div className="landing-wrap">
-          <p className="landing-kicker">When this is the right tool</p>
-          <h2>When cash is too loose and a gift card is too tight.</h2>
-          <div className="use-grid">
-            {uses.map((item) => (
-              <article key={item.title} className="panel step-card">
-                <h3>{item.title}</h3>
-                <p>{item.text}</p>
+          <p className="landing-kicker">What people actually send</p>
+          <h2>Write the gift in plain English.</h2>
+          <div className="example-grid">
+            {examples.map((item) => (
+              <article key={item.quote} className="panel example-card">
+                <blockquote>{item.quote}</blockquote>
+                <p>
+                  <span>Can become</span>
+                  {item.ok}
+                </p>
+                <p>
+                  <span>Cannot become</span>
+                  {item.no}
+                </p>
               </article>
             ))}
           </div>
@@ -198,8 +238,8 @@ export default function Landing() {
 
       <motion.section id="how" className="landing-block" {...reveal}>
         <div className="landing-wrap">
-          <p className="landing-kicker">How an envelope works</p>
-          <h2>You send a possibility. They choose later.</h2>
+          <p className="landing-kicker">How it works</p>
+          <h2>You send it today. They spend it when they need it.</h2>
           <div className="step-grid">
             {steps.map((step) => (
               <article key={step.n} className="panel step-card">
@@ -212,16 +252,36 @@ export default function Landing() {
         </div>
       </motion.section>
 
+      <motion.section className="landing-block" {...reveal}>
+        <div className="landing-wrap">
+          <p className="landing-kicker">One gift, two sessions</p>
+          <h2>Their ChatGPT can spend what you funded in Melt.</h2>
+          <div className="story-grid">
+            {story.map((item) => (
+              <article key={item.who} className="panel story-card">
+                <div className="story-meta">
+                  <strong>{item.who}</strong>
+                  <span>{item.when}</span>
+                </div>
+                <blockquote>{item.text}</blockquote>
+              </article>
+            ))}
+          </div>
+        </div>
+      </motion.section>
+
       <section id="product" className="landing-block">
         <div className="landing-wrap">
           <motion.article className="feature-row" {...reveal}>
             <div>
-              <p className="landing-kicker">Any purpose you can describe</p>
-              <h2>Start from the promise, not a store.</h2>
+              <p className="landing-kicker">
+                Give their assistant a way to pay
+              </p>
+              <h2>They do not need a new shopping app.</h2>
               <p>
-                Dinner for two, a flight home, something for a new apartment
-                except electronics. The recipient’s assistant finds a qualifying
-                purchase. Melt checks it against the original gift.
+                Create the envelope here. Weeks later they tell Claude to use
+                it. Melt is the wallet that assistant calls. You never hand it
+                an unrestricted key.
               </p>
             </div>
             <figure className="feature-media panel">
@@ -235,11 +295,11 @@ export default function Landing() {
           <motion.article className="feature-row flip" {...reveal}>
             <div>
               <p className="landing-kicker">Held between two people</p>
-              <h2>Neither Melt nor a model can rewrite it.</h2>
+              <h2>Neither Melt nor a model can rewrite the gift.</h2>
               <p>
-                Sign in with email. Fund the envelope. Weeks later a completely
-                different assistant can redeem it through MCP. Ethereum holds
-                the money and the conditions between those sessions.
+                Ethereum keeps the amount, the purpose, the expiry, and where
+                unused funds go. The recipient cannot cash it out. You cannot
+                claw it back early.
               </p>
             </div>
             <figure className="feature-media panel">
@@ -252,12 +312,11 @@ export default function Landing() {
 
           <motion.article className="feature-row" {...reveal}>
             <div>
-              <p className="landing-kicker">Then the rest comes back</p>
-              <h2>Unused funds return. Recovery stays.</h2>
+              <p className="landing-kicker">What they do not use</p>
+              <h2>Leftover money comes back to you.</h2>
               <p>
-                Partial use is allowed when you say so. Leftover ETH and the
-                settlement asset return to you after expiry — including without
-                Melt running.
+                Allow partial use if you want. After expiry, leftover ETH and
+                the settlement asset return, even if Melt is offline.
               </p>
             </div>
             <figure className="feature-media panel">
@@ -271,47 +330,25 @@ export default function Landing() {
       </section>
 
       <motion.section className="landing-block" {...reveal}>
-        <div className="landing-wrap">
-          <p className="landing-kicker">How money moves</p>
-          <h2>Fund it from your wallet. Their agent never inherits it.</h2>
-          <div className="flow-grid">
-            {flow.map((item, i) => (
-              <article key={item.title} className="panel flow-card">
-                <span className="quiet">{String(i + 1).padStart(2, "0")}</span>
-                <h3>{item.title}</h3>
-                <p>{item.text}</p>
-              </article>
-            ))}
-          </div>
-          <p className="flow-note">
-            Uniswap is the conversion rail, not a product tab: when a purchase
-            qualifies, Melt swaps only the required ETH to USDC from the
-            envelope vault. No approvals. Leftovers stay in the gift.
-          </p>
-        </div>
-      </motion.section>
-
-      <motion.section className="landing-block" {...reveal}>
         <div className="landing-wrap agents-grid">
           <div>
-            <p className="landing-kicker">For your own agent</p>
-            <h2>HTTP, a one-file client, or MCP.</h2>
+            <p className="landing-kicker">For ChatGPT, Claude, Codex, Grok</p>
+            <h2>Connect an agent. It can spend a gift, not send cash.</h2>
             <p>
-              Create and fund an envelope in Melt, then let Cursor or Claude
-              redeem it. API keys cannot create envelopes, raise the amount, or
-              send unrestricted cash. Signed webhooks notify you when a gift is
-              used.
+              Fund the envelope yourself. Give the recipient an API key. Their
+              assistant can find options, propose a purchase, and redeem. It
+              cannot create envelopes or raise the amount.
             </p>
             <a className="secondary" href={`${app}#developers`}>
-              Connect an agent
+              Agent docs
               <ArrowUpRight size={16} />
             </a>
           </div>
           <pre className="panel agent-sample">{`const melt = new Melt({ apiKey });
-const { sent } = await melt.envelopes();
-const found = await melt.findOptions(sent[0].id, 'an eSIM');
-const quote = await melt.proposePurchase(sent[0].id, { sku: found.options[0].sku });
-await melt.redeem(sent[0].id, quote.quote.id);`}</pre>
+const { received } = await melt.envelopes();
+const found = await melt.findOptions(received[0].id, 'Italian near me');
+const quote = await melt.proposePurchase(received[0].id, { sku: found.options[0].sku });
+await melt.redeem(received[0].id, quote.quote.id);`}</pre>
         </div>
       </motion.section>
 
@@ -319,13 +356,12 @@ await melt.redeem(sent[0].id, quote.quote.id);`}</pre>
         <div className="landing-wrap close-panel panel">
           <SessionSeal status="ready" />
           <div>
-            <h2>Send a possibility instead of cash.</h2>
+            <h2>Send dinner tonight. Let them pick the table later.</h2>
             <p>
-              Describe the gift, choose how much it may become, and let their
-              assistant choose later.
+              Create an envelope in a minute. Unused funds come back to you.
             </p>
             <a className="primary" href={app}>
-              Open Melt
+              Create an envelope
               <ArrowRight size={16} />
             </a>
           </div>

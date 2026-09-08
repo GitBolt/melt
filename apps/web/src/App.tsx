@@ -449,11 +449,10 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
           <>
             <section className="intro">
               <div>
-                <h1>Find what the gift can become.</h1>
+                <h1>Use a gift.</h1>
                 <p>
-                  Options have to match the promise. Assistants call the same
-                  tools through MCP. Uniswap only converts the amount a
-                  qualifying purchase needs.
+                  Search for what they actually want. Melt only lists purchases
+                  that still match the original promise.
                 </p>
               </div>
             </section>
@@ -469,7 +468,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               />
             ) : (
               <div className="empty">
-                <h2>Sign in to redeem an envelope</h2>
+                <h2>Sign in to use a gift</h2>
                 <button className="secondary" onClick={signIn}>
                   Sign in
                 </button>
@@ -482,13 +481,13 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               <div>
                 <h1>
                   {page === "Activity"
-                    ? "See what the gifts became."
-                    : "Send a possibility instead of cash."}
+                    ? "See what got used."
+                    : "Send a gift they can spend later."}
                 </h1>
                 <p>
                   {page === "Activity"
-                    ? "Settlement, delivery, and the vaults that held each envelope."
-                    : "Gift cards without stores. Their AI chooses later. The money can only become what you meant."}
+                    ? "Settlements, deliveries, and leftover funds."
+                    : "Lock a purpose and an amount. They pick the restaurant, the flight, or the eSIM when they need it."}
                 </p>
               </div>
               {user && page === "Envelopes" && (
@@ -544,8 +543,9 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                   ) : (
                     <>
                       <p className="sign-in-copy">
-                        Dinner, a flight home, mobile data — not unrestricted
-                        cash. Their assistant redeems it later through MCP.
+                        Dinner for two. A flight home. An eSIM for Japan. Not
+                        unrestricted cash. They spend it later in Melt or in
+                        ChatGPT.
                       </p>
                       <div className="example-task">
                         <Globe size={17} />
@@ -586,11 +586,10 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                   <aside className="welcome-wallet panel">
                     <SessionSeal />
                     <div>
-                      <h2>Gift cards without stores.</h2>
+                      <h2>Dinner now. Restaurant later.</h2>
                       <p>
-                        The contract holds the money and the conditions. ChatGPT
-                        or Claude can find a qualifying purchase. Neither can
-                        rewrite the gift.
+                        You lock $120 for dinner. They pick the place in ChatGPT
+                        next Friday. Headphones cannot come out of this gift.
                       </p>
                     </div>
                     <div className="wallet-footer">
@@ -1128,7 +1127,7 @@ function SessionDetail({
                 <p>
                   {t.envelopeId
                     ? t.error ||
-                      "Qualifying purchases settle through Uniswap. Leftover funds stay here until the envelope expires."
+                      "Matching purchases settle on Uniswap. Leftover funds stay until this gift expires."
                     : t.kind === "swap"
                       ? t.status === "closed"
                         ? `Swapped ${t.spent} ${config.chain.symbol} for ${t.swap?.symbol || "tokens"} · agent spending disabled`
@@ -1496,11 +1495,11 @@ function Developers({
     <>
       <section className="intro">
         <div>
-          <h1>Connect your agent to Melt</h1>
+          <h1>Connect ChatGPT, Claude, or Codex</h1>
           <p>
-            Envelopes are the product. An API key can find options, propose a
-            purchase, and redeem. It cannot create envelopes, raise the amount,
-            or send unrestricted cash.
+            Their assistant can find options, propose a purchase, and redeem an
+            existing envelope. It cannot create one, raise the amount, or send
+            cash.
           </p>
         </div>
         <a
@@ -1516,11 +1515,11 @@ function Developers({
       </section>
       <div className="developer-grid">
         <section className="panel dev-panel">
-          <h2>Use the envelope API</h2>
+          <h2>Let their assistant spend the gift</h2>
           <p>
-            Create and fund an envelope in Melt, then let ChatGPT, Claude, Codex
-            or Grok redeem it through MCP. Keys can’t create envelopes or
-            increase the gift.
+            Create and fund an envelope in Melt. ChatGPT, Claude, Codex, or Grok
+            can redeem it through MCP. Keys cannot create envelopes or increase
+            the gift.
           </p>
           <pre>
             <code>{`import { Melt } from './melt-client.mjs';\n\nconst melt = new Melt({\n  baseUrl: '${location.origin}',\n  apiKey: process.env.MELT_API_KEY\n});\n\nconst { sent } = await melt.envelopes();\nconst found = await melt.findOptions(sent[0].id, 'an eSIM for Japan');\nconst quote = await melt.proposePurchase(sent[0].id, { sku: found.options[0].sku });\nawait melt.redeem(sent[0].id, quote.quote.id);`}</code>
@@ -1635,9 +1634,9 @@ function Developers({
           <div className="mcp-note">
             <h2>Connect with MCP</h2>
             <p>
-              Use Melt from ChatGPT, Claude, Codex or Grok. The MCP server
-              exposes envelopes: list, find options, propose, and redeem. It
-              cannot send unrestricted cash.
+              Use Melt from ChatGPT, Claude, Codex, or Grok. The MCP server can
+              list gifts, find options, propose, and redeem. It cannot send
+              cash.
             </p>
             <pre>
               <code>npm run agent:mcp</code>

@@ -119,7 +119,10 @@ const app = Fastify({
   bodyLimit: 64000,
 });
 await app.register(cookie);
-await app.register(rateLimit, { max: 180, timeWindow: "1 minute" });
+await app.register(rateLimit, {
+  max: local ? 2000 : 180,
+  timeWindow: "1 minute",
+});
 if (!local && process.env.ENABLE_TEST_FIXTURES === "true")
   registerFixtures(app, "/demo");
 const fixtureOrigin =
