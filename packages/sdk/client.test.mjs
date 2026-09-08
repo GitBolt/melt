@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { Melt, MeltError } from "./client.mjs";
+import { createHmac } from "node:crypto";
+import { Melt, MeltError, publicReceipt, constructEvent } from "./client.mjs";
 
 const id = "1277b125-7623-4cd1-a7be-16a1da9ae253";
 const task = (status = "ready") => ({
@@ -273,4 +274,42 @@ test("expanded controls carry only validated fields and optional reasons", async
     /160/,
   );
   assert.equal(bodies.length, 4);
+});
+
+test("constructEvent verifies Stripe-style HMAC over the raw body", async () => {
+  const secret = "whsec_test";
+  const payload = '{"id":"evt_1","object":"event","type":"session.closed"}';
+  const timestamp = 1_700_000_000;
+  const v1 = createHmac("sha256", secret)
+    .update(`${timestamp}.${payload}`)
+    .digest("hex");
+  const original = Date.now;
+  Date.now = () => timestamp * 1000;
+  try {
+    const event = await constructEvent(
+      payload,
+      `t=${timestamp},v1=${v1}`,
+      secret,
+    );
+    assert.equal(event.id, "evt_1");
+    await assert.rejects(
+      () => constructEvent(payload + " ", `t=${timestamp},v1=${v1}`, secret),
+      (error) =>
+        error instanceof MeltError && error.code === "INVALID_SIGNATURE",
+    );
+  } finally {
+    Date.now = original;
+  }
+});
+
+test("publicReceipt fetches an unauthenticated receipt by token", async (t) => {
+  const token = "ab".repeat(24);
+  const base = await endpoint(t, (req, res) => {
+    assert.equal(req.url, `/api/public/receipts/${token}`);
+    assert.equal(req.headers.authorization, undefined);
+    json(res, { object: "receipt", id, url: `/r/${token}` });
+  });
+  const receipt = await publicReceipt(token, { baseUrl: base });
+  assert.equal(receipt.object, "receipt");
+  assert.equal(receipt.url, `/r/${token}`);
 });

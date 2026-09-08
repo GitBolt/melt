@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   MousePointer2,
   Repeat,
+  Link2,
 } from "lucide-react";
 import { parseEther, toHex } from "viem";
 import type {
@@ -31,10 +32,12 @@ import type {
   CreateTask,
   TaskStatus,
 } from "../../../packages/shared/src/index";
+import { mandateText } from "../../../packages/shared/src/index";
 import { BudgetRibbon } from "./components/BudgetRibbon";
 import { GooeyNav } from "./components/ui/gooey-nav";
 import { SessionSeal } from "./SessionSeal";
 import { FundingSwap } from "./FundingSwap";
+import "./public-receipt.css";
 export interface Auth {
   ready: boolean;
   authenticated: boolean;
@@ -358,6 +361,16 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               notify={setNotice}
               now={now}
               download={() => download(task)}
+              share={() => {
+                if (!task.receiptToken) {
+                  setNotice("Receipt link is not ready yet");
+                  return;
+                }
+                void navigator.clipboard
+                  .writeText(`${location.origin}/r/${task.receiptToken}`)
+                  .then(() => setNotice("Receipt link copied"))
+                  .catch(() => setError("Could not copy the receipt link"));
+              }}
               repeat={() => {
                 setDraft(task);
                 setSelected(undefined);
@@ -377,7 +390,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                 </h1>
                 <p>
                   {page === "Receipts"
-                    ? "Review spending, returned assets, and transaction details for every session."
+                    ? "Review spending, returned assets, and share a public receipt — no Melt login required."
                     : "Set a spending limit, let your agent work, and return unused funds to your wallet."}
                 </p>
               </div>
@@ -1285,6 +1298,7 @@ function SessionDetail({
   notify,
   now,
   download,
+  share,
   repeat,
 }: {
   task: Task;
@@ -1297,6 +1311,7 @@ function SessionDetail({
   notify: (s: string) => void;
   now: number;
   download: () => void;
+  share: () => void;
   repeat: () => void;
 }) {
   const [shot, setShot] = useState(""),
@@ -1387,6 +1402,7 @@ function SessionDetail({
           {statusLabel[t.status]}
         </span>
       </section>
+      <p className="session-mandate">{mandateText(t, config.chain.symbol)}</p>
       <div className="work-grid">
         <aside className="wallet-panel panel">
           <SessionSeal status={t.status} />
@@ -1489,6 +1505,12 @@ function SessionDetail({
               Gas paid: {gas.toFixed(7)} {config.chain.symbol}
             </p>
           </details>
+          {t.receiptToken && (
+            <button className="secondary wide" onClick={share}>
+              <Link2 size={15} />
+              Share receipt
+            </button>
+          )}
           {t.status === "closed" ? (
             <>
               <button className="secondary wide" onClick={download}>
@@ -1913,21 +1935,52 @@ function Developers({
   busy: string;
   notify: (s: string) => void;
 }) {
-  const [keys, setKeys] = useState<any[]>([]),
+  const hookEvents = [
+      "session.created",
+      "session.funded",
+      "session.started",
+      "swap.executed",
+      "session.closed",
+      "session.recovered",
+    ],
+    [keys, setKeys] = useState<any[]>([]),
     [token, setToken] = useState(""),
-    [keyError, setKeyError] = useState("");
+    [keyError, setKeyError] = useState(""),
+    [hooks, setHooks] = useState<any[]>([]),
+    [events, setEvents] = useState<any[]>([]),
+    [hookUrl, setHookUrl] = useState(""),
+    [hookSecret, setHookSecret] = useState(""),
+    [selectedEvents, setSelectedEvents] = useState<string[]>(hookEvents);
   async function refresh() {
-    if (user) setKeys(await request("/keys"));
+    if (!user) return;
+    const [nextKeys, nextHooks, nextEvents] = await Promise.all([
+      request("/keys"),
+      request("/webhooks"),
+      request("/events"),
+    ]);
+    setKeys(nextKeys);
+    setHooks(nextHooks);
+    setEvents(nextEvents);
   }
   useEffect(() => {
     let alive = true;
     setToken("");
+    setHookSecret("");
     setKeys([]);
+    setHooks([]);
+    setEvents([]);
     setKeyError("");
     if (user)
-      void request("/keys")
-        .then((rows: any[]) => {
-          if (alive) setKeys(rows);
+      void Promise.all([
+        request("/keys"),
+        request("/webhooks"),
+        request("/events"),
+      ])
+        .then(([nextKeys, nextHooks, nextEvents]) => {
+          if (!alive) return;
+          setKeys(nextKeys);
+          setHooks(nextHooks);
+          setEvents(nextEvents);
         })
         .catch((e: Error) => {
           if (alive) setKeyError(e.message);
@@ -1942,8 +1995,9 @@ function Developers({
         <div>
           <h1>Connect your agent to Melt</h1>
           <p>
-            Start tasks, control the browser, and retrieve receipts through the
-            API.
+            Run sessions over HTTP, share a public receipt, and receive
+            HMAC-signed webhooks when spending starts, swaps land, or funds
+            return.
           </p>
         </div>
         <a
@@ -1995,7 +2049,18 @@ function Developers({
                 "/api/sessions/:id/close",
                 "End the session and return funds",
               ],
-              ["GET", "/api/sessions/:id/receipt", "Get the session receipt"],
+              [
+                "GET",
+                "/api/sessions/:id/receipt",
+                "Download the private receipt",
+              ],
+              [
+                "GET",
+                "/api/public/receipts/:token",
+                "Open the shareable public receipt",
+              ],
+              ["GET", "/api/events", "List recent webhook events"],
+              ["POST", "/api/webhooks", "Register a signed webhook endpoint"],
             ].map(([method, path, label]) => (
               <div key={path}>
                 <span>{method}</span>
@@ -2083,6 +2148,170 @@ function Developers({
             </pre>
           </div>
         </aside>
+      </div>
+      <div className="receipt-grid developers-webhooks">
+        <section className="panel webhook-log">
+          <h2>Events</h2>
+          <p className="helper">
+            The same event objects Melt posts to your webhook. Agent keys cannot
+            read this log.
+          </p>
+          {user ? (
+            events.length ? (
+              events.map((item) => (
+                <div className="event-row" key={item.id}>
+                  <div>
+                    <code>{item.type}</code>
+                    {item.taskId && (
+                      <p className="quiet">{item.taskId.slice(0, 8)}</p>
+                    )}
+                  </div>
+                  <time>
+                    {new Date(item.created).toLocaleTimeString(undefined, {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })}
+                  </time>
+                </div>
+              ))
+            ) : (
+              <p className="helper">
+                No events yet. Create a session to see one.
+              </p>
+            )
+          ) : (
+            <button className="secondary" onClick={signIn}>
+              Sign in to see events
+            </button>
+          )}
+        </section>
+        <section className="panel webhook-log">
+          <h2>Webhooks</h2>
+          <p className="helper">
+            Melt signs the raw JSON with HMAC-SHA256 and sends a Melt-Signature
+            header in Stripe’s t=,v1= form. HTTPS is required in production.
+          </p>
+          {user ? (
+            <>
+              <label className="hook-url">
+                Endpoint URL
+                <input
+                  value={hookUrl}
+                  onChange={(e) => setHookUrl(e.target.value)}
+                  placeholder="https://example.com/melt-webhooks"
+                />
+              </label>
+              <div className="hook-events">
+                {hookEvents.map((type) => (
+                  <label key={type}>
+                    <input
+                      type="checkbox"
+                      checked={selectedEvents.includes(type)}
+                      onChange={() =>
+                        setSelectedEvents((current) =>
+                          current.includes(type)
+                            ? current.filter((item) => item !== type)
+                            : [...current, type],
+                        )
+                      }
+                    />
+                    {type}
+                  </label>
+                ))}
+              </div>
+              <button
+                className="primary wide"
+                disabled={!!busy || !hookUrl.trim() || !selectedEvents.length}
+                onClick={() =>
+                  act("webhook", async () => {
+                    const created = await request("/webhooks", {
+                      url: hookUrl.trim(),
+                      events: selectedEvents,
+                    });
+                    setHookSecret(created.secret);
+                    setHookUrl("");
+                    await refresh();
+                  })
+                }
+              >
+                <Plus size={15} />
+                Add endpoint
+              </button>
+              {hookSecret && (
+                <div className="key-reveal">
+                  <code>{hookSecret}</code>
+                  <button
+                    className="secondary wide"
+                    onClick={() =>
+                      act("copy-secret", async () => {
+                        await navigator.clipboard.writeText(hookSecret);
+                        notify("Signing secret copied");
+                      })
+                    }
+                  >
+                    <Copy size={13} />
+                    Copy signing secret
+                  </button>
+                  <p className="helper">Shown once. Store it on your server.</p>
+                </div>
+              )}
+              <pre>
+                <code>{`import { constructEvent } from './melt-client.mjs';\n\nconst event = await constructEvent(\n  rawBody,\n  request.headers['melt-signature'],\n  process.env.MELT_WEBHOOK_SECRET\n);`}</code>
+              </pre>
+              {hooks.map((hook) => (
+                <div className="hook-row" key={hook.id}>
+                  <div>
+                    <code>{hook.url}</code>
+                    <p className="quiet">{hook.events.join(", ")}</p>
+                  </div>
+                  <div className="hook-actions">
+                    <button
+                      className="secondary"
+                      disabled={!!busy}
+                      onClick={() =>
+                        act("ping", async () => {
+                          const result = await request(
+                            `/webhooks/${hook.id}/ping`,
+                            {},
+                          );
+                          notify(
+                            result.delivered
+                              ? "Test event delivered"
+                              : "Endpoint did not accept the test event",
+                          );
+                          await refresh();
+                        })
+                      }
+                    >
+                      Send test
+                    </button>
+                    <button
+                      aria-label={`Delete webhook ${hook.url}`}
+                      disabled={!!busy}
+                      onClick={() =>
+                        act("delete-hook", async () => {
+                          await request(
+                            `/webhooks/${hook.id}`,
+                            undefined,
+                            "DELETE",
+                          );
+                          await refresh();
+                        })
+                      }
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </>
+          ) : (
+            <button className="secondary" onClick={signIn}>
+              Sign in to add a webhook
+            </button>
+          )}
+        </section>
       </div>
     </>
   );

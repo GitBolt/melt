@@ -1,5 +1,5 @@
 // Workspace consumers and the downloadable client share one implementation.
-export { Melt, MeltError } from "../client.mjs";
+export { Melt, MeltError, publicReceipt, constructEvent } from "../client.mjs";
 export type {
   Session,
   SessionStatus,

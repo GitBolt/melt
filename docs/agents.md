@@ -141,7 +141,9 @@ Configure your MCP application to launch Node.js with **absolute paths** to this
 
 Replace `/ABSOLUTE/PATH/melt` with your checkout path. Keep the key in your MCP application's private secret configuration. Do not commit it. This configuration works without relying on the MCP application's working directory. From the repository, `npm run agent:mcp` is the equivalent command and loads the local `.env`.
 
-Tools: `list_sessions`, `start_session`, `read_session`, `take_control`, `observe_browser`, `open_page`, `click_control`, `fill_control`, `wait_browser`, `scroll_browser`, `press_control`, `select_control`, `finish_task`, `close_session`, `read_receipt`. `start_session` always opens in manual mode. `finish_task` is for a verified result while paused; `close_session` ends the session and recovers supported assets; it does not assert task success. Financial limits remain in force for MCP actions. Tools report errors with `isError: true` and include status/uncertainty where available.
+Tools: `list_sessions`, `start_session`, `read_session`, `take_control`, `observe_browser`, `open_page`, `click_control`, `fill_control`, `wait_browser`, `scroll_browser`, `press_control`, `select_control`, `finish_task`, `close_session`, `read_receipt`, `public_receipt`. `start_session` always opens in manual mode. `finish_task` is for a verified result while paused; `close_session` ends the session and recovers supported assets; it does not assert task success. `public_receipt` reads the shareable `/r/{token}` payload and does not expose the owner account. Financial limits remain in force for MCP actions. Tools report errors with `isError: true` and include status/uncertainty where available.
+
+After `wait()` or `read_receipt`, share `session.receiptToken` as `${origin}/r/${token}`. Your agent's backend should listen for signed webhooks instead of polling when you need `session.closed` or `swap.executed`. Verify them with `constructEvent` from the same client file.
 
 ## Model configuration
 

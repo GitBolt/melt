@@ -5,10 +5,14 @@ import type { Config } from "../../../packages/shared/src/index";
 import App from "./App";
 import Landing from "./Landing";
 import { DirectRecovery } from "./DirectRecovery";
+import { PublicReceipt } from "./PublicReceipt";
 import "./style.css";
 const PrivyApp = React.lazy(() => import("./PrivyApp"));
 const recovery = location.pathname === "/recover";
 const product = location.pathname === "/app";
+const publicReceiptToken = location.pathname.match(
+  /^\/r\/([0-9a-f]{48})$/i,
+)?.[1];
 const recoveryConfig: Config = {
   mode: "configured",
   chain: {
@@ -48,6 +52,7 @@ function Root() {
       .then(setConfig)
       .catch((e) => setError(e.message));
   }, []);
+  if (publicReceiptToken) return <PublicReceipt token={publicReceiptToken} />;
   if (!product && !recovery) return <Landing />;
   if (!config && !error) return <MeltLoading />;
   if (!config)

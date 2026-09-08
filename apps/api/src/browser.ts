@@ -35,6 +35,7 @@ import {
   signAgentTypedData,
 } from "./chain.js";
 import { get, event, serial, save } from "./store.js";
+import { emit } from "./webhooks.js";
 import { quoteSwap, buildSwapCall, knownToken } from "./swap.js";
 import type { Task } from "../../../packages/shared/src/index.js";
 async function launchBrowser(args: string[]) {
@@ -581,6 +582,7 @@ export async function finish(id: string) {
         task.outcomeReason = "The session ended without a task transaction.";
       }
       await recover(task);
+      emit(get(id).userId, "session.closed", get(id));
     } catch (e) {
       task.status = "attention";
       task.error = errorMessage(e);
@@ -611,6 +613,7 @@ export async function start(id: string, manual = false) {
     delete task.outcomeReason;
     delete task.error;
     save(task);
+    emit(task.userId, "session.started", task);
     void runSwaps(id, generation).catch((e) => {
       if (task.status === "running" && generations.get(id) === generation) {
         const message = errorMessage(e);
@@ -638,6 +641,7 @@ export async function start(id: string, manual = false) {
   delete task.outcomeReason;
   delete task.error;
   save(task);
+  emit(task.userId, "session.started", task);
   try {
     if (!sessions.has(id)) await openBrowser(task);
   } catch (e) {
@@ -863,6 +867,13 @@ async function runSwaps(id: string, generation: number) {
         `${label} confirmed · about ${Number(quote.amountOut).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${quote.symbol} received`,
         hash,
       );
+      emit(task.userId, "swap.executed", task, {
+        buy: i + 1,
+        buys,
+        amountOut: quote.amountOut,
+        symbol: quote.symbol,
+        hash,
+      });
     });
     if (!live()) return;
     if (i < buys - 1)

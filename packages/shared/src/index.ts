@@ -119,6 +119,7 @@ export interface Task extends CreateTask {
   outcome?: "pending" | "succeeded" | "failed" | "cancelled";
   outcomeReason?: string;
   error?: string;
+  receiptToken?: string;
 }
 export interface Config {
   mode: "local" | "configured";
@@ -156,3 +157,51 @@ export interface Config {
   operator: string;
 }
 export const terminal = (status: TaskStatus) => status === "closed";
+
+export type PublicReceiptStatus =
+  | "requires_funding"
+  | "open"
+  | "processing"
+  | "settling"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "needs_recovery";
+
+export function publicReceiptStatus(task: Task): PublicReceiptStatus {
+  if (task.status === "funding") return "requires_funding";
+  if (task.status === "ready") return "open";
+  if (task.status === "running" || task.status === "paused")
+    return "processing";
+  if (task.status === "closing") return "settling";
+  if (task.status === "attention") return "needs_recovery";
+  if (task.outcome === "succeeded") return "succeeded";
+  if (task.outcome === "failed") return "failed";
+  if (task.outcome === "cancelled") return "cancelled";
+  return "succeeded";
+}
+
+export function mandateText(task: Task, nativeSymbol = "ETH"): string {
+  const until =
+    new Date(task.expiresAt * 1000)
+      .toISOString()
+      .replace("T", " ")
+      .slice(0, 16) + " UTC";
+  const dest = task.recovery
+    ? `${task.recovery.slice(0, 6)}…${task.recovery.slice(-4)}`
+    : "the owner wallet";
+  if (task.kind === "swap" && task.swap) {
+    const dca =
+      (task.swap.buys || 1) > 1 ? ` across ${task.swap.buys} buys` : "";
+    return `Spend at most ${task.budget} ${nativeSymbol} swapping to ${task.swap.symbol}${dca} on Uniswap V3. Spending ends ${until}. Unused ${nativeSymbol} and ${task.swap.symbol} return to ${dest}.`;
+  }
+  let site = "";
+  if (task.url) {
+    try {
+      site = ` on ${new URL(task.url).hostname}`;
+    } catch {
+      site = "";
+    }
+  }
+  return `Spend at most ${task.budget} ${nativeSymbol}${site} for this job. Spending ends ${until}. Unused funds and recovered assets return to ${dest}.`;
+}

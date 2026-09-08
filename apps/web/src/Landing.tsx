@@ -42,6 +42,10 @@ const uses = [
     title: "You want to try a site once",
     text: "Connect a numbered allowance instead of your main wallet. When the session ends, spending dies onchain and leftovers return.",
   },
+  {
+    title: "You need proof of what it spent",
+    text: "Every session has a public receipt: the mandate, the hashes, and how to recover leftovers. Send the link. No Melt login required.",
+  },
 ];
 const flow = [
   { title: "Sign in", text: "Email or a wallet, through Privy." },
@@ -134,8 +138,8 @@ export default function Landing() {
         <div className="landing-wrap fact-row">
           <p>Spending limits enforced onchain</p>
           <p>Isolated browser for the job</p>
-          <p>Leftover funds return</p>
-          <p>Recovery after the session ends</p>
+          <p>Shareable public receipts</p>
+          <p>Recovery after Melt is gone</p>
         </div>
       </section>
 
@@ -242,8 +246,8 @@ export default function Landing() {
             ))}
           </div>
           <p className="flow-note">
-            Or let the agent swap for you: tell Melt "swap 0.05 ETH for USDC" and
-            it trades on Uniswap V3 from the spend-limited task wallet, then
+            Or let the agent swap for you: tell Melt "swap 0.05 ETH for USDC"
+            and it trades on Uniswap V3 from the spend-limited task wallet, then
             returns the token to you — real onchain execution, no approvals.
           </p>
         </div>
@@ -257,7 +261,8 @@ export default function Landing() {
             <p>
               Create and fund a session in Melt, then let Cursor or Claude
               operate it. API keys cannot create wallets or raise spending
-              limits.
+              limits. Signed webhooks notify your server when a swap lands or
+              funds return.
             </p>
             <a className="secondary" href={`${app}#developers`}>
               Connect an agent

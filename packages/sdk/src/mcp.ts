@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { Melt, MeltError } from "./index.js";
+import { Melt, MeltError, publicReceipt } from "./index.js";
 if (!process.env.MELT_API_KEY)
   throw Error("Set MELT_API_KEY to a key created in Melt → Developers");
 const client = new Melt({
@@ -158,10 +158,26 @@ server.registerTool(
   "read_receipt",
   {
     description:
-      "Read the session receipt, outcome and chain transaction hashes. Closed means spending ended; check outcome separately.",
+      "Read the session receipt, outcome and chain transaction hashes. Closed means spending ended; check outcome separately. The receiptToken is the public shareable page at /r/{token}.",
     inputSchema: id,
   },
   ({ sessionId }) => result(() => client.receipt(sessionId)),
+);
+server.registerTool(
+  "public_receipt",
+  {
+    description:
+      "Read a shareable public receipt by its 48-character token. No owner identity is included. Anyone with the link can open /r/{token}.",
+    inputSchema: z.object({
+      token: z.string().regex(/^[0-9a-f]{48}$/i),
+    }),
+  },
+  ({ token }) =>
+    result(() =>
+      publicReceipt(token, {
+        baseUrl: process.env.MELT_API_URL || "https://melt-woad.vercel.app",
+      }),
+    ),
 );
 server.registerTool(
   "scroll_browser",
