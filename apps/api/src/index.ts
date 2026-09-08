@@ -272,7 +272,10 @@ app.post(
         .prepare("SELECT task_id FROM idempotency WHERE key=?")
         .get(key);
       if (previous) return getEnvelope(previous.task_id as string);
-      if (list(user.id).filter((t) => t.status !== "closed").length >= 10)
+      const openEnvelopes = list(user.id).filter(
+        (t) => t.status !== "closed" && t.envelopeId,
+      ).length;
+      if (openEnvelopes >= (local ? 40 : 20))
         throw Error("Close an existing envelope before creating another");
       const envelope = await createFundedEnvelope(user, input);
       db.prepare("INSERT INTO idempotency VALUES(?,?)").run(key, envelope.id);
