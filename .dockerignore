@@ -1,0 +1,17 @@
+.git
+.vercel
+.railway
+.env*
+node_modules
+/dist
+/data
+contracts/out
+contracts/cache
+test-results
+playwright-report
+.melt-test-run
+/archive
+/src
+/server
+docs/screenshots
+*.log

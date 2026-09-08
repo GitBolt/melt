@@ -1,0 +1,15 @@
+node_modules
+/dist
+/data
+.env*
+.railway
+contracts/out
+contracts/cache
+test-results
+playwright-report
+.melt-test-run
+/archive
+/src
+/server
+docs/screenshots
+*.log
