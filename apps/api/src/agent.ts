@@ -94,6 +94,7 @@ export async function decide(observation: unknown): Promise<BrowserAction> {
     body: JSON.stringify({
       model: process.env.AI_MODEL,
       temperature: 0,
+      response_format: { type: "json_object" },
       messages: [
         {
           role: "system",

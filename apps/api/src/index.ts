@@ -465,11 +465,11 @@ if (existsSync("dist/index.html")) {
 // A restarted worker never resumes financial work silently.
 for (const task of list()) {
   if (["running", "paused", "closing"].includes(task.status)) {
-    task.status = "attention";
+    task.status = task.status === "closing" ? "attention" : "paused";
     event(
       task,
       "info",
-      "Session interrupted by a restart. Review its transactions, then recover your funds.",
+      "Session paused by a restart. Review its transactions before resuming, or return your funds.",
     );
   }
 }

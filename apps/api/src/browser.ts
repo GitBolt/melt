@@ -502,6 +502,8 @@ export async function start(id: string, manual = false) {
     throw Error("Fund the session before starting");
   if (Date.now() >= task.expiresAt * 1000)
     throw Error("Session expired; return funds instead");
+  await reconcile(task);
+  if (hasConfirmedExecution(task)) return finish(id);
   if (!manual && task.agentMode === "model" && !hasModelConfiguration())
     throw Error(
       "AI agent is not configured. Start with manual control instead.",

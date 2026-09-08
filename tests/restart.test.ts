@@ -160,7 +160,7 @@ test(
       const refreshed = await req(`/sessions/${task.id}/refresh`, {});
       assert.equal(refreshed.vault.toLowerCase(), task.vault.toLowerCase());
       const restored = await req(`/sessions/${task.id}`);
-      assert.equal(restored.status, "attention");
+      assert.equal(restored.status, "paused");
       assert.equal(restored.transactions.length, before.transactions.length);
       const closed = await req(`/sessions/${task.id}/close`, {});
       assert.equal(closed.status, "closed");

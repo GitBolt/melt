@@ -122,6 +122,13 @@ export default function PrivyApp({
       decimals: 18,
     },
     rpcUrls: { default: { http: [rpc] } },
+    ...(config.chain.explorer
+      ? {
+          blockExplorers: {
+            default: { name: "Explorer", url: config.chain.explorer },
+          },
+        }
+      : {}),
   });
   return (
     <PrivyProvider
