@@ -21,7 +21,9 @@ async function createBrowseSession(
   const response = await page.request.post(base + "/api/sessions", {
     headers: {
       Origin: base,
-      "Idempotency-Key": extra.key || crypto.randomUUID(),
+      "Idempotency-Key": extra.key
+        ? `${extra.key}-${crypto.randomUUID()}`
+        : crypto.randomUUID(),
     },
     data: {
       title: extra.title || "Mint a field note",
@@ -49,12 +51,13 @@ async function openActivitySession(page: Page, title: string) {
     .click();
 }
 // Fixed fixture choices belong only in tests. Production agents choose from observations.
-async function mintThroughManualBrowser(page: Page) {
-  // Wait for wallet creation before starting; creation persists a funding row first.
+async function mintThroughManualBrowser(page: Page, sessionId?: string) {
   await page
     .getByRole("button", { name: "Open task browser", exact: true })
     .click();
-  const [task] = await (await page.request.get(base + "/api/sessions")).json();
+  const task = sessionId
+    ? { id: sessionId }
+    : (await (await page.request.get(base + "/api/sessions")).json())[0];
   await expect
     .poll(async () => {
       const state = await (
@@ -130,7 +133,7 @@ test("real browser mint returns NFT and remainder; receipt remains accessible", 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signInLocal(page);
-  await createBrowseSession(page);
+  const created = await createBrowseSession(page);
   await openActivitySession(page, "Mint a field note");
   await expect(
     page.getByRole("button", { name: "Open task browser", exact: true }),
@@ -139,7 +142,7 @@ test("real browser mint returns NFT and remainder; receipt remains accessible", 
     path: "docs/screenshots/session-ready.png",
     fullPage: true,
   });
-  await mintThroughManualBrowser(page);
+  await mintThroughManualBrowser(page, created.id);
   await expect(page.getByText("Session closed", { exact: true })).toBeVisible({
     timeout: 60000,
   });
@@ -150,9 +153,9 @@ test("real browser mint returns NFT and remainder; receipt remains accessible", 
     path: "docs/screenshots/session-complete.png",
     fullPage: true,
   });
-  const response = await page.request.get(base + "/api/sessions");
-  const tasks = await response.json();
-  const t = tasks[0];
+  const t = await (
+    await page.request.get(`${base}/api/sessions/${created.id}`)
+  ).json();
   expect(t.spent).toBe("0.0001");
   expect(t.returned).toBe("0.0002");
   expect(t.assets[0].recovered).toBe(true);
@@ -194,15 +197,16 @@ test("another account cannot read session; API key cannot create allowance; revo
     selector: cfg.fixture.selector,
     recovery: me.owner,
   };
+  const permissionKey = `permission-test-${crypto.randomUUID()}`;
   const first = await req.post(base + "/api/sessions", {
     data: body,
-    headers: { ...h, "Idempotency-Key": "permission-test-1" },
+    headers: { ...h, "Idempotency-Key": permissionKey },
   });
   const task = await first.json();
   expect(first.status()).toBe(201);
   const replay = await req.post(base + "/api/sessions", {
     data: body,
-    headers: { ...h, "Idempotency-Key": "permission-test-1" },
+    headers: { ...h, "Idempotency-Key": permissionKey },
   });
   expect((await replay.json()).id).toBe(task.id);
   const key = await (
@@ -253,7 +257,7 @@ test("second fixture layout works and narrow UI has no horizontal overflow", asy
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await signInLocal(page);
-  await createBrowseSession(page, {
+  const created = await createBrowseSession(page, {
     url: "http://127.0.0.1:8788/print-shop",
     key: "print-shop-mobile",
   });
@@ -270,7 +274,7 @@ test("second fixture layout works and narrow UI has no horizontal overflow", asy
     path: "docs/screenshots/session-mobile.png",
     fullPage: true,
   });
-  await mintThroughManualBrowser(page);
+  await mintThroughManualBrowser(page, created.id);
   await expect(page.getByText("Session closed", { exact: true })).toBeVisible({
     timeout: 60000,
   });
@@ -302,7 +306,7 @@ test("browser rejects oversized spend, completes allowed mint, and recovers late
     transport: http("http://127.0.0.1:8545"),
   });
   await signInLocal(page);
-  await createBrowseSession(page, {
+  const created = await createBrowseSession(page, {
     url: "http://127.0.0.1:8788/guardrail-check",
     key: "guardrail-mint",
   });
@@ -310,11 +314,13 @@ test("browser rejects oversized spend, completes allowed mint, and recovers late
   await expect(
     page.getByRole("button", { name: "Open task browser", exact: true }),
   ).toBeVisible({ timeout: 30000 });
-  await mintThroughManualBrowser(page);
+  await mintThroughManualBrowser(page, created.id);
   await expect(page.getByText("Session closed", { exact: true })).toBeVisible({
     timeout: 60000,
   });
-  const t = (await (await page.request.get(base + "/api/sessions")).json())[0];
+  const t = await (
+    await page.request.get(`${base}/api/sessions/${created.id}`)
+  ).json();
   expect(
     t.events.some(
       (e: any) => e.kind === "blocked" && e.text.includes("allowance"),
@@ -384,14 +390,12 @@ test("manual agent controls and MCP operate only owner-authorized sessions", asy
   const { StdioClientTransport } =
     await import("@modelcontextprotocol/sdk/client/stdio.js");
   await signInLocal(page);
-  await createBrowseSession(page, { key: "mcp-mint" });
+  const created = await createBrowseSession(page, { key: "mcp-mint" });
   await openActivitySession(page, "Mint a field note");
   await expect(
     page.getByRole("button", { name: "Open task browser", exact: true }),
-  ).toBeVisible();
-  const task = (
-    await (await page.request.get(base + "/api/sessions")).json()
-  )[0];
+  ).toBeVisible({ timeout: 30000 });
+  const task = created;
   const key = await (
     await page.request.post(base + "/api/keys", {
       headers: { Origin: base },
@@ -495,7 +499,10 @@ test("request validation blocks private URLs, changed idempotency bodies and cro
     });
     expect(r.status()).toBe(400);
   }
-  const headers = { ...h, "Idempotency-Key": "validation-repeat" };
+  const headers = {
+    ...h,
+    "Idempotency-Key": `validation-repeat-${crypto.randomUUID()}`,
+  };
   const made = await (
     await request.post(base + "/api/sessions", { headers, data: body })
   ).json();
@@ -536,7 +543,7 @@ test("a spending-limit session can complete a different job without a contract l
 }) => {
   await signInLocal(page);
   const cfg = await (await page.request.get(base + "/api/config")).json();
-  await createBrowseSession(page, {
+  const created = await createBrowseSession(page, {
     title: "Leave a tip",
     instruction:
       "Connect the wallet and leave a tip. Return unused funds when done.",
@@ -552,7 +559,7 @@ test("a spending-limit session can complete a different job without a contract l
   await page
     .getByRole("button", { name: "Open task browser", exact: true })
     .click();
-  const [task] = await (await page.request.get(base + "/api/sessions")).json();
+  const task = created;
   expect(task.target).toBe("");
   await expect
     .poll(async () => {
@@ -621,8 +628,8 @@ test("envelope create, discover matching options, and reject cash-out", async ({
   await expect(page.getByRole("button", { name: "Browser job" })).toHaveCount(
     0,
   );
-  const toField = page.getByLabel("To");
-  if (!(await toField.isVisible())) {
+  const toField = page.getByRole("textbox", { name: "To", exact: true });
+  if (!(await toField.isVisible().catch(() => false))) {
     await page.getByRole("button", { name: "New envelope" }).click();
   }
   await toField.fill("Alex");
@@ -699,7 +706,7 @@ test("developer UI creates and revokes a key, clears revealed secret on logout, 
   await page.getByRole("link", { name: "Developers", exact: true }).click();
   await page.getByRole("button", { name: "Create API key" }).click();
   await expect(page.getByRole("button", { name: "Copy key" })).toBeVisible();
-  await page.getByRole("button", { name: "Revoke Agent 1" }).click();
+  await page.getByRole("button", { name: /^Revoke Agent / }).last().click();
   await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
   const doc = await (await page.request.get(base + "/api/openapi.json")).json();
   expect(doc.openapi).toBe("3.1.0");
