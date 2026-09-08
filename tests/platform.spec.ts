@@ -49,6 +49,24 @@ async function createBrowseSession(
   expect(response.ok(), await response.text()).toBeTruthy();
   return response.json();
 }
+async function waitForStatus(
+  page: Page,
+  sessionId: string,
+  status: string | RegExp,
+  timeout = 30000,
+) {
+  await expect
+    .poll(
+      async () => {
+        const state = await (
+          await page.request.get(`${base}/api/sessions/${sessionId}`)
+        ).json();
+        return state.status;
+      },
+      { timeout },
+    )
+    .toMatch(status instanceof RegExp ? status : new RegExp(`^${status}$`));
+}
 async function openActivitySession(page: Page, title: string) {
   await page.getByRole("link", { name: "Activity", exact: true }).click();
   const row = page
@@ -63,25 +81,21 @@ async function mintThroughManualBrowser(page: Page, sessionId?: string) {
   const task = sessionId
     ? { id: sessionId }
     : (await (await page.request.get(base + "/api/sessions")).json())[0];
-  const started = await page.request.post(
-    `${base}/api/sessions/${task.id}/start`,
-    {
-      headers: { Origin: base },
-      data: { manual: true },
-    },
-  );
-  expect(started.ok(), await started.text()).toBeTruthy();
-  await expect
-    .poll(
-      async () => {
-        const state = await (
-          await page.request.get(`${base}/api/sessions/${task.id}`)
-        ).json();
-        return state.status;
+  await waitForStatus(page, task.id, /ready|paused/);
+  const current = await (
+    await page.request.get(`${base}/api/sessions/${task.id}`)
+  ).json();
+  if (current.status === "ready") {
+    const started = await page.request.post(
+      `${base}/api/sessions/${task.id}/start`,
+      {
+        headers: { Origin: base },
+        data: { manual: true },
       },
-      { timeout: 30000 },
-    )
-    .toBe("paused");
+    );
+    expect(started.ok(), await started.text()).toBeTruthy();
+  }
+  await waitForStatus(page, task.id, "paused");
   for (const label of ["Connect wallet", "Mint field note"]) {
     const observation = await (
       await page.request.get(`${base}/api/sessions/${task.id}/browser`)
@@ -581,6 +595,7 @@ test("a spending-limit session can complete a different job without a contract l
   ).toBeVisible({ timeout: 30000 });
   const task = created;
   expect(task.target).toBe("");
+  await waitForStatus(page, task.id, "ready");
   const started = await page.request.post(
     `${base}/api/sessions/${task.id}/start`,
     {
