@@ -25,6 +25,7 @@ import { hasModelConfiguration } from "./agent.js";
 import { quoteSwap, buildSwapCall, swapAvailable, TOKENS } from "./swap.js";
 import { catalogBySku, findCatalogOptions } from "./catalog.js";
 import { emit } from "./webhooks.js";
+import { errorMessage } from "./errors.js";
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS envelopes(
@@ -92,8 +93,8 @@ function envelopeStatus(
   task: Task,
   now = Date.now(),
 ): EnvelopeStatus {
+  if (!task.vault || task.status === "funding") return "funding";
   if (task.status === "closed") return "closed";
-  if (task.status === "funding") return "funding";
   if (envelope.expiresAt * 1000 <= now) return "expired";
   if (remainingEth(task) <= 1e-8) return "exhausted";
   if (task.status === "running") return "redeeming";
@@ -244,7 +245,7 @@ export async function createFundedEnvelope(
     await deployTask(task);
   } catch (error) {
     task.status = "attention";
-    task.error = (error as Error).message;
+    task.error = errorMessage(error);
     event(task, "error", task.error);
     save(task);
   }
