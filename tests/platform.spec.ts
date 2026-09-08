@@ -4,12 +4,12 @@ const workspace = base + "/app";
 async function signInLocal(page: Page) {
   await page.goto(workspace);
   const open = page.getByRole("button", { name: "Open local workspace" });
-  if (await open.isVisible({ timeout: 10000 }).catch(() => false)) {
-    await open.click();
-  }
-  await expect(page.locator("button.account")).not.toHaveText("Sign in", {
+  const account = page.locator("button.account");
+  await expect(open.or(account.filter({ hasText: /0x|Sign in/ }))).toBeVisible({
     timeout: 15000,
   });
+  if (await open.isVisible()) await open.click();
+  await expect(account).not.toHaveText("Sign in", { timeout: 20000 });
 }
 async function createBrowseSession(
   page: Page,
