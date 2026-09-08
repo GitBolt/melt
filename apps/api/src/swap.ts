@@ -73,12 +73,6 @@ export const TOKENS: TokenInfo[] = [
     decimals: 18,
   },
   {
-    symbol: "PEPE",
-    name: "Pepe",
-    address: getAddress("0x6982508145454Ce325dDbE47a25d4ec3d2311933"),
-    decimals: 18,
-  },
-  {
     symbol: "LDO",
     name: "Lido DAO",
     address: getAddress("0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32"),
