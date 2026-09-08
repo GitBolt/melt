@@ -178,7 +178,15 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
         },
         body: body ? JSON.stringify(body) : undefined,
       });
-      const data = await r.json();
+      const text = await r.text();
+      let data: any = {};
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw Object.assign(Error("Request failed"), { status: r.status });
+        }
+      }
       if (!r.ok)
         throw Object.assign(Error(data.error || "Request failed"), {
           status: r.status,
