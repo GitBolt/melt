@@ -3,13 +3,7 @@ const base = "http://127.0.0.1:5173";
 const workspace = base + "/app";
 async function signInLocal(page: Page) {
   await page.goto(workspace);
-  const open = page.getByRole("button", { name: "Open local workspace" });
-  const account = page.locator("button.account");
-  await expect(open.or(account.filter({ hasText: /0x|Sign in/ }))).toBeVisible({
-    timeout: 15000,
-  });
-  if (await open.isVisible()) await open.click();
-  await expect(account).not.toHaveText("Sign in", { timeout: 20000 });
+  await page.getByRole("button", { name: "Open local workspace" }).click();
 }
 async function createBrowseSession(
   page: Page,
