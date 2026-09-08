@@ -104,27 +104,37 @@ function remainingLabel(expiresAt: number, now: number, closed: boolean) {
   if (remaining <= 0) return "Expired";
   return `${Math.floor(remaining / 60)}m ${String(remaining % 60).padStart(2, "0")}s`;
 }
-function sessionOverview(tasks: Task[]) {
+function tokenSymbol(
+  asset: Pick<Task["assets"][number], "token" | "symbol">,
+  registry?: Config["swap"],
+) {
+  if (asset.symbol) return asset.symbol;
+  const known = registry?.tokens.find(
+    (t) => t.address.toLowerCase() === asset.token.toLowerCase(),
+  );
+  return known?.symbol || `${asset.token.slice(0, 6)}…`;
+}
+function sessionOverview(tasks: Task[], registry?: Config["swap"]) {
   const spent = tasks.reduce((n, t) => n + Number(t.spent || 0), 0);
   const returned = tasks.reduce((n, t) => n + Number(t.returned || 0), 0);
   const succeeded = tasks.filter((t) => t.outcome === "succeeded").length;
-  const tokens = new Map<
+  const holdings = new Map<
     string,
     { symbol: string; amount: number; recovered: number }
   >();
   for (const t of tasks)
     for (const a of t.assets.filter((x) => x.kind === "erc20")) {
       const key = a.token.toLowerCase();
-      const cur = tokens.get(key) || {
-        symbol: a.symbol || `${a.token.slice(0, 6)}…`,
+      const cur = holdings.get(key) || {
+        symbol: tokenSymbol(a, registry),
         amount: 0,
         recovered: 0,
       };
       if (a.amount) cur.amount += Number(a.amount) || 0;
       if (a.recovered) cur.recovered += 1;
-      tokens.set(key, cur);
+      holdings.set(key, cur);
     }
-  return { spent, returned, succeeded, tokens: [...tokens.values()] };
+  return { spent, returned, succeeded, tokens: [...holdings.values()] };
 }
 
 export default function App({ config, auth }: { config: Config; auth?: Auth }) {
@@ -228,7 +238,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
   const task = tasks.find((t) => t.id === selected),
     listed = tasks.filter((t) => kindFilter === "all" || t.kind === kindFilter),
     active = listed.filter((t) => t.status !== "closed"),
-    overview = sessionOverview(listed);
+    overview = sessionOverview(listed, config.swap);
   async function download(t: Task) {
     const data = await request(`/sessions/${t.id}/receipt`);
     const url = URL.createObjectURL(
@@ -1436,7 +1446,7 @@ function SessionDetail({
                     .map((a) =>
                       a.amount && a.symbol
                         ? `${formatAmount(Number(a.amount))} ${a.symbol}`
-                        : a.symbol || short(a.token),
+                        : tokenSymbol(a, config.swap),
                     )
                     .join(", ")}
                 </dd>

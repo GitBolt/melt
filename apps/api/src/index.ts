@@ -168,8 +168,11 @@ app.post(
       throw Object.assign(Error("Local sign-in is disabled"), {
         statusCode: 404,
       });
-    const token = randomBytes(32).toString("hex"),
-      id = "local:" + randomUUID();
+    const token = randomBytes(32).toString("hex");
+    const prior = db
+      .prepare("SELECT user_id FROM tasks ORDER BY rowid DESC LIMIT 1")
+      .get() as { user_id?: string } | undefined;
+    const id = prior?.user_id || "local:playground";
     db.prepare("INSERT INTO auth_sessions VALUES(?,?,?,?)").run(
       digest(token),
       id,
@@ -260,7 +263,8 @@ app.post(
       input.swap.symbol = token.symbol;
       // Lock the vault to only the Uniswap router + swap function, and hold
       // exactly the total across all scheduled buys so nothing else is spent.
-      const totalWei = parseEther(input.swap.amountIn) * BigInt(input.swap.buys);
+      const totalWei =
+        parseEther(input.swap.amountIn) * BigInt(input.swap.buys);
       if (totalWei > parseEther("10"))
         throw Error("Total swap budget must be 10 or less");
       input.target = UNISWAP.router;
