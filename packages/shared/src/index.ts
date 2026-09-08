@@ -97,6 +97,8 @@ export interface Asset {
   tokenId?: string;
   kind: "erc721" | "erc20";
   recovered: boolean;
+  symbol?: string;
+  amount?: string;
 }
 export interface Task extends CreateTask {
   id: string;
@@ -128,7 +130,12 @@ export interface Config {
   swap?: {
     available: boolean;
     router: string;
-    tokens: { symbol: string; name: string; address: string; decimals: number }[];
+    tokens: {
+      symbol: string;
+      name: string;
+      address: string;
+      decimals: number;
+    }[];
   };
   publicRpcUrl?: string;
   fixture: {

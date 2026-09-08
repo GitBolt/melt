@@ -29,6 +29,8 @@ const schemas: Record<string, any> = {
       kind: { enum: ["erc20", "erc721"] },
       tokenId: str,
       recovered: { type: "boolean" },
+      symbol: str,
+      amount: str,
     },
   },
   Event: {
