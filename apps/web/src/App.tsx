@@ -62,16 +62,29 @@ const statusLabel: Record<TaskStatus, string> = {
   closed: "Session closed",
   attention: "Review needed",
 };
+const pageFromHash = () =>
+  ({ "#developers": "Developers", "#receipts": "Receipts" })[
+    window.location.hash as "#developers" | "#receipts"
+  ] || "Sessions";
+
 export default function App({ config, auth }: { config: Config; auth?: Auth }) {
   const [user, setUser] = useState<{ id: string; owner: string } | null>(null),
     [tasks, setTasks] = useState<Task[]>([]),
-    [page, setPage] = useState("Sessions"),
+    [page, setPage] = useState(pageFromHash),
     [selected, setSelected] = useState<string>(),
     [busy, setBusy] = useState(""),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [newTask, setNewTask] = useState(false),
     [draft, setDraft] = useState<CreateTask>();
+  useEffect(() => {
+    const onHashChange = () => {
+      setPage(pageFromHash());
+      setSelected(undefined);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
   const refreshing = useRef(false);
   const request = useCallback(
     async (

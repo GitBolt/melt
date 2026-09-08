@@ -1,0 +1,46 @@
+{
+  "verifiedAt": "2026-09-08T02:26:03.078Z",
+  "chainId": 11155111,
+  "app": "https://melt-woad.vercel.app",
+  "vault": "0x58db8907423956629e5c1cc1a0e68e81b3c9d3f4",
+  "collectible": "0x6309bf00608b59f43eff4269dd83700df524e84c",
+  "tokenId": "1",
+  "fundedETH": "0.0003",
+  "spentETH": "0.0001",
+  "returnedETH": "0.0002",
+  "nftOwner": "0xBc25cA572050a9D16257a57BaBf004404Ab45f4D",
+  "vaultBalance": "0",
+  "closed": true,
+  "transactions": {
+    "deployment": {
+      "hash": "0x04ebce61400003c943c9d6b7b4a51ae241ed2951faa40eb7a2189540cf713bb2",
+      "status": "success",
+      "block": "11658184"
+    },
+    "funding": {
+      "hash": "0x4ce34763e8067abc3c31ca29bf3c4662174f431d72e241ea098e79c9b31d1442",
+      "status": "success",
+      "block": "11658198"
+    },
+    "execution": {
+      "hash": "0x7b5c6adf21afd8fc1489ae8a90826c474316c9335c834d567aa85941b86c539a",
+      "status": "success",
+      "block": "11658220"
+    },
+    "close": {
+      "hash": "0x2918b5d0997a7bdfd51c8a9975e3964c95d8ef28a12eb06133a97e1bab8c515d",
+      "status": "success",
+      "block": "11658221"
+    },
+    "returnAsset": {
+      "hash": "0x42acc7e9ce36389a1a07b7bb3f8f8d116aa7098cf3532f5fd5babe82e6c25579",
+      "status": "success",
+      "block": "11658223"
+    },
+    "returnETH": {
+      "hash": "0x178a25a6c95b8b9bfa4690b4efbfaf0d2d57eccd760a57bd894b6a00efb9ad9b",
+      "status": "success",
+      "block": "11658224"
+    }
+  }
+}

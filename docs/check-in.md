@@ -2,9 +2,9 @@
 
 I'm building Melt, a wallet for one browser task. You give an agent a job, a spending limit and one allowed contract action. It gets a separate wallet, does the task, and returns the assets and unused funds when the session ends. You can still recover assets that arrive later.
 
-The browser and contract flow works locally: mint a collectible, reject an oversized spend, then return the NFT and remaining ETH. I've also built manual takeover, receipts that survive a restart, late-asset recovery, and an API/MCP interface for other agents. You can use the API directly or download a small client; there's no npm package needed.
+The hosted flow now works on Sepolia: I signed in with email, funded a task wallet with 0.0003 ETH, and let the AI connect to a test dapp and mint a collectible. It spent 0.0001 ETH, then returned the NFT and the remaining 0.0002 ETH. The receipts and final NFT ownership are verified onchain.
 
-I've removed the scripted driver. The app now uses a configured model or lets you bring your own agent through the browser controls. The browser tests use manual control, so I'm keeping that separate from proof of a live AI run. Public-testnet funding and the full hosted transaction flow still need verification.
+There’s manual takeover, recovery after a server restart, late-asset recovery, and an API/MCP interface for other agents. You can download the client as one file, no npm package needed. I also tested creating and revoking an API key against the hosted app. The current mint is on my own test dapp; an independent dapp integration is the next thing to validate.
 
 Would love feedback on the permission and recovery design, and which real dapp would make the strongest first use case.
 
@@ -13,4 +13,4 @@ Would love feedback on the permission and recovery design, and which real dapp w
 - App: [Melt](https://melt-woad.vercel.app)
 - Public source: [GitBolt/melt](https://github.com/GitBolt/melt)
 
-Update the status paragraph with actual testnet receipts once they exist. The app URL alone is not evidence of a successful public-network run. Complete the dashboard check-in separately; this file is a draft and does not indicate a submitted check-in.
+Live evidence is in `docs/evidence/sepolia-live-task.json` and `docs/evidence/sepolia-session-receipt.json`. Complete the dashboard check-in separately; this file is a draft and does not indicate a submitted check-in.

@@ -40,7 +40,17 @@ Before claiming an end-to-end public-testnet run, record:
 4. Asset/ETH return hashes, final receipt and independently checked token ownership.
 5. Any sponsor-specific live flow, including a real Uniswap route and owner-signed swap where required.
 
-No public-testnet task receipt or live model-provider run is established by the local tests documented here. Add those artifacts after they actually succeed. Testnet ETH has no monetary value.
+## Hosted Sepolia verification
+
+The hosted app completed a real model-driven task on September 7, 2026 (September 8 UTC). Email sign-in used Privy; owner funding was signed in the embedded wallet. Browserless hosted the task browser and `liquid/lfm-2.5-2.6b:free` selected its actions.
+
+- Funded 0.0003 ETH; minted for 0.0001 ETH; returned 0.0002 ETH and NFT #1.
+- All six transaction receipts succeeded. Independent RPC reads confirmed the final NFT owner, closed vault, and zero vault balance.
+- The initial free-router model returned invalid JSON and paused before spending. The corrected fixed model resumed the same allowance after deployment; it did not create a second wallet or increase the budget.
+- Downloaded the hosted JavaScript client, matched it to repository source, fetched the receipt through an account key, then revoked that key and verified HTTP 401.
+- Evidence: [onchain checks](evidence/sepolia-live-task.json), [API receipt](evidence/sepolia-session-receipt.json).
+
+This uses our own collectible test dapp. Independent dapp and Uniswap integration remain unverified. Testnet ETH has no monetary value.
 
 ## Limits of this evidence
 
@@ -69,6 +79,4 @@ rejected. The remote browser has no access to the API container or its secrets. 
 limited to two minutes; disconnects pause the task and allow reopening without
 creating another allowance. Live provider checks passed for native Playwright connection, page evaluation,
 and loading example.com through Melt’s browser setup. The configured free model
-returned a valid click action for a supplied observation. A hosted end-to-end
-transaction and adversarial remote network checks are still required; these
-connection checks alone do not establish full production readiness.
+returned a valid click action for a supplied observation. The hosted end-to-end transaction is documented above. Request interception was also verified against the remote provider. Broader adversarial network testing and independent dapp compatibility remain outside this evidence.

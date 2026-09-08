@@ -1,0 +1,213 @@
+{
+  "title": "Mint a field note",
+  "instruction": "Connect the wallet and mint one field note. Return the collectible and remaining funds when done.",
+  "url": "https://melt-woad.vercel.app/demo/studio",
+  "budget": "0.0003",
+  "durationMinutes": 15,
+  "target": "0x6309bf00608b59f43eff4269dd83700df524e84c",
+  "selector": "0x1249c58b",
+  "recovery": "0xBc25cA572050a9D16257a57BaBf004404Ab45f4D",
+  "id": "26169a05-9ead-4c98-88c6-6240ca0dc84e",
+  "vault": "0x58db8907423956629e5c1cc1a0e68e81b3c9d3f4",
+  "createdAt": "2026-09-08T02:16:36.957Z",
+  "expiresAt": 1788834696,
+  "status": "closed",
+  "spent": "0.0001",
+  "balance": "0",
+  "returned": "0.0002",
+  "events": [
+    {
+      "id": "b082fa89-b3f4-47b7-bf3d-d5cc5f1bacfa",
+      "at": "2026-09-08T02:16:36.961Z",
+      "kind": "info",
+      "text": "Spending limit set"
+    },
+    {
+      "id": "6906d5a8-cf6f-4f66-aa82-3d5156d24542",
+      "at": "2026-09-08T02:16:37.848Z",
+      "kind": "transaction",
+      "text": "Creating your task wallet",
+      "hash": "0x04ebce61400003c943c9d6b7b4a51ae241ed2951faa40eb7a2189540cf713bb2"
+    },
+    {
+      "id": "38e90750-36a3-4f36-a345-d61ed710bb15",
+      "at": "2026-09-08T02:17:02.240Z",
+      "kind": "success",
+      "text": "Task wallet created. Funds will return to your wallet."
+    },
+    {
+      "id": "d011d233-8c2e-4719-b07b-5a313c36de7c",
+      "at": "2026-09-08T02:20:22.797Z",
+      "kind": "success",
+      "text": "Funds added to your task wallet",
+      "hash": "0x4ce34763e8067abc3c31ca29bf3c4662174f431d72e241ea098e79c9b31d1442"
+    },
+    {
+      "id": "a8d23a70-bb04-40c7-abc9-0fa05a8a765e",
+      "at": "2026-09-08T02:20:43.902Z",
+      "kind": "info",
+      "text": "Task browser opened"
+    },
+    {
+      "id": "b176afc2-befa-4063-9ddf-25160fbc3859",
+      "at": "2026-09-08T02:20:43.909Z",
+      "kind": "info",
+      "text": "Agent started. The session ends after one confirmed task transaction."
+    },
+    {
+      "id": "1f350aab-7b27-4bbb-ad41-2ad28422c019",
+      "at": "2026-09-08T02:20:45.748Z",
+      "kind": "error",
+      "text": "Agent paused: Unexpected token '<', \"<|tool_cal\"... is not valid JSON"
+    },
+    {
+      "id": "f2fd0283-c333-4f8d-952c-03638c84c15d",
+      "at": "2026-09-08T02:22:40.804Z",
+      "kind": "info",
+      "text": "Browser connection ended. Reopen the browser to continue, or end the session to return funds."
+    },
+    {
+      "id": "312863fb-4d47-49ce-a6bd-904df6413a15",
+      "at": "2026-09-08T02:23:20.226Z",
+      "kind": "info",
+      "text": "Session paused by a restart. Review its transactions before resuming, or return your funds."
+    },
+    {
+      "id": "29a1bbe1-f5d1-4ff1-b39b-1494be637145",
+      "at": "2026-09-08T02:24:00.362Z",
+      "kind": "info",
+      "text": "Task browser opened"
+    },
+    {
+      "id": "643362db-1eea-4b32-8fc8-b30eed177501",
+      "at": "2026-09-08T02:24:00.366Z",
+      "kind": "info",
+      "text": "Agent started. The session ends after one confirmed task transaction."
+    },
+    {
+      "id": "333edf21-b52b-4a86-bc25-d5684f6b0f94",
+      "at": "2026-09-08T02:24:02.062Z",
+      "kind": "info",
+      "text": "Step 1 · Click Connect wallet"
+    },
+    {
+      "id": "8158359e-e8e6-4f35-817c-51a1175ef730",
+      "at": "2026-09-08T02:24:05.250Z",
+      "kind": "info",
+      "text": "Step 2 · Click 0x58db…d3f4"
+    },
+    {
+      "id": "05743ce1-f9a2-4812-a713-889358e9077e",
+      "at": "2026-09-08T02:24:07.861Z",
+      "kind": "info",
+      "text": "Step 3 · Click Mint field note · Mint field note button"
+    },
+    {
+      "id": "128b2018-aadc-47ef-bd7d-e698d35da25f",
+      "at": "2026-09-08T02:24:09.017Z",
+      "kind": "transaction",
+      "text": "Transaction sent. Waiting for confirmation.",
+      "hash": "0x7b5c6adf21afd8fc1489ae8a90826c474316c9335c834d567aa85941b86c539a"
+    },
+    {
+      "id": "ca2b4d27-744d-425e-af2c-12cef1b8ccf3",
+      "at": "2026-09-08T02:24:15.933Z",
+      "kind": "success",
+      "text": "The permitted transaction was confirmed onchain."
+    },
+    {
+      "id": "c12ba859-a7aa-43f0-b483-5363410b9b7c",
+      "at": "2026-09-08T02:24:17.265Z",
+      "kind": "success",
+      "text": "Transaction confirmed",
+      "hash": "0x7b5c6adf21afd8fc1489ae8a90826c474316c9335c834d567aa85941b86c539a"
+    },
+    {
+      "id": "7fc2c557-d9b8-4eac-b296-3b7cae79cfad",
+      "at": "2026-09-08T02:24:18.092Z",
+      "kind": "transaction",
+      "text": "Closing agent spending access",
+      "hash": "0x2918b5d0997a7bdfd51c8a9975e3964c95d8ef28a12eb06133a97e1bab8c515d"
+    },
+    {
+      "id": "4c6dc32a-5638-4c1d-a996-4d9cf91c28a7",
+      "at": "2026-09-08T02:24:26.220Z",
+      "kind": "success",
+      "text": "Agent spending is disabled."
+    },
+    {
+      "id": "b6aae14e-6113-41d5-8b38-dfbceccbe51d",
+      "at": "2026-09-08T02:24:27.059Z",
+      "kind": "transaction",
+      "text": "Returning an asset to your wallet",
+      "hash": "0x42acc7e9ce36389a1a07b7bb3f8f8d116aa7098cf3532f5fd5babe82e6c25579"
+    },
+    {
+      "id": "18409b66-8db1-4d8a-8c59-12eea2e5df6d",
+      "at": "2026-09-08T02:24:52.114Z",
+      "kind": "transaction",
+      "text": "Returning unused funds",
+      "hash": "0x178a25a6c95b8b9bfa4690b4efbfaf0d2d57eccd760a57bd894b6a00efb9ad9b"
+    },
+    {
+      "id": "b1d20bc8-de2c-408a-963a-21da8a3673e8",
+      "at": "2026-09-08T02:25:04.381Z",
+      "kind": "success",
+      "text": "Session closed. Recovery is complete."
+    }
+  ],
+  "transactions": [
+    {
+      "hash": "0x04ebce61400003c943c9d6b7b4a51ae241ed2951faa40eb7a2189540cf713bb2",
+      "kind": "Create task wallet",
+      "status": "success",
+      "gasWei": "952657538460932"
+    },
+    {
+      "hash": "0x4ce34763e8067abc3c31ca29bf3c4662174f431d72e241ea098e79c9b31d1442",
+      "kind": "Owner funded task wallet",
+      "status": "success",
+      "gasWei": "23355936657835"
+    },
+    {
+      "hash": "0x7b5c6adf21afd8fc1489ae8a90826c474316c9335c834d567aa85941b86c539a",
+      "kind": "Execute dapp transaction",
+      "status": "success",
+      "gasWei": "138710767798872"
+    },
+    {
+      "hash": "0x2918b5d0997a7bdfd51c8a9975e3964c95d8ef28a12eb06133a97e1bab8c515d",
+      "kind": "Close signing",
+      "status": "success",
+      "gasWei": "45978312324384"
+    },
+    {
+      "hash": "0x42acc7e9ce36389a1a07b7bb3f8f8d116aa7098cf3532f5fd5babe82e6c25579",
+      "kind": "Return asset",
+      "status": "success",
+      "gasWei": "68137992730860"
+    },
+    {
+      "hash": "0x178a25a6c95b8b9bfa4690b4efbfaf0d2d57eccd760a57bd894b6a00efb9ad9b",
+      "kind": "Return remaining funds",
+      "status": "success",
+      "gasWei": "35916517266931"
+    }
+  ],
+  "assets": [
+    {
+      "token": "0x6309bf00608b59f43eff4269dd83700df524e84c",
+      "tokenId": "1",
+      "kind": "erc721",
+      "recovered": true
+    }
+  ],
+  "agentMode": "model",
+  "outcome": "succeeded",
+  "browserUrl": "https://melt-woad.vercel.app/demo/studio",
+  "browserTitle": "Field Notes Studio",
+  "outcomeReason": "The permitted transaction was confirmed onchain.",
+  "schemaVersion": 1,
+  "chainId": 11155111,
+  "network": "Sepolia"
+}
