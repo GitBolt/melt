@@ -197,7 +197,7 @@ app.get("/api/config", async () => ({
 }));
 app.post(
   "/api/auth/local",
-  { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+  { config: { rateLimit: { max: local ? 120 : 10, timeWindow: "1 minute" } } },
   async (_req, reply) => {
     if (!local)
       throw Object.assign(Error("Local sign-in is disabled"), {
