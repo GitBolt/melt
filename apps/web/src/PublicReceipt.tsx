@@ -52,7 +52,7 @@ const labels: Record<string, string> = {
 };
 
 const short = (value: string) =>
-  value ? `${value.slice(0, 6)}…${value.slice(-4)}` : "—";
+  value ? `${value.slice(0, 6)}…${value.slice(-4)}` : "-";
 
 export function PublicReceipt({ token }: { token: string }) {
   const [receipt, setReceipt] = useState<PublicReceipt>(),
@@ -116,7 +116,7 @@ export function PublicReceipt({ token }: { token: string }) {
           <div>
             <dt>Remaining</dt>
             <dd>
-              {receipt.remaining ?? "—"} {receipt.chain.symbol}
+              {receipt.remaining ?? "-"} {receipt.chain.symbol}
             </dd>
           </div>
           <div>

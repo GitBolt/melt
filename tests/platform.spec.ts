@@ -136,16 +136,16 @@ async function mintThroughManualBrowser(page: Page, sessionId?: string) {
   return closed;
 }
 
-test("product page explains the task wallet before the workspace", async ({
+test("product page explains the gift before the workspace", async ({
   page,
 }) => {
   await page.goto(base);
   await expect(
     page.getByRole("heading", {
-      name: "Gift cards without stores.",
+      name: "Send money that knows what it is for.",
     }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "Open Melt" }).first().click();
+  await page.getByRole("link", { name: "Create an envelope" }).first().click();
   await expect(
     page.getByRole("button", { name: "Open local workspace" }),
   ).toBeVisible();
@@ -657,7 +657,7 @@ test("envelope create, discover matching options, and reject cash-out", async ({
 }) => {
   await signInLocal(page);
   await expect(
-    page.getByRole("heading", { name: "Send a possibility instead of cash." }),
+    page.getByRole("heading", { name: "Send a gift they can spend later." }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Uniswap swap" })).toHaveCount(
     0,
@@ -676,8 +676,11 @@ test("envelope create, discover matching options, and reject cash-out", async ({
   await expect
     .poll(
       async () =>
-        ((await (await page.request.get(base + "/api/envelopes")).json()) as any)
-          .sent.length,
+        (
+          (await (
+            await page.request.get(base + "/api/envelopes")
+          ).json()) as any
+        ).sent.length,
       { timeout: 30000 },
     )
     .toBe(before.sent.length + 1);
@@ -689,7 +692,12 @@ test("envelope create, discover matching options, and reject cash-out", async ({
   expect(envelope.policyHash).toMatch(/^[0-9a-f]{64}$/);
   await page.getByRole("link", { name: "Discover", exact: true }).click();
   await page.getByLabel("Envelope").click();
-  await page.getByRole("option", { name: envelope.purpose }).click();
+  await page
+    .getByRole("option")
+    .filter({ hasText: envelope.purpose })
+    .filter({ hasText: envelope.remaining })
+    .first()
+    .click();
   await page
     .getByLabel("What do you want this gift to become")
     .fill("an eSIM for Japan");
@@ -744,7 +752,10 @@ test("developer UI creates and revokes a key, clears revealed secret on logout, 
   await page.getByRole("link", { name: "Developers", exact: true }).click();
   await page.getByRole("button", { name: "Create API key" }).click();
   await expect(page.getByRole("button", { name: "Copy key" })).toBeVisible();
-  await page.getByRole("button", { name: /^Revoke Agent / }).last().click();
+  await page
+    .getByRole("button", { name: /^Revoke Agent / })
+    .last()
+    .click();
   await expect(page.getByText("Revoked").first()).toBeVisible();
   const doc = await (await page.request.get(base + "/api/openapi.json")).json();
   expect(doc.openapi).toBe("3.1.0");

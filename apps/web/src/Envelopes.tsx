@@ -140,8 +140,8 @@ export function EnvelopeComposer({
       }}
     >
       <p className="swap-lead">
-        Send purchasing power for a purpose. Their assistant chooses later.
-        Uniswap converts only what the purchase needs.
+        Start from a preset or write your own. They spend it later. Leftover
+        funds come back to you.
       </p>
       <div className="template-options">
         {PRESETS.map((item) => (
@@ -271,7 +271,7 @@ export function EnvelopeList({
   onOpen: (id: string) => void;
 }) {
   if (!envelopes.length)
-    return <p className="helper">No envelopes in this view yet.</p>;
+    return <p className="helper">No gifts in this view yet.</p>;
   return (
     <>
       {envelopes.map((envelope) => (
@@ -661,15 +661,15 @@ export function DiscoverPanel({
   if (!envelopes.length)
     return (
       <p className="helper">
-        Create an envelope first. Discover only lists purchases that match a
-        gift you already funded.
+        Create a gift first. Discover only shows purchases that match one you
+        already funded.
       </p>
     );
   return (
     <div className="discover-grid">
       <section className="compose panel">
         <div className="section-top">
-          <h2>Use an envelope</h2>
+          <h2>Use this gift</h2>
           <span className="quiet">MCP · Melt</span>
         </div>
         <EnvelopePicker
