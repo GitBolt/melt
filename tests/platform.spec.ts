@@ -70,7 +70,9 @@ test("product page explains the task wallet before the workspace", async ({
 }) => {
   await page.goto(base);
   await expect(
-    page.getByRole("heading", { name: "A wallet for one task." }),
+    page.getByRole("heading", {
+      name: "Let an agent spend without your wallet.",
+    }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Open Melt" }).first().click();
   await expect(
@@ -211,7 +213,7 @@ test("second fixture layout works and narrow UI has no horizontal overflow", asy
   await page.getByRole("button", { name: "Open local workspace" }).click();
   await chooseExample(page, "Mint");
   await page
-    .getByLabel("Website", { exact: true })
+    .getByLabel("Starting website", { exact: true })
     .fill("http://127.0.0.1:8788/print-shop");
   await page.getByRole("button", { name: "Create task wallet" }).click();
   await expect(
@@ -261,7 +263,7 @@ test("browser rejects oversized spend, completes allowed mint, and recovers late
   await page.getByRole("button", { name: "Open local workspace" }).click();
   await chooseExample(page, "Mint");
   await page
-    .getByLabel("Website", { exact: true })
+    .getByLabel("Starting website", { exact: true })
     .fill("http://127.0.0.1:8788/guardrail-check");
   await page.getByRole("button", { name: "Create task wallet" }).click();
   await mintThroughManualBrowser(page);

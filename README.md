@@ -1,4 +1,4 @@
-# Melt · a wallet for one task
+# Melt · Let an agent spend without your wallet
 
 Give a browser agent one job, a spending limit, and a deadline. Melt opens an isolated browser with a separate task wallet. When the session ends, spending access closes onchain and supported assets return to your wallet. Recovery stays available for assets that arrive later.
 

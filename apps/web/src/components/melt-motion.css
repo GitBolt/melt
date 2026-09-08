@@ -94,7 +94,7 @@
 }
 .boot.melt-loading p {
   margin: 4px 0 0;
-  font-size: 14px;
+  font-size: 15px;
 }
 @media (prefers-reduced-motion: reduce) {
   .melt-loader *,
