@@ -178,7 +178,9 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     [newTask, setNewTask] = useState(false),
     [now, setNow] = useState(() => Date.now());
   const seenTx = useRef(new Set<string>());
-  const primedTx = useRef(false);
+  useEffect(() => {
+    if (!user) seenTx.current.clear();
+  }, [user]);
   const noteTx = useCallback((hash: string, label = "Sent onchain") => {
     if (!isTxHash(hash)) return;
     const key = hash.toLowerCase();
@@ -321,24 +323,6 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
         },
       }
     : auth;
-  useEffect(() => {
-    if (!user) {
-      primedTx.current = false;
-      return;
-    }
-    const hashes = [
-      ...tasks.flatMap((item) => item.transactions.map((tx) => tx.hash)),
-      ...allEnvelopes.flatMap((item) =>
-        item.redemptions.map((entry) => entry.hash),
-      ),
-    ].filter((hash): hash is string => !!hash);
-    if (!primedTx.current) {
-      hashes.forEach((hash) => seenTx.current.add(hash.toLowerCase()));
-      primedTx.current = true;
-      return;
-    }
-    hashes.forEach((hash) => noteTx(hash, "Confirmed onchain"));
-  }, [user, tasks, envelopes, noteTx]);
   async function download(t: Task) {
     const data = await request(`/sessions/${t.id}/receipt`);
     const url = URL.createObjectURL(

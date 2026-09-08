@@ -298,7 +298,6 @@ export function EnvelopeComposer({
     recipientLabel: string;
     recipientEmail: string;
     senderName: string;
-    note: string;
     notifyRecipient: boolean;
     purpose: string;
     budget: string;
@@ -310,9 +309,6 @@ export function EnvelopeComposer({
   const [preset, setPreset] = useState("Dinner");
   const [senderName, setSenderName] = useState("");
   const [recipientLabel, setRecipientLabel] = useState("");
-  const [recipientEmail, setRecipientEmail] = useState("");
-  const [note, setNote] = useState("");
-  const [notifyRecipient, setNotifyRecipient] = useState(true);
   const [purpose, setPurpose] = useState(PRESETS[0].purpose);
   const [usd, setUsd] = useState(PRESETS[0].usd);
   const [until, setUntil] = useState(defaultUntil);
@@ -320,6 +316,7 @@ export function EnvelopeComposer({
   const rate = config.ethUsd || 2500;
   const budget = usdToEth(Number(usd), rate);
   const overCap = Number(usd) > 0 && Number(usd) / rate > 10;
+  const emailTo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientLabel.trim());
   return (
     <form
       className="envelope-compose"
@@ -329,13 +326,8 @@ export function EnvelopeComposer({
         onSubmit({
           senderName,
           recipientLabel,
-          recipientEmail:
-            recipientEmail ||
-            (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientLabel)
-              ? recipientLabel
-              : ""),
-          note,
-          notifyRecipient,
+          recipientEmail: emailTo ? recipientLabel.trim() : "",
+          notifyRecipient: true,
           purpose,
           budget,
           expiresAt: endOfDay(until),
@@ -382,26 +374,9 @@ export function EnvelopeComposer({
           onChange={(e) => setRecipientLabel(e.target.value)}
         />
       </label>
-      <label>
-        Their email
-        <input
-          type="email"
-          maxLength={200}
-          value={recipientEmail}
-          placeholder="Optional. We send the gift from Melt."
-          onChange={(e) => setRecipientEmail(e.target.value)}
-        />
-      </label>
-      <label>
-        Note
-        <textarea
-          maxLength={400}
-          rows={2}
-          value={note}
-          placeholder="Dinner is on me. Pick somewhere you actually want."
-          onChange={(e) => setNote(e.target.value)}
-        />
-      </label>
+      {emailTo ? (
+        <p className="helper">We'll email them this gift from Melt.</p>
+      ) : null}
       <label>
         The promise
         <textarea
@@ -457,14 +432,6 @@ export function EnvelopeComposer({
           New Year
         </button>
       </div>
-      <label className="check-line">
-        <input
-          type="checkbox"
-          checked={notifyRecipient}
-          onChange={(e) => setNotifyRecipient(e.target.checked)}
-        />
-        Email them this gift when you create it
-      </label>
       <label className="check-line">
         <input
           type="checkbox"

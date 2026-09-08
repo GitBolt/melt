@@ -83,9 +83,11 @@ label > textarea {
 .wide {
   width: 100%;
 }
-.network-mark {
-  font-size: 18px;
-  color: var(--accent);
+.network-logo {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
 }
 .network-strip {
   display: flex;
@@ -327,8 +329,19 @@ footer button {
 .job-modes:has(button:only-child) {
   grid-template-columns: 1fr;
 }
+.usd-field .amount-input {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fdfdfe;
+  padding: 8px 14px;
+  max-width: 280px;
+}
+.usd-field .amount-input:focus-within {
+  border-color: #8b97de;
+  box-shadow: 0 0 0 3px #5867c80c;
+}
 .usd-field .amount-input input {
-  max-width: 200px;
+  max-width: 160px;
 }
 .usd-field .amount-input > span:first-child {
   font-size: 29px;
