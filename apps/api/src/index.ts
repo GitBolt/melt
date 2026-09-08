@@ -680,11 +680,14 @@ app.post("/api/keys", async (req) => {
     .object({ name: z.string().trim().min(1).max(80) })
     .parse(req.body);
   const token = "melt_" + randomBytes(32).toString("hex");
-  db.prepare(
-    "INSERT INTO tokens(hash,user_id,name,created) VALUES(?,?,?,?)",
-  ).run(digest(token), user.id, name, new Date().toISOString());
+  const inserted = db
+    .prepare(
+      "INSERT INTO tokens(hash,user_id,name,created) VALUES(?,?,?,?)",
+    )
+    .run(digest(token), user.id, name, new Date().toISOString());
   return {
     token,
+    id: Number(inserted.lastInsertRowid),
     scopes: [
       "sessions:read",
       "sessions:run",

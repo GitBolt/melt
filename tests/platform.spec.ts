@@ -45,10 +45,12 @@ async function createBrowseSession(
 }
 async function openActivitySession(page: Page, title: string) {
   await page.getByRole("link", { name: "Activity", exact: true }).click();
-  await page
+  const row = page
     .getByRole("button", { name: new RegExp(title) })
-    .first()
-    .click();
+    .filter({ hasText: "Ready" })
+    .first();
+  await expect(row).toBeVisible({ timeout: 30000 });
+  await row.click();
 }
 // Fixed fixture choices belong only in tests. Production agents choose from observations.
 async function mintThroughManualBrowser(page: Page, sessionId?: string) {
@@ -234,8 +236,8 @@ test("another account cannot read session; API key cannot create allowance; revo
       })
     ).status(),
   ).toBe(403);
-  const keys = await (await req.get(base + "/api/keys")).json();
-  await req.delete(base + "/api/keys/" + keys[0].id, { headers: h });
+  expect(key.token).toMatch(/^melt_/);
+  await req.delete(base + "/api/keys/" + key.id, { headers: h });
   expect(
     (
       await req.get(base + "/api/sessions", {
@@ -653,6 +655,9 @@ test("envelope create, discover matching options, and reject cash-out", async ({
   expect(envelope.policyHash).toMatch(/^[0-9a-f]{64}$/);
   await page.getByRole("link", { name: "Discover", exact: true }).click();
   await page
+    .getByLabel("Envelope")
+    .selectOption({ value: envelope.id });
+  await page
     .getByLabel("What do you want this gift to become")
     .fill("an eSIM for Japan");
   await page.getByRole("button", { name: "Find options" }).click();
@@ -707,7 +712,7 @@ test("developer UI creates and revokes a key, clears revealed secret on logout, 
   await page.getByRole("button", { name: "Create API key" }).click();
   await expect(page.getByRole("button", { name: "Copy key" })).toBeVisible();
   await page.getByRole("button", { name: /^Revoke Agent / }).last().click();
-  await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
+  await expect(page.getByText("Revoked").first()).toBeVisible();
   const doc = await (await page.request.get(base + "/api/openapi.json")).json();
   expect(doc.openapi).toBe("3.1.0");
   expect(doc.paths["/envelopes"]).toBeDefined();

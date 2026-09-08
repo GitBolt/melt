@@ -157,6 +157,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
   const refreshing = useRef(false);
+  const refreshAgain = useRef(false);
   const request = useCallback(
     async (
       path: string,
@@ -192,23 +193,31 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     [auth?.authenticated],
   );
   const refresh = useCallback(async () => {
-    if (refreshing.current) return;
+    if (refreshing.current) {
+      refreshAgain.current = true;
+      return;
+    }
     refreshing.current = true;
     try {
-      const me = await request("/me");
-      setUser(me);
-      const [nextTasks, nextEnvelopes] = await Promise.all([
-        request("/sessions"),
-        request("/envelopes").catch(() => ({ sent: [], received: [] })),
-      ]);
-      setTasks(nextTasks);
-      setEnvelopes(nextEnvelopes);
-    } catch (e) {
-      if ((e as any).status === 401) {
-        setUser(null);
-        setTasks([]);
-        setEnvelopes({ sent: [], received: [] });
-      } else setError((e as Error).message);
+      do {
+        refreshAgain.current = false;
+        try {
+          const me = await request("/me");
+          setUser(me);
+          const [nextTasks, nextEnvelopes] = await Promise.all([
+            request("/sessions"),
+            request("/envelopes").catch(() => ({ sent: [], received: [] })),
+          ]);
+          setTasks(nextTasks);
+          setEnvelopes(nextEnvelopes);
+        } catch (e) {
+          if ((e as any).status === 401) {
+            setUser(null);
+            setTasks([]);
+            setEnvelopes({ sent: [], received: [] });
+          } else setError((e as Error).message);
+        }
+      } while (refreshAgain.current);
     } finally {
       refreshing.current = false;
     }
