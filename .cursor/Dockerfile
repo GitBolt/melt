@@ -10,6 +10,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Foundry provides anvil (local Ethereum) and forge (contract tests).
+# Copy into /usr/local/bin so both root and ubuntu sessions can run them.
 RUN curl -L https://foundry.paradigm.xyz | bash \
-    && /root/.foundry/bin/foundryup
-ENV PATH="/root/.foundry/bin:${PATH}"
+    && /root/.foundry/bin/foundryup \
+    && install -m 0755 /root/.foundry/bin/anvil /root/.foundry/bin/forge /root/.foundry/bin/cast /usr/local/bin/
+ENV PATH="/usr/local/bin:/root/.foundry/bin:${PATH}"
