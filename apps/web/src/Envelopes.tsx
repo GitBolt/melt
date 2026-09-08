@@ -486,7 +486,9 @@ export function EnvelopeDetail({
                 <p className="quiet">
                   {item.merchant}
                   {item.symbol ? ` · ${item.amountOut} ${item.symbol}` : ""}
+                  {item.hash ? ` · Uniswap ${short(item.hash)}` : ""}
                 </p>
+                {item.delivery && <p className="helper">{item.delivery}</p>}
                 {item.disclosure && <p className="helper">{item.disclosure}</p>}
               </div>
               <time>{new Date(item.createdAt).toLocaleString()}</time>
@@ -522,6 +524,7 @@ export function DiscoverPanel({
 }) {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<any>(null);
+  const [settled, setSettled] = useState<any>(null);
   const envelope = envelopes.find((item) => item.id === selectedId);
   async function search(next = query) {
     if (!selectedId) return;
@@ -532,6 +535,7 @@ export function DiscoverPanel({
   }
   useEffect(() => {
     setResult(null);
+    setSettled(null);
     if (selectedId) void search("");
   }, [selectedId]);
   if (!envelopes.length)
@@ -593,8 +597,30 @@ export function DiscoverPanel({
         {result?.note && <p className="helper">{result.note}</p>}
         {result?.settlement && (
           <p className="helper">
-            Settlement: {result.settlement}. Uniswap is the conversion rail, not
-            a product tab.
+            Settlement: {result.settlement}. Uniswap converts only the amount a
+            qualifying purchase needs.
+          </p>
+        )}
+        {settled && (
+          <div className="settlement-proof">
+            <Check size={16} />
+            <div>
+              <strong>{settled.title} settled</strong>
+              <p>
+                {settled.amountOut} {settled.symbol} via Uniswap. Leftover funds
+                stay in the envelope.
+              </p>
+              {settled.hash && <p className="identifier">{settled.hash}</p>}
+              {settled.delivery && <p className="helper">{settled.delivery}</p>}
+            </div>
+          </div>
+        )}
+        {envelope?.redemptions?.length > 0 && !settled && (
+          <p className="helper">
+            Last purchase: {envelope.redemptions.at(-1)?.title}
+            {envelope.redemptions.at(-1)?.symbol
+              ? ` · ${envelope.redemptions.at(-1)?.amountOut} ${envelope.redemptions.at(-1)?.symbol}`
+              : ""}
           </p>
         )}
       </section>
@@ -619,9 +645,10 @@ export function DiscoverPanel({
                     `/envelopes/${selectedId}/propose`,
                     { sku: option.sku, request: query },
                   );
-                  await request(`/envelopes/${selectedId}/redeem`, {
+                  const done = await request(`/envelopes/${selectedId}/redeem`, {
                     quoteId: proposed.quote.id,
                   });
+                  setSettled(done.redemption);
                   await search(query);
                 })
               }

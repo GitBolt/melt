@@ -1560,6 +1560,17 @@ a.quiet-button {
 .option-card p {
   margin: 6px 0 0;
 }
+.settlement-proof {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--ok, #7dffb3) 12%, transparent);
+}
+.settlement-proof p {
+  margin: 4px 0 0;
+}
 .envelope-activity {
   padding: 24px;
 }

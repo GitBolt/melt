@@ -448,9 +448,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
             </section>
             {user ? (
               <DiscoverPanel
-                envelopes={allEnvelopes.filter(
-                  (item) => item.status === "open" || item.status === "funding",
-                )}
+                envelopes={allEnvelopes}
                 selectedId={discoverId || allEnvelopes[0]?.id}
                 onSelect={setDiscoverId}
                 request={request}
