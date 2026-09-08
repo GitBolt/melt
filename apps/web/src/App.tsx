@@ -53,6 +53,14 @@ export interface Auth {
 }
 const short = (s: string) =>
   s ? `${s.slice(0, 6)}…${s.slice(-4)}` : "Creating…";
+function siteHost(url: string) {
+  if (!url) return "Any public site";
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "Website";
+  }
+}
 const statusLabel: Record<TaskStatus, string> = {
   funding: "Needs funding",
   ready: "Ready",
@@ -424,7 +432,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                     <div className="row-name">
                       <strong>{t.title}</strong>
                       <span>
-                        {new URL(t.url).hostname} ·{" "}
+                        {siteHost(t.url)} ·{" "}
                         {new Date(t.createdAt).toLocaleDateString(undefined, {
                           month: "short",
                           day: "numeric",
@@ -455,7 +463,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
         )}
       </main>
       <footer>
-        <span>Melt · Task wallets for agents</span>
+        <a href="/">Melt · Task wallets for agents</a>
         {user && auth?.linkPasskey && (
           <button onClick={() => act("passkey", auth.linkPasskey!)}>
             Add a passkey
@@ -817,7 +825,7 @@ function SessionDetail({
         <div>
           <h1>{t.title}</h1>
           <p>
-            {new URL(t.url).hostname} <span className="divider-dot">·</span>{" "}
+            {siteHost(t.url)} <span className="divider-dot">·</span>{" "}
             {t.agentMode === "model" ? "AI browser agent" : "Manual control"}
           </p>
         </div>
@@ -1008,7 +1016,9 @@ function SessionDetail({
                           : t.status === "attention"
                             ? "Check the activity below, then retry recovery."
                             : t.status === "ready"
-                              ? "Your agent will open the website using this wallet."
+                              ? t.url
+                                ? "Your agent will open the website using this wallet."
+                                : "Your agent will open a browser using this wallet."
                               : "Your browser preview will appear here.")}
                 </p>
                 {t.status === "ready" && (
@@ -1170,6 +1180,8 @@ function SessionDetail({
               auth={auth}
               owner={owner}
               symbol={config.chain.symbol}
+              explorer={config.chain.explorer}
+              chainId={config.chain.id}
               act={act}
               busy={busy}
             />
