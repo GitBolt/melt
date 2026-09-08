@@ -24,7 +24,7 @@ export function NetworkStrip({
           ? "Real ETH"
           : network === "local"
             ? "Local fork · test funds · no real money"
-            : "Sepolia testnet · faucet ETH · no real money"}
+            : "faucet ETH · no real money"}
       </span>
       <span className="network-switch" role="group" aria-label="Network">
         <button
