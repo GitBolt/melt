@@ -20,6 +20,10 @@
     {
       "source": "/app",
       "destination": "/index.html"
+    },
+    {
+      "source": "/r/:token",
+      "destination": "/index.html"
     }
   ],
   "headers": [

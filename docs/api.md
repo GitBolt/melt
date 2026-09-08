@@ -1,6 +1,6 @@
 # Melt API
 
-Create and fund a task wallet in [Melt](https://melt-woad.vercel.app), then let your agent operate that session over HTTP.
+Create and fund a purpose-bound envelope in [Melt](https://melt-woad.vercel.app), then let an existing assistant redeem it over HTTP or MCP.
 
 - **Hosted base URL:** `https://melt-woad.vercel.app/api`
 - **Direct backend:** `https://melt-api-production-1b26.up.railway.app/api`
@@ -14,11 +14,11 @@ Create a key under **Developers** in Melt. Keep it in your agent's environment:
 
 ```sh
 curl --fail-with-body \
-  'https://melt-woad.vercel.app/api/sessions' \
+  'https://melt-woad.vercel.app/api/envelopes' \
   -H "Authorization: Bearer $MELT_API_KEY"
 ```
 
-Agent keys use `Authorization: Bearer melt_…`. They can read, run and close sessions belonging to the issuing account. They cannot create sessions, register funding or recovery tokens, perform owner swaps, or manage keys. A key is account-scoped, not limited to one session.
+Agent keys use `Authorization: Bearer melt_…`. They can list envelopes, find matching purchases, propose a quote and redeem it. They cannot create envelopes, register funding, or send unrestricted cash. A key is account-scoped. Revocation applies to subsequent requests.
 
 Owner-only endpoints require a verified Privy access token in the bearer header. An owner cookie exists only in local development, and cookie-authenticated mutations require an `Origin` matching `APP_ORIGIN`. Never share an owner token with an agent. API key creation returns the token once; the service stores its hash. Revocation applies to subsequent requests.
 
@@ -31,7 +31,14 @@ Paths below are relative to the base URL.
 | GET        | `/health`, `/config`                                   | Public         | Service health and current chain configuration                      |
 | GET        | `/openapi.json`, `/client.mjs`, `/client.d.mts`        | Public         | Reference and standalone client downloads                           |
 | GET        | `/me`                                                  | Owner or agent | Identity; agent keys do not expose an owner signing credential      |
-| GET        | `/sessions`                                            | Owner or agent | List the account's sessions                                         |
+| GET        | `/envelopes`                                           | Owner or agent | List sent and received envelopes                                    |
+| POST       | `/envelopes`                                           | Owner          | Create a purpose-bound envelope and its vault                       |
+| GET        | `/envelopes/{id}`                                      | Owner or agent | Read purpose, remaining funds, policy hash and redemptions          |
+| GET        | `/envelopes/{id}/options`                              | Owner or agent | Find purchases that satisfy the gift                                |
+| POST       | `/envelopes/{id}/propose`                              | Owner or agent | Propose a catalog option; does not move funds                       |
+| POST       | `/envelopes/{id}/redeem`                               | Owner or agent | Settle a quote after policy check; rejects generic transfers        |
+| GET        | `/envelopes/{id}/redemptions`                          | Owner or agent | Settlement and delivery status                                      |
+| GET        | `/sessions`                                            | Owner or agent | List backing vault sessions                                         |
 | POST       | `/sessions`                                            | Owner          | Create a wallet with a spending limit and an optional contract lock |
 | GET        | `/sessions/{id}`                                       | Owner or agent | Status, events, transactions and assets                             |
 | POST       | `/sessions/{id}/start`                                 | Owner or agent | Run the configured model, or open manual control                    |
@@ -44,6 +51,11 @@ Paths below are relative to the base URL.
 | POST       | `/sessions/{id}/close`                                 | Owner or agent | End spending access and return supported assets                     |
 | POST       | `/sessions/{id}/recover`                               | Owner          | Register a late ERC-20/ERC-721 asset and retry recovery             |
 | GET        | `/sessions/{id}/receipt`                               | Owner or agent | Download a JSON receipt including chain and outcome                 |
+| GET        | `/public/receipts/{token}`                             | Public         | Shareable receipt page data; omits the owner account id             |
+| GET        | `/events`                                              | Owner          | Recent session and swap events                                      |
+| GET / POST | `/webhooks`                                            | Owner          | List endpoints / create an HMAC-signed webhook, secret shown once   |
+| POST       | `/webhooks/{id}/ping`                                  | Owner          | Send a signed `webhook.test` event                                  |
+| DELETE     | `/webhooks/{id}`                                       | Owner          | Delete a webhook endpoint                                           |
 | GET / POST | `/keys`                                                | Owner          | List keys / create a key shown once                                 |
 | DELETE     | `/keys/{id}`                                           | Owner          | Revoke a key                                                        |
 | POST       | `/uniswap/approval`, `/uniswap/quote`, `/uniswap/swap` | Owner          | Prepare conversion transactions for the owner to review and sign    |
@@ -150,3 +162,35 @@ Errors have `{ "error": "message" }`.
 Current limits are 180 requests/minute/IP, with session creation and local sign-in limited to 10/minute/IP. An owner can have at most ten non-closed sessions. Polling every two seconds is sufficient for most agents. Rate limits apply across clients sharing an IP.
 
 A timeout, disconnect or error response can occur after a transaction was broadcast. Read the session and transaction hashes before retrying a financial action. There is no automatic replacement transaction or exactly-once guarantee over a lost response. A client wait timeout only stops polling; it does not cancel the task. To stop a session, explicitly close it and verify its final state.
+
+## Public receipts
+
+Each session gets a 48-character `receiptToken`. Anyone with the link can open `/r/{token}` or `GET /public/receipts/{token}` without signing in. The payload is the mandate, amounts, hashes, recovered assets, and a recovery kit. It never includes `userId`. Share that URL the way you would share a Stripe hosted invoice: proof of what the task was allowed to spend, without handing over the dashboard.
+
+The JavaScript client can read it without an API key:
+
+```js
+import { publicReceipt } from "./melt-client.mjs";
+
+const receipt = await publicReceipt(token, {
+  baseUrl: "https://melt-woad.vercel.app",
+});
+```
+
+## Webhooks
+
+Register an HTTPS endpoint under **Developers**. Melt POSTs JSON event objects and signs the **raw body** with HMAC-SHA256. The `Melt-Signature` header is Stripe-shaped: `t=<unix>,v1=<hex>`. Signing secrets start with `whsec_` and are shown once.
+
+Event types: `session.created`, `session.funded`, `session.started`, `swap.executed`, `session.closed`, `session.recovered`, `webhook.test`. `data.object` is the public receipt. Local development may use `http://127.0.0.1` or `http://localhost`.
+
+```js
+import { constructEvent } from "./melt-client.mjs";
+
+const event = await constructEvent(
+  rawBody,
+  request.headers["melt-signature"],
+  process.env.MELT_WEBHOOK_SECRET,
+);
+```
+
+Verify the signature before parsing the body for application logic. Replay attacks are rejected when the timestamp is older than five minutes. Agent API keys cannot create or list webhooks.

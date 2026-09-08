@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Melt task wallet API",
-    "version": "0.2.0",
-    "description": "Owner-authorized wallets for browser tasks. Agent keys operate existing sessions in their account and cannot create wallets or increase spending limits. Financial writes require status and outcome inspection; HTTP success alone is not proof of execution. Download the dependency-free client at /api/client.mjs; no npm package is required."
+    "version": "0.4.0",
+    "description": "Purpose-bound envelopes: send purchasing power for a promise, redeem later through MCP. Agent keys can find options, propose, and redeem. They cannot create envelopes or send unrestricted cash. Uniswap converts only the amount a qualifying purchase needs. Public receipts at /public/receipts/{token} omit the owner account. Webhooks are HMAC-SHA256 signed with Melt-Signature (t=,v1=)."
   },
   "servers": [
     {
@@ -697,6 +697,736 @@
         ]
       }
     },
+    "/envelopes": {
+      "get": {
+        "summary": "List sent and received envelopes",
+        "operationId": "get__envelopes",
+        "responses": {
+          "200": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a purpose-bound envelope. Agent keys cannot do this.",
+        "description": "Requires signed-in owner authentication. Scoped agent API keys are rejected.",
+        "operationId": "post__envelopes",
+        "responses": {
+          "201": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEnvelope"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          }
+        ]
+      }
+    },
+    "/envelopes/{id}": {
+      "get": {
+        "summary": "Read an envelope",
+        "operationId": "get__envelopes_id_",
+        "responses": {
+          "200": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/envelopes/{id}/options": {
+      "get": {
+        "summary": "Find purchases that satisfy the envelope",
+        "operationId": "get__envelopes_id_options",
+        "responses": {
+          "200": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/envelopes/{id}/propose": {
+      "post": {
+        "summary": "Propose a catalog option against the envelope",
+        "operationId": "post__envelopes_id_propose",
+        "responses": {
+          "200": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sku"],
+                "properties": {
+                  "sku": {
+                    "type": "string"
+                  },
+                  "request": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/envelopes/{id}/redeem": {
+      "post": {
+        "summary": "Settle a proposed quote. Unrestricted transfers are rejected.",
+        "operationId": "post__envelopes_id_redeem",
+        "responses": {
+          "200": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["quoteId"],
+                "properties": {
+                  "quoteId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/envelopes/{id}/redemptions": {
+      "get": {
+        "summary": "Read settlement and delivery status",
+        "operationId": "get__envelopes_id_redemptions",
+        "responses": {
+          "200": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/sessions/{id}": {
       "get": {
         "summary": "Read session state",
@@ -1329,9 +2059,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "hash"
-                ],
+                "required": ["hash"],
                 "properties": {
                   "hash": {
                     "type": "string",
@@ -1866,6 +2594,619 @@
         ]
       }
     },
+    "/public/receipts/{token}": {
+      "get": {
+        "summary": "Read a shareable public receipt. No authentication. Omits the owner account id.",
+        "operationId": "get__public_receipts_token_",
+        "responses": {
+          "200": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{48}$"
+            }
+          }
+        ]
+      }
+    },
+    "/events": {
+      "get": {
+        "summary": "List recent account events",
+        "description": "Requires signed-in owner authentication. Scoped agent API keys are rejected.",
+        "operationId": "get__events",
+        "responses": {
+          "200": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MeltEvent"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks": {
+      "get": {
+        "summary": "List webhook endpoints",
+        "description": "Requires signed-in owner authentication. Scoped agent API keys are rejected.",
+        "operationId": "get__webhooks",
+        "responses": {
+          "200": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Webhook"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a webhook endpoint, secret shown once",
+        "description": "Requires signed-in owner authentication. Scoped agent API keys are rejected.",
+        "operationId": "post__webhooks",
+        "responses": {
+          "200": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["url"],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "events": {
+                    "type": "array",
+                    "items": {
+                      "enum": [
+                        "session.created",
+                        "session.funded",
+                        "session.started",
+                        "swap.executed",
+                        "session.closed",
+                        "session.recovered",
+                        "webhook.test"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/{id}/ping": {
+      "post": {
+        "summary": "Send a signed webhook.test event to the endpoint",
+        "description": "Requires signed-in owner authentication. Scoped agent API keys are rejected.",
+        "operationId": "post__webhooks_id_ping",
+        "responses": {
+          "200": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/webhooks/{id}": {
+      "delete": {
+        "summary": "Delete a webhook endpoint",
+        "description": "Requires signed-in owner authentication. Scoped agent API keys are rejected.",
+        "operationId": "delete__webhooks_id_",
+        "responses": {
+          "200": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/keys": {
       "get": {
         "summary": "List account API keys",
@@ -2051,9 +3392,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "name"
-                ],
+                "required": ["name"],
                 "properties": {
                   "name": {
                     "type": "string",
@@ -2825,13 +4164,128 @@
           "recovery": {
             "type": "string",
             "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "kind": {
+            "default": "browse",
+            "type": "string",
+            "enum": ["browse", "swap"]
+          },
+          "swap": {
+            "type": "object",
+            "properties": {
+              "tokenOut": {
+                "type": "string",
+                "pattern": "^0x[0-9a-fA-F]{40}$"
+              },
+              "symbol": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20
+              },
+              "amountIn": {
+                "type": "string",
+                "pattern": "^\\d+(\\.\\d{1,18})?$"
+              },
+              "slippageBps": {
+                "default": 50,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5000
+              },
+              "buys": {
+                "default": 1,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20
+              },
+              "intervalSec": {
+                "default": 60,
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 86400
+              }
+            },
+            "required": [
+              "tokenOut",
+              "symbol",
+              "amountIn",
+              "slippageBps",
+              "buys",
+              "intervalSec"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["title", "instruction", "budget", "recovery", "kind"],
+        "additionalProperties": false
+      },
+      "CreateEnvelope": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "recipientLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "recipientAddress": {
+            "default": "",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^0x[0-9a-fA-F]{40}$"
+              },
+              {
+                "type": "string",
+                "const": ""
+              }
+            ]
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 500
+          },
+          "budget": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d{1,18})?$"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "partialUse": {
+            "default": true,
+            "type": "boolean"
+          },
+          "unusedTo": {
+            "default": "sender",
+            "type": "string",
+            "const": "sender"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "esim",
+              "dinner",
+              "concert",
+              "flight",
+              "game",
+              "apartment",
+              "ai",
+              "other"
+            ]
           }
         },
         "required": [
-          "title",
-          "instruction",
+          "recipientLabel",
+          "recipientAddress",
+          "purpose",
           "budget",
-          "recovery"
+          "expiresAt",
+          "partialUse",
+          "unusedTo"
         ],
         "additionalProperties": false
       },
@@ -2855,10 +4309,7 @@
                 "maxLength": 160
               }
             },
-            "required": [
-              "type",
-              "index"
-            ],
+            "required": ["type", "index"],
             "additionalProperties": false
           },
           {
@@ -2882,11 +4333,7 @@
                 "maxLength": 160
               }
             },
-            "required": [
-              "type",
-              "index",
-              "value"
-            ],
+            "required": ["type", "index", "value"],
             "additionalProperties": false
           },
           {
@@ -2910,11 +4357,7 @@
                 "maxLength": 160
               }
             },
-            "required": [
-              "type",
-              "index",
-              "value"
-            ],
+            "required": ["type", "index", "value"],
             "additionalProperties": false
           },
           {
@@ -2931,24 +4374,14 @@
               },
               "key": {
                 "type": "string",
-                "enum": [
-                  "Enter",
-                  "Tab",
-                  "Escape",
-                  "ArrowUp",
-                  "ArrowDown"
-                ]
+                "enum": ["Enter", "Tab", "Escape", "ArrowUp", "ArrowDown"]
               },
               "reason": {
                 "type": "string",
                 "maxLength": 160
               }
             },
-            "required": [
-              "type",
-              "index",
-              "key"
-            ],
+            "required": ["type", "index", "key"],
             "additionalProperties": false
           },
           {
@@ -2960,20 +4393,14 @@
               },
               "direction": {
                 "type": "string",
-                "enum": [
-                  "up",
-                  "down"
-                ]
+                "enum": ["up", "down"]
               },
               "reason": {
                 "type": "string",
                 "maxLength": 160
               }
             },
-            "required": [
-              "type",
-              "direction"
-            ],
+            "required": ["type", "direction"],
             "additionalProperties": false
           },
           {
@@ -2992,10 +4419,7 @@
                 "maxLength": 160
               }
             },
-            "required": [
-              "type",
-              "url"
-            ],
+            "required": ["type", "url"],
             "additionalProperties": false
           },
           {
@@ -3010,9 +4434,7 @@
                 "maxLength": 160
               }
             },
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "additionalProperties": false
           },
           {
@@ -3027,18 +4449,14 @@
                 "maxLength": 160
               }
             },
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "additionalProperties": false
           }
         ]
       },
       "Error": {
         "type": "object",
-        "required": [
-          "error"
-        ],
+        "required": ["error"],
         "properties": {
           "error": {
             "type": "string"
@@ -3047,11 +4465,7 @@
       },
       "Transaction": {
         "type": "object",
-        "required": [
-          "hash",
-          "kind",
-          "status"
-        ],
+        "required": ["hash", "kind", "status"],
         "properties": {
           "hash": {
             "type": "string",
@@ -3061,11 +4475,7 @@
             "type": "string"
           },
           "status": {
-            "enum": [
-              "pending",
-              "success",
-              "reverted"
-            ]
+            "enum": ["pending", "success", "reverted"]
           },
           "gasWei": {
             "type": "string"
@@ -3074,38 +4484,32 @@
       },
       "Asset": {
         "type": "object",
-        "required": [
-          "token",
-          "kind",
-          "recovered"
-        ],
+        "required": ["token", "kind", "recovered"],
         "properties": {
           "token": {
             "type": "string",
             "pattern": "^0x[0-9a-fA-F]{40}$"
           },
           "kind": {
-            "enum": [
-              "erc20",
-              "erc721"
-            ]
+            "enum": ["erc20", "erc721"]
           },
           "tokenId": {
             "type": "string"
           },
           "recovered": {
             "type": "boolean"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
           }
         }
       },
       "Event": {
         "type": "object",
-        "required": [
-          "id",
-          "at",
-          "kind",
-          "text"
-        ],
+        "required": ["id", "at", "kind", "text"],
         "properties": {
           "id": {
             "type": "string"
@@ -3115,13 +4519,7 @@
             "format": "date-time"
           },
           "kind": {
-            "enum": [
-              "info",
-              "success",
-              "blocked",
-              "error",
-              "transaction"
-            ]
+            "enum": ["info", "success", "blocked", "error", "transaction"]
           },
           "text": {
             "type": "string"
@@ -3190,10 +4588,7 @@
                   "type": "string"
                 },
                 "type": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "disabled": {
                   "type": "boolean"
@@ -3231,16 +4626,10 @@
       },
       "Recover": {
         "type": "object",
-        "required": [
-          "kind",
-          "token"
-        ],
+        "required": ["kind", "token"],
         "properties": {
           "kind": {
-            "enum": [
-              "erc20",
-              "erc721"
-            ]
+            "enum": ["erc20", "erc721"]
           },
           "token": {
             "type": "string",
@@ -3255,10 +4644,7 @@
       },
       "Approval": {
         "type": "object",
-        "required": [
-          "token",
-          "amount"
-        ],
+        "required": ["token", "amount"],
         "properties": {
           "token": {
             "type": "string",
@@ -3272,11 +4658,7 @@
       },
       "Quote": {
         "type": "object",
-        "required": [
-          "tokenIn",
-          "tokenOut",
-          "amount"
-        ],
+        "required": ["tokenIn", "tokenOut", "amount"],
         "properties": {
           "tokenIn": {
             "type": "string",
@@ -3300,9 +4682,7 @@
       },
       "Swap": {
         "type": "object",
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "properties": {
           "id": {
             "type": "string",
@@ -3321,6 +4701,7 @@
           "instruction",
           "budget",
           "recovery",
+          "kind",
           "id",
           "userId",
           "vault",
@@ -3391,6 +4772,56 @@
             "type": "string",
             "pattern": "^0x[0-9a-fA-F]{40}$"
           },
+          "kind": {
+            "default": "browse",
+            "type": "string",
+            "enum": ["browse", "swap"]
+          },
+          "swap": {
+            "type": "object",
+            "properties": {
+              "tokenOut": {
+                "type": "string",
+                "pattern": "^0x[0-9a-fA-F]{40}$"
+              },
+              "symbol": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20
+              },
+              "amountIn": {
+                "type": "string",
+                "pattern": "^\\d+(\\.\\d{1,18})?$"
+              },
+              "slippageBps": {
+                "default": 50,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5000
+              },
+              "buys": {
+                "default": 1,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20
+              },
+              "intervalSec": {
+                "default": 60,
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 86400
+              }
+            },
+            "required": [
+              "tokenOut",
+              "symbol",
+              "amountIn",
+              "slippageBps",
+              "buys",
+              "intervalSec"
+            ],
+            "additionalProperties": false
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -3431,18 +4862,10 @@
             "type": "string"
           },
           "agentMode": {
-            "enum": [
-              "manual",
-              "model"
-            ]
+            "enum": ["manual", "model"]
           },
           "outcome": {
-            "enum": [
-              "pending",
-              "succeeded",
-              "failed",
-              "cancelled"
-            ],
+            "enum": ["pending", "succeeded", "failed", "cancelled"],
             "description": "Task result, independent of wallet status. Older sessions may omit this field."
           },
           "outcomeReason": {
@@ -3474,6 +4897,163 @@
             "items": {
               "$ref": "#/components/schemas/Transaction"
             }
+          },
+          "receiptToken": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{48}$",
+            "description": "Unguessable token for the public receipt page at /r/{token}"
+          }
+        }
+      },
+      "PublicReceipt": {
+        "type": "object",
+        "required": [
+          "object",
+          "id",
+          "status",
+          "title",
+          "mandate",
+          "budget",
+          "spent"
+        ],
+        "properties": {
+          "object": {
+            "const": "receipt"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receiptToken": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{48}$"
+          },
+          "url": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "requires_funding",
+              "open",
+              "processing",
+              "settling",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "needs_recovery"
+            ]
+          },
+          "outcome": {
+            "enum": ["pending", "succeeded", "failed", "cancelled"]
+          },
+          "outcomeReason": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "mandate": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["browse", "swap"]
+          },
+          "budget": {
+            "type": "string"
+          },
+          "spent": {
+            "type": "string"
+          },
+          "remaining": {
+            "type": "string"
+          },
+          "returned": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "string"
+          },
+          "vault": {
+            "type": "string"
+          },
+          "recovery": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "chain": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "transactions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Asset"
+            }
+          },
+          "recover": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "Webhook": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string",
+            "description": "Signing secret, prefixed whsec_, returned only at creation"
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "MeltEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true
           }
         }
       },
@@ -3484,11 +5064,7 @@
           },
           {
             "type": "object",
-            "required": [
-              "schemaVersion",
-              "chainId",
-              "network"
-            ],
+            "required": ["schemaVersion", "chainId", "network"],
             "properties": {
               "schemaVersion": {
                 "const": 1

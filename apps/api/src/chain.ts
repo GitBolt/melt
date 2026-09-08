@@ -58,8 +58,12 @@ export const demoOwner = mnemonicToAccount(
   "test test test test test test test test test test test junk",
   { addressIndex: 1 },
 );
-export const client = createPublicClient({ chain, transport: http() });
-const devWallet = createWalletClient({ account, chain, transport: http() });
+// A generous timeout and retries keep the app stable when a mainnet-fork RPC
+// is slow to serve cold state, instead of crashing on a transient timeout.
+const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
+const transport = http(rpcUrl, { timeout: 45000, retryCount: 3, retryDelay: 400 });
+export const client = createPublicClient({ chain, transport });
+const devWallet = createWalletClient({ account, chain, transport });
 export let operator: Address;
 export let fixture: Address;
 export let tipJar: Address;
@@ -165,8 +169,10 @@ export async function initialize() {
     operator = (await privy!.wallets().get(privyId)).address as Address;
   }
   const prev = process.env.FIXTURE_CONTRACT || setting(`fixture:${chain.id}`);
-  if (prev && (await client.getCode({ address: prev as Address })))
-    fixture = prev as Address;
+  const prevCode = prev
+    ? await client.getCode({ address: prev as Address }).catch(() => undefined)
+    : undefined;
+  if (prev && prevCode && prevCode !== "0x") fixture = prev as Address;
   else if (local) {
     const hash = await send({
       data: encodeDeployData({
@@ -178,8 +184,12 @@ export async function initialize() {
     setSetting(`fixture:${chain.id}`, fixture);
   } else fixture = "0x0000000000000000000000000000000000000000";
   const prevTip = process.env.TIP_JAR_CONTRACT || setting(`tipjar:${chain.id}`);
-  if (prevTip && (await client.getCode({ address: prevTip as Address })))
-    tipJar = prevTip as Address;
+  const prevTipCode = prevTip
+    ? await client
+        .getCode({ address: prevTip as Address })
+        .catch(() => undefined)
+    : undefined;
+  if (prevTip && prevTipCode && prevTipCode !== "0x") tipJar = prevTip as Address;
   else if (local) {
     const hash = await send({
       data: encodeDeployData({

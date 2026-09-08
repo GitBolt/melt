@@ -4,7 +4,6 @@ import {
   ArrowUpRight,
   ArrowRight,
   Plus,
-  ChevronDown,
   Copy,
   Check,
   Download,
@@ -12,7 +11,6 @@ import {
   Wallet,
   Globe,
   Play,
-  Pause,
   Square,
   RotateCcw,
   ArrowLeft,
@@ -22,18 +20,29 @@ import {
   X,
   ShieldCheck,
   MousePointer2,
+  Link2,
 } from "lucide-react";
 import { parseEther, toHex } from "viem";
 import type {
   Config,
   Task,
-  CreateTask,
   TaskStatus,
+  Envelope,
 } from "../../../packages/shared/src/index";
+import { mandateText, networkKind } from "../../../packages/shared/src/index";
 import { BudgetRibbon } from "./components/BudgetRibbon";
 import { GooeyNav } from "./components/ui/gooey-nav";
 import { SessionSeal } from "./SessionSeal";
 import { FundingSwap } from "./FundingSwap";
+import { NetworkStrip } from "./NetworkStrip";
+import {
+  DiscoverPanel,
+  EnvelopeComposer,
+  EnvelopeDetail,
+  EnvelopeList,
+  formatRemaining,
+} from "./Envelopes";
+import "./public-receipt.css";
 export interface Auth {
   ready: boolean;
   authenticated: boolean;
@@ -70,21 +79,76 @@ const statusLabel: Record<TaskStatus, string> = {
   closed: "Session closed",
   attention: "Review needed",
 };
-const pageFromHash = () =>
-  ({ "#developers": "Developers", "#receipts": "Receipts" })[
-    window.location.hash as "#developers" | "#receipts"
-  ] || "Sessions";
+const PAGES = ["Envelopes", "Discover", "Activity", "Developers"] as const;
+type Page = (typeof PAGES)[number];
+const pageFromHash = (): Page => {
+  const hash = window.location.hash.toLowerCase();
+  if (hash === "#developers") return "Developers";
+  if (hash === "#discover") return "Discover";
+  if (hash === "#activity" || hash === "#receipts") return "Activity";
+  return "Envelopes";
+};
+function confirmedBuys(task: Task) {
+  return task.transactions.filter(
+    (tx) => tx.kind === "Execute dapp transaction" && tx.status === "success",
+  ).length;
+}
+function formatAmount(n: number, digits = 4) {
+  if (!Number.isFinite(n) || n === 0) return "0";
+  return n.toLocaleString(undefined, { maximumFractionDigits: digits });
+}
+function remainingLabel(expiresAt: number, now: number, closed: boolean) {
+  return formatRemaining(expiresAt, now, closed);
+}
+function tokenSymbol(
+  asset: Pick<Task["assets"][number], "token" | "symbol">,
+  registry?: Config["swap"],
+) {
+  if (asset.symbol) return asset.symbol;
+  const known = registry?.tokens.find(
+    (t) => t.address.toLowerCase() === asset.token.toLowerCase(),
+  );
+  return known?.symbol || `${asset.token.slice(0, 6)}…`;
+}
+function sessionOverview(tasks: Task[], registry?: Config["swap"]) {
+  const spent = tasks.reduce((n, t) => n + Number(t.spent || 0), 0);
+  const returned = tasks.reduce((n, t) => n + Number(t.returned || 0), 0);
+  const succeeded = tasks.filter((t) => t.outcome === "succeeded").length;
+  const holdings = new Map<
+    string,
+    { symbol: string; amount: number; recovered: number }
+  >();
+  for (const t of tasks)
+    for (const a of t.assets.filter((x) => x.kind === "erc20")) {
+      const key = a.token.toLowerCase();
+      const cur = holdings.get(key) || {
+        symbol: tokenSymbol(a, registry),
+        amount: 0,
+        recovered: 0,
+      };
+      if (a.amount) cur.amount += Number(a.amount) || 0;
+      if (a.recovered) cur.recovered += 1;
+      holdings.set(key, cur);
+    }
+  return { spent, returned, succeeded, tokens: [...holdings.values()] };
+}
 
 export default function App({ config, auth }: { config: Config; auth?: Auth }) {
   const [user, setUser] = useState<{ id: string; owner: string } | null>(null),
     [tasks, setTasks] = useState<Task[]>([]),
-    [page, setPage] = useState(pageFromHash),
+    [envelopes, setEnvelopes] = useState<{
+      sent: Envelope[];
+      received: Envelope[];
+    }>({ sent: [], received: [] }),
+    [page, setPage] = useState<Page>(pageFromHash),
     [selected, setSelected] = useState<string>(),
+    [selectedEnvelope, setSelectedEnvelope] = useState<string>(),
+    [discoverId, setDiscoverId] = useState<string>(),
     [busy, setBusy] = useState(""),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [newTask, setNewTask] = useState(false),
-    [draft, setDraft] = useState<CreateTask>();
+    [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const onHashChange = () => {
       setPage(pageFromHash());
@@ -94,6 +158,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
   const refreshing = useRef(false);
+  const refreshAgain = useRef(false);
   const request = useCallback(
     async (
       path: string,
@@ -111,7 +176,15 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
         },
         body: body ? JSON.stringify(body) : undefined,
       });
-      const data = await r.json();
+      const text = await r.text();
+      let data: any = {};
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw Object.assign(Error("Request failed"), { status: r.status });
+        }
+      }
       if (!r.ok)
         throw Object.assign(Error(data.error || "Request failed"), {
           status: r.status,
@@ -121,17 +194,31 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     [auth?.authenticated],
   );
   const refresh = useCallback(async () => {
-    if (refreshing.current) return;
+    if (refreshing.current) {
+      refreshAgain.current = true;
+      return;
+    }
     refreshing.current = true;
     try {
-      const me = await request("/me");
-      setUser(me);
-      setTasks(await request("/sessions"));
-    } catch (e) {
-      if ((e as any).status === 401) {
-        setUser(null);
-        setTasks([]);
-      } else setError((e as Error).message);
+      do {
+        refreshAgain.current = false;
+        try {
+          const me = await request("/me");
+          setUser(me);
+          const [nextTasks, nextEnvelopes] = await Promise.all([
+            request("/sessions"),
+            request("/envelopes").catch(() => ({ sent: [], received: [] })),
+          ]);
+          setTasks(nextTasks);
+          setEnvelopes(nextEnvelopes);
+        } catch (e) {
+          if ((e as any).status === 401) {
+            setUser(null);
+            setTasks([]);
+            setEnvelopes({ sent: [], received: [] });
+          } else setError((e as Error).message);
+        }
+      } while (refreshAgain.current);
     } finally {
       refreshing.current = false;
     }
@@ -148,6 +235,10 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     const t = setTimeout(() => setNotice(""), 5000);
     return () => clearTimeout(t);
   }, [notice]);
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
   const act = async (name: string, fn: () => Promise<unknown>) => {
     setBusy(name);
     setError("");
@@ -168,7 +259,16 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
           setNewTask(true);
         });
   const task = tasks.find((t) => t.id === selected),
-    active = tasks.filter((t) => t.status !== "closed");
+    listed = tasks,
+    active = listed.filter((t) => t.status !== "closed"),
+    overview = sessionOverview(listed, config.swap),
+    allEnvelopes = [
+      ...envelopes.sent,
+      ...envelopes.received.filter(
+        (item) => !envelopes.sent.some((sent) => sent.id === item.id),
+      ),
+    ],
+    envelope = allEnvelopes.find((item) => item.id === selectedEnvelope);
   async function download(t: Task) {
     const data = await request(`/sessions/${t.id}/receipt`);
     const url = URL.createObjectURL(
@@ -182,30 +282,34 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
   }
   return (
     <div className="app-shell">
-      <header>
+      <header className="app-top">
         <a
           className="wordmark"
           href="#"
           onClick={(e) => {
             e.preventDefault();
             setSelected(undefined);
-            setPage("Sessions");
+            setSelectedEnvelope(undefined);
+            setPage("Envelopes");
+            window.location.hash = "envelopes";
           }}
         >
           <MeltWordmark />
         </a>
         <GooeyNav
+          className="app-nav"
           activeColor="#e9edf9"
           activeLabelColor="#5363ac"
           size="sm"
-          items={["Sessions", "Receipts", "Developers"].map((label) => ({
+          items={PAGES.map((label) => ({
             label,
             href: "#" + label.toLowerCase(),
           }))}
-          value={["Sessions", "Receipts", "Developers"].indexOf(page)}
+          value={PAGES.indexOf(page)}
           onChange={(i) => {
-            setPage(["Sessions", "Receipts", "Developers"][i]);
+            setPage(PAGES[i]);
             setSelected(undefined);
+            if (PAGES[i] !== "Envelopes") setSelectedEnvelope(undefined);
           }}
         />
         <button
@@ -229,15 +333,16 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
         </button>
       </header>
       <div className="environment">
-        <span>
-          <span className="network-mark">◇</span>
-          {config.chain.name}
-          <span className="env-detail">
-            {config.mode === "local"
-              ? "Test funds · no real money"
-              : "Task wallets"}
-          </span>
-        </span>
+        <NetworkStrip
+          network={config.network || networkKind(config.chain.id)}
+          chainName={config.chain.name}
+          faucetUrl={config.faucetUrl}
+          onExplainMainnet={() =>
+            setNotice(
+              "This hosted Melt is Sepolia. Mainnet would spend real ETH and is not this deployment.",
+            )
+          }
+        />
         <span>
           {config.browserAvailable === false
             ? "Browser unavailable · recovery available"
@@ -270,11 +375,11 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
             busy={busy}
             notify={setNotice}
           />
-        ) : task ? (
+        ) : page === "Activity" && task ? (
           <>
             <button className="back" onClick={() => setSelected(undefined)}>
               <ArrowLeft size={14} />
-              All sessions
+              Activity
             </button>
             <SessionDetail
               task={task}
@@ -284,87 +389,174 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               act={act}
               auth={auth}
               owner={user?.owner || ""}
+              notify={setNotice}
+              now={now}
               download={() => download(task)}
+              share={() => {
+                if (!task.receiptToken) {
+                  setNotice("Receipt link is not ready yet");
+                  return;
+                }
+                void navigator.clipboard
+                  .writeText(`${location.origin}/r/${task.receiptToken}`)
+                  .then(() => setNotice("Receipt link copied"))
+                  .catch(() => setError("Could not copy the receipt link"));
+              }}
               repeat={() => {
-                setDraft(task);
                 setSelected(undefined);
-                setPage("Sessions");
+                setPage("Envelopes");
                 setNewTask(true);
               }}
             />
+          </>
+        ) : page === "Envelopes" && envelope ? (
+          <>
+            <button
+              className="back"
+              onClick={() => setSelectedEnvelope(undefined)}
+            >
+              <ArrowLeft size={14} />
+              All envelopes
+            </button>
+            <EnvelopeDetail
+              envelope={envelope}
+              config={config}
+              busy={busy}
+              owner={user?.owner || ""}
+              now={now}
+              act={act}
+              request={request}
+              auth={auth}
+              onDiscover={() => {
+                setDiscoverId(envelope.id);
+                setSelectedEnvelope(undefined);
+                setPage("Discover");
+                window.location.hash = "discover";
+              }}
+              onShare={() => {
+                if (!envelope.receiptToken) {
+                  setNotice("Receipt link is not ready yet");
+                  return;
+                }
+                void navigator.clipboard
+                  .writeText(`${location.origin}/r/${envelope.receiptToken}`)
+                  .then(() => setNotice("Receipt link copied"))
+                  .catch(() => setError("Could not copy the receipt link"));
+              }}
+            />
+          </>
+        ) : page === "Discover" ? (
+          <>
+            <section className="intro">
+              <div>
+                <h1>Find what the gift can become.</h1>
+                <p>
+                  Options have to match the promise. Assistants call the same
+                  tools through MCP. Uniswap only converts the amount a
+                  qualifying purchase needs.
+                </p>
+              </div>
+            </section>
+            {user ? (
+              <DiscoverPanel
+                envelopes={allEnvelopes}
+                selectedId={discoverId || allEnvelopes[0]?.id}
+                onSelect={setDiscoverId}
+                request={request}
+                act={act}
+                busy={busy}
+                symbol={config.chain.symbol}
+              />
+            ) : (
+              <div className="empty">
+                <h2>Sign in to redeem an envelope</h2>
+                <button className="secondary" onClick={signIn}>
+                  Sign in
+                </button>
+              </div>
+            )}
           </>
         ) : (
           <>
             <section className="intro">
               <div>
                 <h1>
-                  {page === "Receipts"
-                    ? "See where your funds went."
-                    : "Give your agent an allowance."}
+                  {page === "Activity"
+                    ? "See what the gifts became."
+                    : "Send a possibility instead of cash."}
                 </h1>
                 <p>
-                  {page === "Receipts"
-                    ? "Review spending, returned assets, and transaction details for every session."
-                    : "Set a spending limit, let your agent work, and return unused funds to your wallet."}
+                  {page === "Activity"
+                    ? "Settlement, delivery, and the vaults that held each envelope."
+                    : "Gift cards without stores. Their AI chooses later. The money can only become what you meant."}
                 </p>
               </div>
-              {user && (
+              {user && page === "Envelopes" && (
                 <button
                   className="primary"
                   onClick={() => {
-                    setPage("Sessions");
+                    setPage("Envelopes");
+                    setSelectedEnvelope(undefined);
                     setNewTask(true);
                   }}
                 >
                   <Plus size={16} />
-                  New session
+                  New envelope
                 </button>
               )}
             </section>
-            {page === "Sessions" && (!user || newTask || !tasks.length) ? (
-              <div className="launch-grid">
+            {page === "Envelopes" &&
+            (!user || newTask || !allEnvelopes.length) ? (
+              <div
+                className={
+                  user && allEnvelopes.length ? "compose-solo" : "launch-grid"
+                }
+              >
                 <section className="compose panel">
                   <div className="section-top">
-                    <h2>Start with a task</h2>
+                    <h2>Create an envelope</h2>
                     <span className="quiet">01</span>
                   </div>
                   {user ? (
-                    <Composer
-                      key={draft ? JSON.stringify(draft) : "new"}
-                      initial={draft}
+                    <EnvelopeComposer
                       config={config}
                       owner={user.owner}
                       busy={busy}
                       onCancel={
-                        tasks.length ? () => setNewTask(false) : undefined
+                        allEnvelopes.length
+                          ? () => setNewTask(false)
+                          : undefined
                       }
                       onSubmit={(body) =>
                         act("create", async () => {
-                          const t = await request("/sessions", body, "POST", {
-                            "Idempotency-Key": crypto.randomUUID(),
-                          });
-                          setSelected(t.id);
+                          const created = await request(
+                            "/envelopes",
+                            body,
+                            "POST",
+                            { "Idempotency-Key": crypto.randomUUID() },
+                          );
+                          setSelectedEnvelope(created.id);
+                          setDiscoverId(created.id);
                           setNewTask(false);
-                          setDraft(undefined);
                         })
                       }
                     />
                   ) : (
                     <>
                       <p className="sign-in-copy">
-                        Tell your agent what to do and set a spending limit. It
-                        gets a separate wallet and browser.
+                        Dinner, a flight home, mobile data — not unrestricted
+                        cash. Their assistant redeems it later through MCP.
                       </p>
                       <div className="example-task">
                         <Globe size={17} />
                         <span>
-                          Any job you type
-                          <span>Spending limit · leftover funds return</span>
+                          Dinner for two, anywhere you like
+                          <span>Up to $120 · before New Year</span>
                         </span>
                         <ArrowUpRight size={17} />
                       </div>
                       <button
-                        className="primary wide"
+                        className="primary sign-in-cta"
                         onClick={signIn}
                         disabled={!!busy}
                       >
@@ -376,7 +568,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                       </button>
                       {auth?.passkey && (
                         <button
-                          className="quiet-button wide"
+                          className="quiet-button"
                           onClick={() => act("passkey", auth.passkey!)}
                         >
                           Sign in with a passkey
@@ -385,36 +577,96 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                       <p className="helper">
                         {config.mode === "local"
                           ? "No wallet or funds needed. Uses local test ETH."
-                          : "Sign in to create your first task wallet."}
+                          : "Sign in with email to create an embedded wallet."}
                       </p>
                     </>
                   )}
                 </section>
-                <aside className="welcome-wallet panel">
-                  <SessionSeal />
-                  <div>
-                    <h2>Keep your main wallet separate.</h2>
-                    <p>
-                      Your agent spends from a task wallet with a limit you set.
-                      Unused funds return when the session ends.
-                    </p>
-                  </div>
-                  <div className="wallet-footer">
-                    <ShieldCheck size={14} />
-                    Spending limits enforced onchain
-                  </div>
-                </aside>
+                {!(user && allEnvelopes.length) && (
+                  <aside className="welcome-wallet panel">
+                    <SessionSeal />
+                    <div>
+                      <h2>Gift cards without stores.</h2>
+                      <p>
+                        The contract holds the money and the conditions. ChatGPT
+                        or Claude can find a qualifying purchase. Neither can
+                        rewrite the gift.
+                      </p>
+                    </div>
+                    <div className="wallet-footer">
+                      <ShieldCheck size={14} />
+                      Purpose locked onchain
+                    </div>
+                  </aside>
+                )}
               </div>
             ) : null}
-            {user && tasks.length > 0 && (
+            {user &&
+              page === "Envelopes" &&
+              allEnvelopes.length > 0 &&
+              !newTask && (
+                <section className="session-list">
+                  <div className="section-top">
+                    <h2>Sent</h2>
+                    <span className="quiet">{envelopes.sent.length}</span>
+                  </div>
+                  <EnvelopeList
+                    envelopes={envelopes.sent}
+                    now={now}
+                    symbol={config.chain.symbol}
+                    onOpen={setSelectedEnvelope}
+                  />
+                  {envelopes.received.length > 0 && (
+                    <>
+                      <div className="section-top">
+                        <h2>Received</h2>
+                        <span className="quiet">
+                          {envelopes.received.length}
+                        </span>
+                      </div>
+                      <EnvelopeList
+                        envelopes={envelopes.received}
+                        now={now}
+                        symbol={config.chain.symbol}
+                        onOpen={setSelectedEnvelope}
+                      />
+                    </>
+                  )}
+                </section>
+              )}
+            {page === "Activity" && (
               <section className="session-list">
+                {user && listed.length > 0 && (
+                  <div className="overview-grid">
+                    <article className="overview-card panel">
+                      <span>Spent</span>
+                      <strong>
+                        {formatAmount(overview.spent, 5)}
+                        <small>{config.chain.symbol}</small>
+                      </strong>
+                    </article>
+                    <article className="overview-card panel">
+                      <span>Returned</span>
+                      <strong>
+                        {formatAmount(overview.returned, 5)}
+                        <small>{config.chain.symbol}</small>
+                      </strong>
+                    </article>
+                    <article className="overview-card panel">
+                      <span>Envelopes</span>
+                      <strong>{allEnvelopes.length}</strong>
+                    </article>
+                    <article className="overview-card panel">
+                      <span>Open vaults</span>
+                      <strong>{active.length}</strong>
+                    </article>
+                  </div>
+                )}
                 <div className="section-top">
-                  <h2>
-                    {page === "Receipts" ? "Session history" : "Your sessions"}
-                  </h2>
-                  <span className="quiet">{active.length} open</span>
+                  <h2>Settlement history</h2>
+                  <span className="quiet">{listed.length}</span>
                 </div>
-                {tasks.map((t) => (
+                {listed.map((t) => (
                   <button
                     key={t.id}
                     className="session-row"
@@ -432,11 +684,14 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                     <div className="row-name">
                       <strong>{t.title}</strong>
                       <span>
-                        {siteHost(t.url)} ·{" "}
+                        {t.envelopeId ? "Envelope vault" : t.kind} ·{" "}
                         {new Date(t.createdAt).toLocaleDateString(undefined, {
                           month: "short",
                           day: "numeric",
                         })}
+                        {t.status !== "closed"
+                          ? ` · ${remainingLabel(t.expiresAt, now, false)}`
+                          : ""}
                       </span>
                     </div>
                     <span className={`status status-${t.status}`}>
@@ -448,22 +703,25 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                     <ArrowUpRight size={16} />
                   </button>
                 ))}
+                {!user && (
+                  <div className="empty">
+                    <Download size={24} />
+                    <h2>Sign in to see activity</h2>
+                    <button className="secondary" onClick={signIn}>
+                      Sign in
+                    </button>
+                  </div>
+                )}
+                {user && listed.length === 0 && (
+                  <p className="helper">No settlements yet.</p>
+                )}
               </section>
-            )}
-            {!user && page === "Receipts" && (
-              <div className="empty">
-                <Download size={24} />
-                <h2>Sign in to see your receipts</h2>
-                <button className="secondary" onClick={signIn}>
-                  Sign in
-                </button>
-              </div>
             )}
           </>
         )}
       </main>
       <footer>
-        <a href="/">Melt · Task wallets for agents</a>
+        <a href="/">Melt · Gift cards without stores</a>
         {user && auth?.linkPasskey && (
           <button onClick={() => act("passkey", auth.linkPasskey!)}>
             Add a passkey
@@ -481,266 +739,6 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     </div>
   );
 }
-function Composer({
-  initial,
-  config,
-  owner,
-  busy,
-  onSubmit,
-  onCancel,
-}: {
-  config: Config;
-  owner: string;
-  busy: string;
-  initial?: CreateTask;
-  onSubmit: (body: CreateTask) => void;
-  onCancel?: () => void;
-}) {
-  const mint = {
-    title: "Mint a field note",
-    instruction:
-      "Connect the wallet and mint one field note. Return the collectible and remaining funds when done.",
-    url: config.fixture.url,
-    target: config.fixture.target,
-    selector: config.fixture.selector,
-  };
-  const site = {
-    title: "Use a site without my wallet",
-    instruction:
-      "Open the website, connect only the task wallet, and complete the job inside the spending limit. Do not connect any other wallet. Return leftover funds when done.",
-    url: "",
-    target: "",
-    selector: "",
-  };
-  const pay = config.fixture.pay?.available
-    ? {
-        title: "Leave a tip",
-        instruction:
-          "Connect the wallet and leave a tip. Return unused funds when done.",
-        url: config.fixture.pay.url,
-        target: "",
-        selector: "",
-      }
-    : undefined;
-  const [example, setExample] = useState("custom");
-  const [url, setUrl] = useState(initial?.url || "");
-  const [title, setTitle] = useState(initial?.title || "");
-  const [instruction, setInstruction] = useState(initial?.instruction || "");
-  const [budget, setBudget] = useState(initial?.budget || "0.0003");
-  const [budgetRange, setBudgetRange] = useState(
-    Math.max(0.001, Math.min(10, Number(initial?.budget) || 0)),
-  );
-  const [minutes, setMinutes] = useState(initial?.durationMinutes || 15);
-  const [target, setTarget] = useState(initial?.target || "");
-  const [selector, setSelector] = useState(initial?.selector || "");
-  const apply = (next: {
-    title: string;
-    instruction: string;
-    url: string;
-    target: string;
-    selector: string;
-  }) => {
-    setTitle(next.title);
-    setInstruction(next.instruction);
-    setUrl(next.url);
-    setTarget(next.target);
-    setSelector(next.selector);
-  };
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit({
-          url,
-          title,
-          instruction,
-          budget,
-          durationMinutes: minutes,
-          target,
-          selector,
-          recovery: owner,
-        });
-      }}
-    >
-      <div className="template-options">
-        <button
-          className={example === "custom" ? "chosen" : ""}
-          type="button"
-          onClick={() => {
-            setExample("custom");
-            apply({
-              title: "",
-              instruction: "",
-              url: "",
-              target: "",
-              selector: "",
-            });
-          }}
-        >
-          Custom
-        </button>
-        <button
-          className={example === "site" ? "chosen" : ""}
-          type="button"
-          onClick={() => {
-            setExample("site");
-            apply(site);
-          }}
-        >
-          New site
-        </button>
-        {config.fixture.available && (
-          <button
-            className={example === "mint" ? "chosen" : ""}
-            type="button"
-            onClick={() => {
-              setExample("mint");
-              apply(mint);
-            }}
-          >
-            Mint
-          </button>
-        )}
-        {pay && (
-          <button
-            className={example === "pay" ? "chosen" : ""}
-            type="button"
-            onClick={() => {
-              setExample("pay");
-              apply(pay);
-            }}
-          >
-            Pay
-          </button>
-        )}
-      </div>
-      <label>
-        Task name
-        <input
-          required
-          maxLength={100}
-          value={title}
-          placeholder="Mint this collectible"
-          onChange={(e) => {
-            setExample("custom");
-            setTitle(e.target.value);
-          }}
-        />
-      </label>
-      <label>
-        What should your agent do?
-        <textarea
-          required
-          maxLength={2000}
-          rows={3}
-          value={instruction}
-          placeholder="Connect only the task wallet, complete the job inside the spending limit, and return leftover funds."
-          onChange={(e) => {
-            setExample("custom");
-            setInstruction(e.target.value);
-          }}
-        />
-      </label>
-      <label>
-        Starting website
-        <input
-          aria-label="Starting website"
-          type="url"
-          value={url}
-          placeholder="https:// — optional if the job already includes a link"
-          onChange={(e) => setUrl(e.target.value)}
-        />
-      </label>
-      <div className="allowance-picker">
-        <div>
-          <label>
-            Spending limit
-            <span className="amount-input">
-              <input
-                aria-label="Spending limit"
-                type="number"
-                step="any"
-                min="0.000000001"
-                max="10"
-                required
-                value={budget}
-                onChange={(e) => {
-                  setBudget(e.target.value);
-                  setBudgetRange(
-                    Math.max(0.001, Math.min(10, Number(e.target.value) || 0)),
-                  );
-                }}
-              />
-              <span>{config.chain.symbol}</span>
-            </span>
-          </label>
-        </div>
-        <BudgetRibbon
-          value={Number(budget)}
-          total={budgetRange}
-          large
-          symbol={config.chain.symbol}
-          onChange={(value) => setBudget(String(value))}
-        />
-      </div>
-      <label className="duration-label">
-        Session length<span>{minutes} min</span>
-        <input
-          aria-label="Session length"
-          type="range"
-          min="5"
-          max="60"
-          step="5"
-          value={minutes}
-          onChange={(e) => setMinutes(Number(e.target.value))}
-        />
-      </label>
-      <details>
-        <summary>Limit where it can spend</summary>
-        <p className="helper">
-          Optional. Leave empty to allow any contract call inside the spending
-          limit, except approvals and token transfers.
-        </p>
-        <label>
-          Contract address
-          <input
-            pattern="0x[0-9a-fA-F]{40}"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-          />
-        </label>
-        <label>
-          Function selector
-          <input
-            pattern="0x[0-9a-fA-F]{8}"
-            value={selector}
-            onChange={(e) => setSelector(e.target.value)}
-          />
-        </label>
-      </details>
-      <div className="recovery-line">
-        <ArrowRight size={14} />
-        <span>Funds return to {short(owner)}</span>
-        <span>Gas costs are separate</span>
-      </div>
-      <div className="form-actions">
-        {onCancel && (
-          <button type="button" className="secondary" onClick={onCancel}>
-            Cancel
-          </button>
-        )}
-        <button
-          className="primary"
-          disabled={!!busy || config.browserAvailable === false}
-        >
-          {busy === "create" ? <MeltLoader size={16} /> : <Plus size={16} />}
-          Create task wallet
-          <ArrowRight size={16} />
-        </button>
-      </div>
-    </form>
-  );
-}
 function SessionDetail({
   task: t,
   config,
@@ -749,7 +747,10 @@ function SessionDetail({
   busy,
   auth,
   owner,
+  notify,
+  now,
   download,
+  share,
   repeat,
 }: {
   task: Task;
@@ -759,7 +760,10 @@ function SessionDetail({
   busy: string;
   auth?: Auth;
   owner: string;
+  notify: (s: string) => void;
+  now: number;
   download: () => void;
+  share: () => void;
   repeat: () => void;
 }) {
   const [shot, setShot] = useState(""),
@@ -774,7 +778,12 @@ function SessionDetail({
   useEffect(() => {
     let alive = true;
     async function load() {
-      if (document.hidden || !["running", "paused"].includes(t.status)) return;
+      if (
+        document.hidden ||
+        t.kind === "swap" ||
+        !["running", "paused"].includes(t.status)
+      )
+        return;
       try {
         const token = await auth?.getToken();
         const r = await fetch(`/api/sessions/${t.id}/screenshot`, {
@@ -812,26 +821,40 @@ function SessionDetail({
       ),
     );
   }
-  const remaining = Math.max(0, t.expiresAt - Math.floor(Date.now() / 1000)),
-    gas = t.transactions.reduce(
+  const gas = t.transactions.reduce(
       (n, tx) => n + Number(tx.gasWei || 0) / 1e18,
       0,
     ),
-    returnedAssets = t.assets.filter((asset) => asset.recovered).length;
+    returnedAssets = t.assets.filter((asset) => asset.recovered).length,
+    recoveredTokens = t.assets.filter(
+      (asset) => asset.kind === "erc20" && asset.recovered,
+    ),
+    buysDone = confirmedBuys(t);
   return (
     <>
       <section className="detail-heading">
         <div>
           <h1>{t.title}</h1>
           <p>
-            {siteHost(t.url)} <span className="divider-dot">·</span>{" "}
-            {t.agentMode === "model" ? "AI browser agent" : "Manual control"}
+            {t.kind === "swap" ? (
+              <>
+                Uniswap V3 <span className="divider-dot">·</span> Automated swap
+              </>
+            ) : (
+              <>
+                {siteHost(t.url)} <span className="divider-dot">·</span>{" "}
+                {t.agentMode === "model"
+                  ? "AI browser agent"
+                  : "Manual control"}
+              </>
+            )}
           </p>
         </div>
         <span className={`status status-${t.status}`}>
           {statusLabel[t.status]}
         </span>
       </section>
+      <p className="session-mandate">{mandateText(t, config.chain.symbol)}</p>
       <div className="work-grid">
         <aside className="wallet-panel panel">
           <SessionSeal status={t.status} />
@@ -872,9 +895,31 @@ function SessionDetail({
               <dd>
                 {t.status === "closed"
                   ? "Session ended"
-                  : `${Math.floor(remaining / 60)}m ${remaining % 60}s`}
+                  : remainingLabel(t.expiresAt, now, false)}
               </dd>
             </div>
+            {t.kind === "swap" && (t.swap?.buys || 1) > 1 && (
+              <div>
+                <dt>Buys</dt>
+                <dd>
+                  {buysDone} / {t.swap?.buys}
+                </dd>
+              </div>
+            )}
+            {recoveredTokens.length > 0 && (
+              <div>
+                <dt>Recovered</dt>
+                <dd>
+                  {recoveredTokens
+                    .map((a) =>
+                      a.amount && a.symbol
+                        ? `${formatAmount(Number(a.amount))} ${a.symbol}`
+                        : tokenSymbol(a, config.swap),
+                    )
+                    .join(", ")}
+                </dd>
+              </div>
+            )}
             <div>
               <dt>Return wallet</dt>
               <dd>{short(t.recovery)}</dd>
@@ -882,7 +927,22 @@ function SessionDetail({
           </dl>
           <details>
             <summary>Wallet details</summary>
-            <p className="identifier">{t.vault}</p>
+            <p className="identifier vault-line">
+              {t.vault}
+              {t.vault && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void navigator.clipboard
+                      .writeText(t.vault)
+                      .then(() => notify("Task wallet copied"))
+                  }
+                >
+                  <Copy size={13} />
+                  Copy
+                </button>
+              )}
+            </p>
             <p className="helper">
               {t.target && t.selector ? (
                 <>
@@ -897,6 +957,12 @@ function SessionDetail({
               Gas paid: {gas.toFixed(7)} {config.chain.symbol}
             </p>
           </details>
+          {t.receiptToken && (
+            <button className="secondary wide" onClick={share}>
+              <Link2 size={15} />
+              Share receipt
+            </button>
+          )}
           {t.status === "closed" ? (
             <>
               <button className="secondary wide" onClick={download}>
@@ -953,7 +1019,7 @@ function SessionDetail({
               <Globe size={14} />
               {t.browserTitle || "Task browser"}
             </span>
-            {t.status === "paused" && (
+            {t.status === "paused" && t.kind !== "swap" && (
               <form
                 className="browser-url"
                 onSubmit={(e) => {
@@ -981,7 +1047,7 @@ function SessionDetail({
               </form>
             )}
             <div>
-              {t.status === "running" && (
+              {t.status === "running" && t.kind !== "swap" && (
                 <button disabled={!!busy} onClick={() => command("pause")}>
                   <MousePointer2 size={14} />
                   Take control
@@ -1021,37 +1087,75 @@ function SessionDetail({
                   </div>
                 )}
                 <h2>
-                  {t.status === "closed"
-                    ? t.assets.some((a) => a.recovered)
-                      ? "Assets returned"
-                      : "Session closed"
-                    : t.status === "closing"
-                      ? "Returning your funds and assets"
+                  {t.envelopeId
+                    ? t.status === "closed"
+                      ? "Envelope vault closed"
                       : t.status === "funding"
-                        ? "Add funds to start"
+                        ? "Fund this envelope"
                         : t.status === "attention"
-                          ? "Review your session"
-                          : t.status === "ready"
-                            ? "Ready to start your task"
-                            : "Opening your task browser"}
+                          ? "Review this envelope vault"
+                          : "This vault holds the gift"
+                    : t.kind === "swap"
+                      ? t.status === "closed"
+                        ? t.assets.some((a) => a.recovered)
+                          ? recoveredTokens[0]?.amount
+                            ? `${formatAmount(Number(recoveredTokens[0].amount))} ${recoveredTokens[0].symbol || t.swap?.symbol} returned to your wallet`
+                            : `${t.swap?.symbol || "Token"} returned to your wallet`
+                          : "Swap session closed"
+                        : t.status === "closing"
+                          ? "Returning your token"
+                          : t.status === "funding"
+                            ? "Add funds to swap"
+                            : t.status === "attention"
+                              ? "Review your session"
+                              : t.status === "running"
+                                ? "Swapping on Uniswap"
+                                : "Ready to swap"
+                      : t.status === "closed"
+                        ? t.assets.some((a) => a.recovered)
+                          ? "Assets returned"
+                          : "Session closed"
+                        : t.status === "closing"
+                          ? "Returning your funds and assets"
+                          : t.status === "funding"
+                            ? "Add funds to start"
+                            : t.status === "attention"
+                              ? "Review your session"
+                              : t.status === "ready"
+                                ? "Ready to start your task"
+                                : "Opening your task browser"}
                 </h2>
                 <p>
-                  {t.status === "closed"
-                    ? `${returnedAssets} ${returnedAssets === 1 ? "asset" : "assets"} returned · agent spending disabled`
-                    : t.error ||
-                      (t.status === "closing"
-                        ? "Ending agent access and returning funds to your wallet."
-                        : t.status === "funding"
-                          ? "Add the funds this task can use. Gas costs are separate."
-                          : t.status === "attention"
-                            ? "Check the activity below, then retry recovery."
-                            : t.status === "ready"
-                              ? t.url
-                                ? "Your agent will open the website using this wallet."
-                                : "Your agent will open a browser using this wallet."
-                              : "Your browser preview will appear here.")}
+                  {t.envelopeId
+                    ? t.error ||
+                      "Qualifying purchases settle through Uniswap. Leftover funds stay here until the envelope expires."
+                    : t.kind === "swap"
+                      ? t.status === "closed"
+                        ? `Swapped ${t.spent} ${config.chain.symbol} for ${t.swap?.symbol || "tokens"} · agent spending disabled`
+                        : t.error ||
+                          (t.status === "closing"
+                            ? "Returning your purchased token and any unused funds."
+                            : t.status === "running"
+                              ? `Buying ${t.swap?.symbol || "tokens"} inside your spending limit, then returning it to you.`
+                              : t.status === "ready"
+                                ? `Melt will swap ${t.swap?.amountIn} ${config.chain.symbol} for ${t.swap?.symbol} through Uniswap V3, within your limit.`
+                                : "Add the funds this swap can use. Gas costs are separate.")
+                      : t.status === "closed"
+                        ? `${returnedAssets} ${returnedAssets === 1 ? "asset" : "assets"} returned · agent spending disabled`
+                        : t.error ||
+                          (t.status === "closing"
+                            ? "Ending agent access and returning funds to your wallet."
+                            : t.status === "funding"
+                              ? "Add the funds this task can use. Gas costs are separate."
+                              : t.status === "attention"
+                                ? "Check the activity below, then retry recovery."
+                                : t.status === "ready"
+                                  ? t.url
+                                    ? "Your agent will open the website using this wallet."
+                                    : "Your agent will open a browser using this wallet."
+                                  : "Your browser preview will appear here.")}
                 </p>
-                {t.status === "ready" && (
+                {t.status === "ready" && t.kind === "swap" && (
                   <button
                     className="primary"
                     disabled={!!busy}
@@ -1062,10 +1166,50 @@ function SessionDetail({
                     ) : (
                       <Play size={15} />
                     )}
-                    {config.modelConfigured
-                      ? "Start task"
-                      : "Open task browser"}
+                    Run swap on Uniswap
                   </button>
+                )}
+                {t.status === "ready" && t.kind !== "swap" && !t.envelopeId && (
+                  <>
+                    {config.modelConfigured && (
+                      <button
+                        className="primary"
+                        disabled={!!busy}
+                        onClick={() =>
+                          act("start", () =>
+                            request(`/sessions/${t.id}/start`, {
+                              manual: false,
+                            }),
+                          )
+                        }
+                      >
+                        {busy === "start" ? (
+                          <MeltLoader size={15} />
+                        ) : (
+                          <Play size={15} />
+                        )}
+                        Start task
+                      </button>
+                    )}
+                    <button
+                      className={
+                        config.modelConfigured ? "secondary" : "primary"
+                      }
+                      disabled={!!busy}
+                      onClick={() =>
+                        act("start", () =>
+                          request(`/sessions/${t.id}/start`, { manual: true }),
+                        )
+                      }
+                    >
+                      {busy === "start" ? (
+                        <MeltLoader size={15} />
+                      ) : (
+                        <Play size={15} />
+                      )}
+                      Open task browser
+                    </button>
+                  </>
                 )}
                 {t.status === "funding" && (
                   <>
@@ -1156,7 +1300,7 @@ function SessionDetail({
             )}
           </div>
           {browserError && <p className="helper">{browserError}</p>}
-          {t.status === "paused" && (
+          {t.status === "paused" && t.kind !== "swap" && (
             <div className="manual-controls">
               <button
                 className="secondary"
@@ -1292,21 +1436,54 @@ function Developers({
   busy: string;
   notify: (s: string) => void;
 }) {
-  const [keys, setKeys] = useState<any[]>([]),
+  const hookEvents = [
+      "session.created",
+      "session.funded",
+      "envelope.created",
+      "envelope.funded",
+      "envelope.redeemed",
+      "swap.executed",
+      "session.closed",
+      "session.recovered",
+    ],
+    [keys, setKeys] = useState<any[]>([]),
     [token, setToken] = useState(""),
-    [keyError, setKeyError] = useState("");
+    [keyError, setKeyError] = useState(""),
+    [hooks, setHooks] = useState<any[]>([]),
+    [events, setEvents] = useState<any[]>([]),
+    [hookUrl, setHookUrl] = useState(""),
+    [hookSecret, setHookSecret] = useState(""),
+    [selectedEvents, setSelectedEvents] = useState<string[]>(hookEvents);
   async function refresh() {
-    if (user) setKeys(await request("/keys"));
+    if (!user) return;
+    const [nextKeys, nextHooks, nextEvents] = await Promise.all([
+      request("/keys"),
+      request("/webhooks"),
+      request("/events"),
+    ]);
+    setKeys(nextKeys);
+    setHooks(nextHooks);
+    setEvents(nextEvents);
   }
   useEffect(() => {
     let alive = true;
     setToken("");
+    setHookSecret("");
     setKeys([]);
+    setHooks([]);
+    setEvents([]);
     setKeyError("");
     if (user)
-      void request("/keys")
-        .then((rows: any[]) => {
-          if (alive) setKeys(rows);
+      void Promise.all([
+        request("/keys"),
+        request("/webhooks"),
+        request("/events"),
+      ])
+        .then(([nextKeys, nextHooks, nextEvents]) => {
+          if (!alive) return;
+          setKeys(nextKeys);
+          setHooks(nextHooks);
+          setEvents(nextEvents);
         })
         .catch((e: Error) => {
           if (alive) setKeyError(e.message);
@@ -1321,8 +1498,9 @@ function Developers({
         <div>
           <h1>Connect your agent to Melt</h1>
           <p>
-            Start tasks, control the browser, and retrieve receipts through the
-            API.
+            Envelopes are the product. An API key can find options, propose a
+            purchase, and redeem. It cannot create envelopes, raise the amount,
+            or send unrestricted cash.
           </p>
         </div>
         <a
@@ -1338,13 +1516,14 @@ function Developers({
       </section>
       <div className="developer-grid">
         <section className="panel dev-panel">
-          <h2>Use the session API</h2>
+          <h2>Use the envelope API</h2>
           <p>
-            Create and fund a session in Melt, then use an API key to run it.
-            Keys can’t create wallets or increase spending limits.
+            Create and fund an envelope in Melt, then let ChatGPT, Claude, Codex
+            or Grok redeem it through MCP. Keys can’t create envelopes or
+            increase the gift.
           </p>
           <pre>
-            <code>{`import { Melt } from './melt-client.mjs';\n\nconst melt = new Melt({\n  baseUrl: '${location.origin}',\n  apiKey: process.env.MELT_API_KEY\n});\n\nawait melt.start(sessionId);\nawait melt.wait(sessionId);\nconst receipt = await melt.receipt(sessionId);`}</code>
+            <code>{`import { Melt } from './melt-client.mjs';\n\nconst melt = new Melt({\n  baseUrl: '${location.origin}',\n  apiKey: process.env.MELT_API_KEY\n});\n\nconst { sent } = await melt.envelopes();\nconst found = await melt.findOptions(sent[0].id, 'an eSIM for Japan');\nconst quote = await melt.proposePurchase(sent[0].id, { sku: found.options[0].sku });\nawait melt.redeem(sent[0].id, quote.quote.id);`}</code>
           </pre>
           <a className="secondary" href="/api/client.mjs">
             <Download size={14} /> Download JavaScript client
@@ -1354,25 +1533,30 @@ function Developers({
           </p>
           <div className="api-endpoints">
             {[
-              ["GET", "/api/sessions", "List your sessions"],
-              ["POST", "/api/sessions/:id/start", "Start the browser agent"],
-              ["POST", "/api/sessions/:id/pause", "Pause the agent"],
+              ["GET", "/api/envelopes", "List sent and received envelopes"],
               [
                 "GET",
-                "/api/sessions/:id/browser",
-                "Read visible page controls",
+                "/api/envelopes/:id/options",
+                "Find purchases that match the gift",
               ],
               [
                 "POST",
-                "/api/sessions/:id/action",
-                "Click or fill a visible control",
+                "/api/envelopes/:id/propose",
+                "Propose a catalog option",
               ],
               [
                 "POST",
-                "/api/sessions/:id/close",
-                "End the session and return funds",
+                "/api/envelopes/:id/redeem",
+                "Settle a quote; no generic transfer",
               ],
-              ["GET", "/api/sessions/:id/receipt", "Get the session receipt"],
+              ["GET", "/api/envelopes/:id/redemptions", "Settlement status"],
+              ["POST", "/api/swap/quote", "Quote ETH→USDC for settlement"],
+              [
+                "GET",
+                "/api/public/receipts/:token",
+                "Open the shareable public receipt",
+              ],
+              ["POST", "/api/webhooks", "Register a signed webhook endpoint"],
             ].map(([method, path, label]) => (
               <div key={path}>
                 <span>{method}</span>
@@ -1451,14 +1635,179 @@ function Developers({
           <div className="mcp-note">
             <h2>Connect with MCP</h2>
             <p>
-              Use Melt from an MCP-compatible agent. The included server
-              provides the same session and browser controls.
+              Use Melt from ChatGPT, Claude, Codex or Grok. The MCP server
+              exposes envelopes: list, find options, propose, and redeem. It
+              cannot send unrestricted cash.
             </p>
             <pre>
               <code>npm run agent:mcp</code>
             </pre>
           </div>
         </aside>
+      </div>
+      <div className="receipt-grid developers-webhooks">
+        <section className="panel webhook-log">
+          <h2>Events</h2>
+          <p className="helper">
+            The same event objects Melt posts to your webhook. Agent keys cannot
+            read this log.
+          </p>
+          {user ? (
+            events.length ? (
+              events.map((item) => (
+                <div className="event-row" key={item.id}>
+                  <div>
+                    <code>{item.type}</code>
+                    {item.taskId && (
+                      <p className="quiet">{item.taskId.slice(0, 8)}</p>
+                    )}
+                  </div>
+                  <time>
+                    {new Date(item.created).toLocaleTimeString(undefined, {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })}
+                  </time>
+                </div>
+              ))
+            ) : (
+              <p className="helper">
+                No events yet. Create a session to see one.
+              </p>
+            )
+          ) : (
+            <button className="secondary" onClick={signIn}>
+              Sign in to see events
+            </button>
+          )}
+        </section>
+        <section className="panel webhook-log">
+          <h2>Webhooks</h2>
+          <p className="helper">
+            Melt signs the raw JSON with HMAC-SHA256 and sends a Melt-Signature
+            header in Stripe’s t=,v1= form. HTTPS is required in production.
+          </p>
+          {user ? (
+            <>
+              <label className="hook-url">
+                Endpoint URL
+                <input
+                  value={hookUrl}
+                  onChange={(e) => setHookUrl(e.target.value)}
+                  placeholder="https://example.com/melt-webhooks"
+                />
+              </label>
+              <div className="hook-events">
+                {hookEvents.map((type) => (
+                  <label key={type}>
+                    <input
+                      type="checkbox"
+                      checked={selectedEvents.includes(type)}
+                      onChange={() =>
+                        setSelectedEvents((current) =>
+                          current.includes(type)
+                            ? current.filter((item) => item !== type)
+                            : [...current, type],
+                        )
+                      }
+                    />
+                    {type}
+                  </label>
+                ))}
+              </div>
+              <button
+                className="primary wide"
+                disabled={!!busy || !hookUrl.trim() || !selectedEvents.length}
+                onClick={() =>
+                  act("webhook", async () => {
+                    const created = await request("/webhooks", {
+                      url: hookUrl.trim(),
+                      events: selectedEvents,
+                    });
+                    setHookSecret(created.secret);
+                    setHookUrl("");
+                    await refresh();
+                  })
+                }
+              >
+                <Plus size={15} />
+                Add endpoint
+              </button>
+              {hookSecret && (
+                <div className="key-reveal">
+                  <code>{hookSecret}</code>
+                  <button
+                    className="secondary wide"
+                    onClick={() =>
+                      act("copy-secret", async () => {
+                        await navigator.clipboard.writeText(hookSecret);
+                        notify("Signing secret copied");
+                      })
+                    }
+                  >
+                    <Copy size={13} />
+                    Copy signing secret
+                  </button>
+                  <p className="helper">Shown once. Store it on your server.</p>
+                </div>
+              )}
+              <pre>
+                <code>{`import { constructEvent } from './melt-client.mjs';\n\nconst event = await constructEvent(\n  rawBody,\n  request.headers['melt-signature'],\n  process.env.MELT_WEBHOOK_SECRET\n);`}</code>
+              </pre>
+              {hooks.map((hook) => (
+                <div className="hook-row" key={hook.id}>
+                  <div>
+                    <code>{hook.url}</code>
+                    <p className="quiet">{hook.events.join(", ")}</p>
+                  </div>
+                  <div className="hook-actions">
+                    <button
+                      className="secondary"
+                      disabled={!!busy}
+                      onClick={() =>
+                        act("ping", async () => {
+                          const result = await request(
+                            `/webhooks/${hook.id}/ping`,
+                            {},
+                          );
+                          notify(
+                            result.delivered
+                              ? "Test event delivered"
+                              : "Endpoint did not accept the test event",
+                          );
+                          await refresh();
+                        })
+                      }
+                    >
+                      Send test
+                    </button>
+                    <button
+                      aria-label={`Delete webhook ${hook.url}`}
+                      disabled={!!busy}
+                      onClick={() =>
+                        act("delete-hook", async () => {
+                          await request(
+                            `/webhooks/${hook.id}`,
+                            undefined,
+                            "DELETE",
+                          );
+                          await refresh();
+                        })
+                      }
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </>
+          ) : (
+            <button className="secondary" onClick={signIn}>
+              Sign in to add a webhook
+            </button>
+          )}
+        </section>
       </div>
     </>
   );

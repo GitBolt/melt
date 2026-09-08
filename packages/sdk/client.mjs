@@ -9,6 +9,128 @@ const states = new Set([
   "attention",
 ]);
 
+function apiRoot(baseUrl) {
+  const url = new URL(baseUrl);
+  if (
+    !["https:", "http:"].includes(url.protocol) ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  )
+    throw new TypeError(
+      "baseUrl must be an HTTP(S) origin or API base URL without credentials, query or fragment",
+    );
+  const path = url.pathname.replace(/\/+$/, "");
+  url.pathname = path.endsWith("/api") ? path : `${path}/api`;
+  return url.href.replace(/\/$/, "");
+}
+
+function timingSafeEqualHex(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length)
+    return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return out === 0;
+}
+
+export async function constructEvent(
+  payload,
+  header,
+  secret,
+  { toleranceSec = 300 } = {},
+) {
+  if (
+    typeof payload !== "string" ||
+    typeof header !== "string" ||
+    typeof secret !== "string"
+  )
+    throw new TypeError(
+      "constructEvent needs the raw body, Melt-Signature header, and signing secret",
+    );
+  const parts = Object.fromEntries(
+    header.split(",").map((piece) => {
+      const i = piece.indexOf("=");
+      return [piece.slice(0, i), piece.slice(i + 1)];
+    }),
+  );
+  const timestamp = Number(parts.t);
+  if (!Number.isFinite(timestamp) || !parts.v1)
+    throw new MeltError("Invalid Melt-Signature header", {
+      code: "INVALID_SIGNATURE",
+    });
+  if (Math.abs(Date.now() / 1000 - timestamp) > toleranceSec)
+    throw new MeltError(
+      "Melt-Signature timestamp is outside the allowed tolerance",
+      { code: "INVALID_SIGNATURE" },
+    );
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const mac = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(`${timestamp}.${payload}`),
+  );
+  const expected = [...new Uint8Array(mac)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  if (!timingSafeEqualHex(expected, parts.v1))
+    throw new MeltError("Melt-Signature does not match the payload", {
+      code: "INVALID_SIGNATURE",
+    });
+  try {
+    return JSON.parse(payload);
+  } catch {
+    throw new MeltError("Webhook payload is not valid JSON", {
+      code: "INVALID_RESPONSE",
+    });
+  }
+}
+
+export async function publicReceipt(
+  token,
+  {
+    baseUrl = "https://melt-woad.vercel.app",
+    fetch: transport = globalThis.fetch,
+  } = {},
+) {
+  if (typeof token !== "string" || !/^[0-9a-f]{48}$/i.test(token))
+    throw new TypeError("Use the 48-character public receipt token");
+  const response = await transport(
+    `${apiRoot(baseUrl)}/public/receipts/${token}`,
+    { headers: { Accept: "application/json" }, redirect: "error" },
+  );
+  const text = await response.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    /* Report a protocol error below. */
+  }
+  if (!response.ok) {
+    const message =
+      data && typeof data.error === "string" && data.error.trim()
+        ? data.error.slice(0, 2000)
+        : `Melt returned HTTP ${response.status}`;
+    throw new MeltError(message, {
+      status: response.status,
+      code: "API_ERROR",
+    });
+  }
+  if (!record(data) || data.object !== "receipt")
+    throw new MeltError("Melt returned an unexpected receipt", {
+      code: "INVALID_RESPONSE",
+      status: response.status,
+    });
+  return data;
+}
+
 export class MeltError extends Error {
   constructor(
     message,
@@ -28,6 +150,24 @@ function positive(value, name) {
   if (!Number.isSafeInteger(value) || value <= 0 || value > 2_147_483_647)
     throw new TypeError(`${name} must be a positive integer below 2147483648`);
   return value;
+}
+function envelopePath(id) {
+  if (
+    typeof id !== "string" ||
+    !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id)
+  )
+    throw new TypeError("Use the envelope ID returned by Melt");
+  return `/envelopes/${id}`;
+}
+function isEnvelope(value) {
+  return (
+    record(value) &&
+    value.object === "envelope" &&
+    typeof value.id === "string" &&
+    typeof value.purpose === "string" &&
+    typeof value.budget === "string" &&
+    typeof value.policyHash === "string"
+  );
 }
 function sessionPath(id) {
   if (
@@ -117,24 +257,11 @@ export class Melt {
     timeoutMs = 90_000,
     fetch: transport = globalThis.fetch,
   } = {}) {
-    const url = new URL(baseUrl);
-    if (
-      !["https:", "http:"].includes(url.protocol) ||
-      url.username ||
-      url.password ||
-      url.search ||
-      url.hash
-    )
-      throw new TypeError(
-        "baseUrl must be an HTTP(S) origin or API base URL without credentials, query or fragment",
-      );
     if (typeof apiKey !== "string" || !apiKey.trim() || /\s/.test(apiKey))
       throw new TypeError("Provide an API key created in Melt → Developers");
     if (typeof transport !== "function")
       throw new TypeError("This client requires native fetch (Node.js 24+)");
-    const path = url.pathname.replace(/\/+$/, "");
-    url.pathname = path.endsWith("/api") ? path : `${path}/api`;
-    this.#url = url.href.replace(/\/$/, "");
+    this.#url = apiRoot(baseUrl);
     this.#key = apiKey;
     this.#timeout = positive(timeoutMs, "timeoutMs");
     this.#fetch = transport;
@@ -224,6 +351,95 @@ export class Melt {
     return this.#request("/sessions", {
       ...options,
       validate: (value) => Array.isArray(value) && value.every(isSession),
+    });
+  }
+  envelopes(options = {}) {
+    return this.#request("/envelopes", {
+      ...options,
+      validate: (value) =>
+        record(value) &&
+        Array.isArray(value.sent) &&
+        Array.isArray(value.received) &&
+        value.sent.every(isEnvelope) &&
+        value.received.every(isEnvelope),
+    });
+  }
+  envelope(id, options = {}) {
+    return this.#request(envelopePath(id), {
+      ...options,
+      validate: isEnvelope,
+    });
+  }
+  findOptions(id, request = "", options = {}) {
+    if (typeof request !== "string" || request.length > 500)
+      throw new TypeError("request must be a short string");
+    const query = request ? `?q=${encodeURIComponent(request)}` : "";
+    return this.#request(`${envelopePath(id)}/options${query}`, {
+      ...options,
+      validate: (value) => record(value) && Array.isArray(value.options),
+    });
+  }
+  proposePurchase(id, params, options = {}) {
+    if (!record(params) || typeof params.sku !== "string" || !params.sku.trim())
+      throw new TypeError("proposePurchase needs { sku, request? }");
+    const body = { sku: params.sku };
+    if (params.request !== undefined) {
+      if (typeof params.request !== "string" || params.request.length > 500)
+        throw new TypeError("request must be a short string");
+      body.request = params.request;
+    }
+    return this.#request(`${envelopePath(id)}/propose`, {
+      ...options,
+      body,
+      validate: (value) => record(value) && record(value.quote),
+    });
+  }
+  redeem(id, quoteId, options = {}) {
+    if (typeof quoteId !== "string" || !quoteId)
+      throw new TypeError("redeem needs the quote ID from proposePurchase");
+    return this.#request(`${envelopePath(id)}/redeem`, {
+      ...options,
+      body: { quoteId },
+      validate: (value) => record(value) && record(value.redemption),
+    });
+  }
+  redemptionStatus(id, options = {}) {
+    return this.#request(`${envelopePath(id)}/redemptions`, {
+      ...options,
+      validate: (value) =>
+        record(value) &&
+        typeof value.status === "string" &&
+        Array.isArray(value.redemptions),
+    });
+  }
+  // Read-only Uniswap price discovery so an agent can size a swap before an
+  // owner-authorized swap session is run. Never moves funds.
+  tokens(options = {}) {
+    return this.#request("/swap/tokens", {
+      ...options,
+      validate: (value) => record(value) && Array.isArray(value.tokens),
+    });
+  }
+  quote(params, options = {}) {
+    if (
+      !record(params) ||
+      typeof params.tokenOut !== "string" ||
+      typeof params.amountIn !== "string"
+    )
+      throw new TypeError("quote needs { tokenOut, amountIn, slippageBps? }");
+    const body = { tokenOut: params.tokenOut, amountIn: params.amountIn };
+    if (params.slippageBps !== undefined) {
+      if (!Number.isInteger(params.slippageBps))
+        throw new TypeError("slippageBps must be an integer (basis points)");
+      body.slippageBps = params.slippageBps;
+    }
+    return this.#request("/swap/quote", {
+      ...options,
+      body,
+      validate: (value) =>
+        record(value) &&
+        typeof value.amountOut === "string" &&
+        typeof value.minOut === "string",
     });
   }
   session(id, options = {}) {
@@ -410,4 +626,12 @@ export class Melt {
       throw error;
     }
   }
+  publicReceipt(token, options = {}) {
+    return publicReceipt(token, {
+      baseUrl: this.#url,
+      fetch: options.fetch || this.#fetch,
+    });
+  }
 }
+Melt.constructEvent = constructEvent;
+Melt.publicReceipt = publicReceipt;

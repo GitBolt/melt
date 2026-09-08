@@ -1,0 +1,403 @@
+import {
+  encodeFunctionData,
+  parseEther,
+  formatUnits,
+  getAddress,
+  toFunctionSelector,
+  isAddress,
+  type Address,
+  type Hex,
+} from "viem";
+import { client, chain } from "./chain.js";
+
+// Uniswap V3 deployments. Mainnet addresses are reused on a local mainnet fork
+// (chain id 31337). Sepolia uses the official testnet router/quoter so hosted
+// Melt can settle envelopes with faucet ETH instead of real money.
+const MAINNET_UNISWAP = {
+  router: getAddress("0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"),
+  quoter: getAddress("0x61fFE014bA17989E743c5F6cB21bF9697530B21e"),
+  weth: getAddress("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
+} as const;
+const SEPOLIA_UNISWAP = {
+  router: getAddress("0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E"),
+  quoter: getAddress("0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3"),
+  weth: getAddress("0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"),
+} as const;
+export function uniswapFor(chainId: number) {
+  return chainId === 11155111 ? SEPOLIA_UNISWAP : MAINNET_UNISWAP;
+}
+export const UNISWAP = uniswapFor(chain.id);
+
+export interface TokenInfo {
+  symbol: string;
+  name: string;
+  address: Address;
+  decimals: number;
+}
+
+const MAINNET_TOKENS: TokenInfo[] = [
+  {
+    symbol: "USDC",
+    name: "USD Coin",
+    address: getAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+    decimals: 6,
+  },
+  {
+    symbol: "USDT",
+    name: "Tether USD",
+    address: getAddress("0xdAC17F958D2ee523a2206206994597C13D831ec7"),
+    decimals: 6,
+  },
+  {
+    symbol: "DAI",
+    name: "Dai Stablecoin",
+    address: getAddress("0x6B175474E89094C44Da98b954EedeAC495271d0F"),
+    decimals: 18,
+  },
+  {
+    symbol: "WBTC",
+    name: "Wrapped BTC",
+    address: getAddress("0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"),
+    decimals: 8,
+  },
+  {
+    symbol: "UNI",
+    name: "Uniswap",
+    address: getAddress("0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984"),
+    decimals: 18,
+  },
+  {
+    symbol: "LINK",
+    name: "Chainlink",
+    address: getAddress("0x514910771AF9Ca656af840dff83E8264EcF986CA"),
+    decimals: 18,
+  },
+  {
+    symbol: "AAVE",
+    name: "Aave",
+    address: getAddress("0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9"),
+    decimals: 18,
+  },
+  {
+    symbol: "LDO",
+    name: "Lido DAO",
+    address: getAddress("0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32"),
+    decimals: 18,
+  },
+  {
+    symbol: "COMP",
+    name: "Compound",
+    address: getAddress("0xc00e94Cb662C3520282E6f5717214004A7f26888"),
+    decimals: 18,
+  },
+  {
+    symbol: "WETH",
+    name: "Wrapped Ether",
+    address: MAINNET_UNISWAP.weth,
+    decimals: 18,
+  },
+];
+const SEPOLIA_TOKENS: TokenInfo[] = [
+  {
+    symbol: "USDC",
+    name: "USD Coin",
+    address: getAddress("0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"),
+    decimals: 6,
+  },
+  {
+    symbol: "WETH",
+    name: "Wrapped Ether",
+    address: SEPOLIA_UNISWAP.weth,
+    decimals: 18,
+  },
+];
+export function tokensFor(chainId: number) {
+  return chainId === 11155111 ? SEPOLIA_TOKENS : MAINNET_TOKENS;
+}
+export const TOKENS: TokenInfo[] = tokensFor(chain.id);
+
+const routerAbi = [
+  {
+    type: "function",
+    name: "exactInputSingle",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "params",
+        type: "tuple",
+        components: [
+          { name: "tokenIn", type: "address" },
+          { name: "tokenOut", type: "address" },
+          { name: "fee", type: "uint24" },
+          { name: "recipient", type: "address" },
+          { name: "amountIn", type: "uint256" },
+          { name: "amountOutMinimum", type: "uint256" },
+          { name: "sqrtPriceLimitX96", type: "uint160" },
+        ],
+      },
+    ],
+    outputs: [{ name: "amountOut", type: "uint256" }],
+  },
+] as const;
+
+// QuoterV2 is non-view but returns cleanly through eth_call; declaring it view
+// here lets viem read it without sending a transaction.
+const quoterAbi = [
+  {
+    type: "function",
+    name: "quoteExactInputSingle",
+    stateMutability: "view",
+    inputs: [
+      {
+        name: "params",
+        type: "tuple",
+        components: [
+          { name: "tokenIn", type: "address" },
+          { name: "tokenOut", type: "address" },
+          { name: "amountIn", type: "uint256" },
+          { name: "fee", type: "uint24" },
+          { name: "sqrtPriceLimitX96", type: "uint160" },
+        ],
+      },
+    ],
+    outputs: [
+      { name: "amountOut", type: "uint256" },
+      { name: "sqrtPriceX96After", type: "uint160" },
+      { name: "initializedTicksCrossed", type: "uint32" },
+      { name: "gasEstimate", type: "uint256" },
+    ],
+  },
+] as const;
+
+const erc20Abi = [
+  {
+    type: "function",
+    name: "decimals",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint8" }],
+  },
+  {
+    type: "function",
+    name: "symbol",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "string" }],
+  },
+] as const;
+
+export const SWAP_SELECTOR = toFunctionSelector(
+  "exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))",
+);
+const FEE_TIERS = [500, 3000, 10000, 100] as const;
+
+let available: boolean | undefined;
+// Uniswap is usable only when its router and quoter bytecode exist on the
+// connected chain (mainnet, a mainnet fork, or Sepolia). Checked once and cached.
+export async function swapAvailable(): Promise<boolean> {
+  if (available !== undefined) return available;
+  try {
+    const [router, quoter] = await Promise.all([
+      client.getCode({ address: UNISWAP.router }),
+      client.getCode({ address: UNISWAP.quoter }),
+    ]);
+    available = Boolean(router && router !== "0x" && quoter && quoter !== "0x");
+  } catch {
+    available = false;
+  }
+  return available;
+}
+
+export async function resolveToken(idOrSymbol: string): Promise<TokenInfo> {
+  const known = TOKENS.find(
+    (t) =>
+      t.symbol.toLowerCase() === idOrSymbol.toLowerCase() ||
+      t.address.toLowerCase() === idOrSymbol.toLowerCase(),
+  );
+  if (known) return known;
+  if (!isAddress(idOrSymbol)) throw Error(`Unknown token: ${idOrSymbol}`);
+  const address = getAddress(idOrSymbol);
+  const decimals = Number(
+    await client.readContract({
+      address,
+      abi: erc20Abi,
+      functionName: "decimals",
+    }),
+  );
+  let symbol = `${address.slice(0, 6)}…`;
+  try {
+    symbol = (await client.readContract({
+      address,
+      abi: erc20Abi,
+      functionName: "symbol",
+    })) as string;
+  } catch {
+    /* Some tokens do not expose a string symbol. */
+  }
+  return { symbol, name: symbol, address, decimals };
+}
+
+export interface SwapQuote {
+  tokenOut: Address;
+  symbol: string;
+  decimals: number;
+  amountIn: string; // ETH, human readable
+  amountInWei: string;
+  fee: number;
+  amountOutWei: string;
+  amountOut: string; // human readable token amount
+  minOutWei: string;
+  minOut: string;
+  slippageBps: number;
+  rate: string; // token units per 1 ETH
+  priceImpactBps: number;
+}
+
+export function priceImpactBps(
+  spotOut: bigint,
+  spotIn: bigint,
+  execOut: bigint,
+  execIn: bigint,
+): number {
+  if (spotIn <= 0n || execIn <= 0n || spotOut <= 0n) return 0;
+  const spot = (spotOut * 10n ** 18n) / spotIn;
+  const exec = (execOut * 10n ** 18n) / execIn;
+  if (exec >= spot) return 0;
+  const bps = ((spot - exec) * 10000n) / spot;
+  return Number(bps > 10_000n ? 10_000n : bps);
+}
+
+export function knownToken(address: string): TokenInfo | undefined {
+  return TOKENS.find((t) => t.address.toLowerCase() === address.toLowerCase());
+}
+
+async function quoteFee(
+  tokenOut: Address,
+  amountInWei: bigint,
+  fee: number,
+): Promise<bigint | undefined> {
+  try {
+    const result = (await client.readContract({
+      address: UNISWAP.quoter,
+      abi: quoterAbi,
+      functionName: "quoteExactInputSingle",
+      args: [
+        {
+          tokenIn: UNISWAP.weth,
+          tokenOut,
+          amountIn: amountInWei,
+          fee,
+          sqrtPriceLimitX96: 0n,
+        },
+      ],
+    })) as readonly [bigint, bigint, number, bigint];
+    return result[0] > 0n ? result[0] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function bestQuote(tokenOut: Address, amountInWei: bigint) {
+  // Probe every fee tier in parallel so a cold mainnet-fork RPC does not add up
+  // latency tier by tier.
+  const results = await Promise.allSettled(
+    FEE_TIERS.map(async (fee) => {
+      const amountOut = await quoteFee(tokenOut, amountInWei, fee);
+      if (!amountOut) throw Error("empty");
+      return { fee, amountOut };
+    }),
+  );
+  let best: { fee: number; amountOut: bigint } | undefined;
+  for (const r of results)
+    if (
+      r.status === "fulfilled" &&
+      r.value.amountOut > 0n &&
+      (!best || r.value.amountOut > best.amountOut)
+    )
+      best = r.value;
+  return best;
+}
+
+// Short-lived quote cache so create-time validation, execution, and rapid UI
+// requests reuse one round trip instead of re-pricing every fee tier.
+const quoteCache = new Map<string, { expires: number; quote: SwapQuote }>();
+
+export async function quoteSwap(params: {
+  tokenOut: string;
+  amountIn: string;
+  slippageBps?: number;
+}): Promise<SwapQuote> {
+  if (!(await swapAvailable()))
+    throw Error(
+      "Onchain swaps need a Uniswap-enabled network. Run with MELT_FORK=1 or a Uniswap-supported chain.",
+    );
+  const slippageBps = Math.min(
+    5000,
+    Math.max(1, Math.round(params.slippageBps ?? 50)),
+  );
+  const amountInWei = parseEther(params.amountIn as `${number}`);
+  if (amountInWei <= 0n) throw Error("Enter an amount greater than zero");
+  const token = await resolveToken(params.tokenOut);
+  const cacheKey = `${token.address.toLowerCase()}:${amountInWei}:${slippageBps}`;
+  const cached = quoteCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) return cached.quote;
+  const best = await bestQuote(token.address, amountInWei);
+  if (!best) throw Error("No Uniswap pool found for this pair");
+  const minOutWei = (best.amountOut * BigInt(10000 - slippageBps)) / 10000n;
+  const amountOut = formatUnits(best.amountOut, token.decimals);
+  const probeIn = amountInWei / 50n;
+  let impact = 0;
+  if (probeIn >= 10n ** 12n) {
+    const probeOut = await quoteFee(token.address, probeIn, best.fee);
+    if (probeOut)
+      impact = priceImpactBps(probeOut, probeIn, best.amountOut, amountInWei);
+  }
+  const quote: SwapQuote = {
+    tokenOut: token.address,
+    symbol: token.symbol,
+    decimals: token.decimals,
+    amountIn: params.amountIn,
+    amountInWei: amountInWei.toString(),
+    fee: best.fee,
+    amountOutWei: best.amountOut.toString(),
+    amountOut,
+    minOutWei: minOutWei.toString(),
+    minOut: formatUnits(minOutWei, token.decimals),
+    slippageBps,
+    rate: formatUnits(
+      (best.amountOut * 10n ** 18n) / amountInWei,
+      token.decimals,
+    ),
+    priceImpactBps: impact,
+  };
+  quoteCache.set(cacheKey, { expires: Date.now() + 12000, quote });
+  return quote;
+}
+
+// Build the native-value router call the vault executes. Because ETH is sent
+// as msg.value and tokenIn is WETH, SwapRouter02 wraps it internally: no
+// approval and no separate wrap transaction are needed.
+export function buildSwapCall(params: {
+  tokenOut: Address;
+  recipient: Address;
+  amountInWei: bigint;
+  minOutWei: bigint;
+  fee: number;
+}): { to: Address; value: bigint; data: Hex } {
+  const data = encodeFunctionData({
+    abi: routerAbi,
+    functionName: "exactInputSingle",
+    args: [
+      {
+        tokenIn: UNISWAP.weth,
+        tokenOut: params.tokenOut,
+        fee: params.fee,
+        recipient: params.recipient,
+        amountIn: params.amountInWei,
+        amountOutMinimum: params.minOutWei,
+        sqrtPriceLimitX96: 0n,
+      },
+    ],
+  });
+  return { to: UNISWAP.router, value: params.amountInWei, data };
+}

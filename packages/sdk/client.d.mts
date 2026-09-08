@@ -24,6 +24,8 @@ export interface Session {
   spent: string;
   returned: string;
   balance: string;
+  receiptToken?: string;
+  remaining?: string;
   events: {
     id: string;
     at: string;
@@ -42,6 +44,8 @@ export interface Session {
     tokenId?: string;
     kind: "erc721" | "erc20";
     recovered: boolean;
+    symbol?: string;
+    amount?: string;
   }[];
   browserUrl?: string;
   browserTitle?: string;
@@ -98,6 +102,41 @@ export interface WaitOptions extends RequestOptions {
   intervalMs?: number;
   until?: SessionStatus[];
 }
+export interface SwapToken {
+  symbol: string;
+  name: string;
+  address: string;
+  decimals: number;
+}
+export interface SwapTokens {
+  available: boolean;
+  router: string;
+  tokens: SwapToken[];
+}
+export interface SwapQuote {
+  tokenOut: string;
+  symbol: string;
+  decimals: number;
+  amountIn: string;
+  amountInWei: string;
+  fee: number;
+  amountOutWei: string;
+  amountOut: string;
+  minOutWei: string;
+  minOut: string;
+  slippageBps: number;
+  rate: string;
+  priceImpactBps?: number;
+}
+export interface Envelope {
+  object: "envelope";
+  id: string;
+  purpose: string;
+  budget: string;
+  remaining: string;
+  policyHash: string;
+  status: string;
+}
 export interface MeltConfig {
   baseUrl?: string;
   apiKey: string;
@@ -123,6 +162,35 @@ export class MeltError extends Error {
 export class Melt {
   constructor(config: MeltConfig);
   sessions(options?: RequestOptions): Promise<Session[]>;
+  envelopes(options?: RequestOptions): Promise<{
+    sent: Envelope[];
+    received: Envelope[];
+  }>;
+  envelope(id: string, options?: RequestOptions): Promise<Envelope>;
+  findOptions(
+    id: string,
+    request?: string,
+    options?: RequestOptions,
+  ): Promise<{ options: unknown[]; note?: string }>;
+  proposePurchase(
+    id: string,
+    params: { sku: string; request?: string },
+    options?: RequestOptions,
+  ): Promise<{ quote: { id: string } }>;
+  redeem(
+    id: string,
+    quoteId: string,
+    options?: RequestOptions,
+  ): Promise<{ redemption: { id: string; status: string } }>;
+  redemptionStatus(
+    id: string,
+    options?: RequestOptions,
+  ): Promise<{ status: string; redemptions: unknown[] }>;
+  tokens(options?: RequestOptions): Promise<SwapTokens>;
+  quote(
+    params: { tokenOut: string; amountIn: string; slippageBps?: number },
+    options?: RequestOptions,
+  ): Promise<SwapQuote>;
   session(id: string, options?: RequestOptions): Promise<Session>;
   start(
     id: string,
@@ -139,5 +207,26 @@ export class Melt {
     options?: RequestOptions,
   ): Promise<Session>;
   receipt(id: string, options?: RequestOptions): Promise<Receipt>;
+  publicReceipt(token: string, options?: RequestOptions): Promise<unknown>;
   wait(id: string, options?: WaitOptions): Promise<Session>;
+  static constructEvent(
+    payload: string,
+    header: string,
+    secret: string,
+    options?: { toleranceSec?: number },
+  ): Promise<unknown>;
+  static publicReceipt(
+    token: string,
+    options?: { baseUrl?: string; fetch?: typeof fetch },
+  ): Promise<unknown>;
 }
+export function publicReceipt(
+  token: string,
+  options?: { baseUrl?: string; fetch?: typeof fetch },
+): Promise<unknown>;
+export function constructEvent(
+  payload: string,
+  header: string,
+  secret: string,
+  options?: { toleranceSec?: number },
+): Promise<unknown>;

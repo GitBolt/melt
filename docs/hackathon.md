@@ -2,46 +2,39 @@
 
 ## Positioning
 
-“Let an agent spend without your wallet. ChatGPT and Claude already have a browser; they should not get your keys. Melt is the closable onchain allowance that browser uses.”
+“Gift cards without stores. Send purchasing power for a purpose, and let the recipient’s AI choose how to use it later.”
 
-We are not claiming to invent agent wallets, browser takeover or disposable sessions. The demonstration is a complete, understandable lifecycle with independently enforced permissions and persistent recovery: isolated Chromium, TaskVault spending cap, close = spending dies, leftovers return. See the research report for direct competitors.
+Melt Envelopes transfer a restricted purchasing right from one person to another. Existing agent wallets restrict how an owner’s agent spends the owner’s money. Melt holds the gift between two people who may use completely different assistants.
 
-## Rules checked September 7
+Uniswap converts only the required ETH to USDC when a purchase qualifies. Privy gives both people email-created wallets. MCP is how ChatGPT, Claude, Codex or Grok redeem the gift. None of those are top-level product tabs.
+
+## Rules checked September 8
 
 The [official event details](https://ethglobal.com/events/ethonline2026/info/details) list submission at **Sunday, September 13, 12:00 noon EDT**. They describe technicality, originality, practicality, usability and WOW factor without numerical weights. Select at most three partners. Prepare a 2–4 minute human-narrated video at least 720p, public source/version history and AI-tool disclosure. Live judging allows four minutes for the demo and three for questions. Recheck the portal for any event updates.
 
-The source is public at [GitBolt/melt](https://github.com/GitBolt/melt). The product page is [Melt](https://melt-woad.vercel.app); the workspace is [Open Melt](https://melt-woad.vercel.app/app). A hosted URL alone does not establish a successful public-network task. Disclose AI-assisted implementation and reused UI components accurately. Check event eligibility against when project-specific work began.
+The source is public at [GitBolt/melt](https://github.com/GitBolt/melt). The product page is [Melt](https://melt-woad.vercel.app); the workspace is [Open Melt](https://melt-woad.vercel.app/app). Disclose AI-assisted implementation and reused UI components accurately.
 
 ## Three-minute video
 
-| Time      | Show                                                                             | What it proves                                |
-| --------- | -------------------------------------------------------------------------------- | --------------------------------------------- |
-| 0:00–0:20 | Product page, then one concrete job: mint without connecting the main wallet     | Clear user problem                            |
-| 0:20–0:45 | Email sign-in, owner wallet, exact allowance, fixed recovery destination         | Privy and permission UX                       |
-| 0:45–1:20 | Configured model sees the page, connects its task wallet and attempts the action | Actual agent use, not a prerecorded animation |
-| 1:20–1:40 | Oversized spend rejected; allowed mint confirms                                  | Enforcement independent of model intent       |
-| 1:40–2:15 | Close, NFT arrives home, remaining ETH returned; inspect explorer/receipt        | Full onchain lifecycle                        |
-| 2:15–2:40 | A late deposit still recovers after closure; mention restart proof               | Persistent owner recovery                     |
-| 2:40–3:00 | HTTP or downloaded-client/MCP invocation and verified live status                | Reusable application, honest scope            |
-
-Label the guardrail page as an adversarial test fixture. Record an actual model or externally connected agent for the final video. The production app has no scripted driver; automated fixture choices live only in tests, and manual browser tests are not evidence of autonomous reasoning. Show a normal successful run and the blocked-spend case separately: the model should pause for review on a policy rejection, not quietly press on. Keep the full Uniswap owner conversion in a separate short sponsor clip if it makes the main narrative unwieldy. Show its swap and task-funding hashes.
-
-## Evidence to collect
-
-Use one receipt bundle for the complete public-network run: chain ID, deployed task-wallet address, owner funding hash, permitted execution hash, returned asset/ETH hashes, model identifier, and final outcome. A model's “finished” message is not evidence of a purchase. The current success signal establishes a confirmed permitted transaction; verify that the received asset matches the intended task as well.
-
-The downloadable client and HTTP API are the distribution story. Do not spend hackathon time publishing an npm package. The demo should show one external agent operating an already-authorized session while failing to create a new allowance.
+| Time      | Show                                                                | What it proves                         |
+| --------- | ------------------------------------------------------------------- | -------------------------------------- |
+| 0:00–0:20 | Product page: gift cards without stores                             | Clear, distinct problem                |
+| 0:20–0:50 | Email sign-in, create “mobile data for your trip, up to $20”        | Privy and envelope UX                  |
+| 0:50–1:20 | Fund with ETH; vault holds the gift                                 | Real onchain lock                      |
+| 1:20–1:50 | Discover finds an eSIM; a TV or cash-out is rejected                | Semantic policy, not a store gift card |
+| 1:50–2:20 | Redeem: Uniswap converts only the required amount to USDC           | Uniswap serves the consumer flow       |
+| 2:20–2:45 | MCP: Claude or ChatGPT lists the envelope and proposes the purchase | Assistants are distribution            |
+| 2:45–3:00 | Receipt, leftover funds still in the envelope                       | Honest settlement                      |
 
 ## Before submission
 
 - [ ] Privy email, external wallet and passkey login verified on the actual origin.
-- [ ] Live model completes the chosen task on the chosen testnet; save deployment, funding, execution and recovery hashes.
-- [ ] One independent compatible dapp tested and its exact supported action documented.
-- [ ] Uniswap live route and wallet-signed transaction recorded; official feedback form completed.
-- [ ] Public repository and deployed URL open without account access; contribution and AI-tool disclosure match the actual work.
-- [ ] Confirm correct event pool; disclose previous code/design and AI tooling.
-- [ ] Human-narrated video and architecture diagram attached; show confirmed task outcome separately from session closure.
-- [ ] Pick only partner tracks with demonstrated requirements. Privy/Uniswap are the implemented shortlist; Bazantic is conditional, not integrated.
-- [ ] Check-in completed in the portal by the applicable deadline; Discord update posted by the user if desired.
+- [ ] Envelope created, funded, matched, and redeemed with hashes saved.
+- [ ] Uniswap settlement hash recorded; official feedback form completed.
+- [ ] MCP redeem shown from an external assistant.
+- [ ] Public repository and deployed URL open without account access.
+- [ ] Human-narrated video and architecture notes attached.
+- [ ] Pick only partner tracks with demonstrated requirements. Privy/Uniswap are the implemented shortlist. Chainlink CRE only with a real confidential workflow.
+- [ ] Check-in completed in the portal by the applicable deadline.
 
 The check-in draft is in `docs/check-in.md`. A Discord post does not itself prove that the portal check-in was completed.

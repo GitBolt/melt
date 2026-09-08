@@ -7,10 +7,25 @@ import { randomUUID, randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
-import { toFunctionSelector } from "viem";
-import { createTask, type Task } from "../../../packages/shared/src/index.js";
+import { toFunctionSelector, parseEther, formatEther } from "viem";
+import {
+  createTask,
+  createEnvelope,
+  networkKind,
+  SEPOLIA_FAUCET,
+  type Task,
+} from "../../../packages/shared/src/index.js";
 import { forbiddenSelectors } from "./policy.js";
-import { db, digest, get, list, save, event, serial } from "./store.js";
+import {
+  db,
+  digest,
+  get,
+  getByReceiptToken,
+  list,
+  save,
+  event,
+  serial,
+} from "./store.js";
 import {
   local,
   chain,
@@ -37,8 +52,40 @@ import {
   actionSchema,
   verifyBrowserRuntime,
 } from "./browser.js";
+import { hasModelConfiguration } from "./agent.js";
 import { startFixtures, registerFixtures } from "./fixtures.js";
 import { uniswapQuote, prepareSwap, checkApproval } from "./uniswap.js";
+import {
+  swapAvailable,
+  quoteSwap,
+  resolveToken,
+  UNISWAP,
+  TOKENS,
+  SWAP_SELECTOR,
+} from "./swap.js";
+import { parseSwapIntent } from "./intent.js";
+import { address } from "../../../packages/shared/src/index.js";
+import { publicReceipt } from "./receipt.js";
+import {
+  canAccessEnvelope,
+  createFundedEnvelope,
+  findEnvelopeOptions,
+  getEnvelope,
+  listEnvelopes,
+  proposePurchase,
+  redeemQuote,
+  redemptionStatus,
+} from "./envelopes.js";
+import {
+  WEBHOOK_TYPES,
+  createWebhook,
+  deleteWebhook,
+  emit,
+  listEvents,
+  listWebhooks,
+  pingWebhook,
+  type WebhookType,
+} from "./webhooks.js";
 let browserAvailable = false;
 let lastBrowserCheck = 0;
 let browserCheck: Promise<void> | undefined;
@@ -60,6 +107,10 @@ async function checkBrowserRuntime() {
   }
   await browserCheck;
 }
+// A slow mainnet-fork RPC read should never take the whole process down.
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection (ignored to stay up):", reason);
+});
 await checkBrowserRuntime();
 await initialize();
 const fixtureServer = local ? await startFixtures() : undefined;
@@ -106,6 +157,8 @@ app.get("/api/health", async () => ({
 }));
 app.get("/api/config", async () => ({
   mode: local ? "local" : "configured",
+  network: networkKind(chain.id),
+  faucetUrl: chain.id === 11155111 ? SEPOLIA_FAUCET : undefined,
   chain: {
     id: chain.id,
     name: chain.name,
@@ -114,9 +167,15 @@ app.get("/api/config", async () => ({
   },
   privyAppId: local ? undefined : process.env.PRIVY_APP_ID,
   browserAvailable,
-  modelConfigured: !!(process.env.AI_API_KEY && process.env.AI_MODEL),
+  modelConfigured: hasModelConfiguration(),
   swapsConfigured: !!process.env.UNISWAP_API_KEY,
+  swap: {
+    available: await swapAvailable(),
+    router: UNISWAP.router,
+    tokens: TOKENS,
+  },
   publicRpcUrl: process.env.VITE_RPC_URL,
+  envelopes: { available: true },
   fixture: {
     available:
       local ||
@@ -142,14 +201,21 @@ app.get("/api/config", async () => ({
 }));
 app.post(
   "/api/auth/local",
-  { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+  { config: { rateLimit: { max: local ? 120 : 10, timeWindow: "1 minute" } } },
   async (_req, reply) => {
     if (!local)
       throw Object.assign(Error("Local sign-in is disabled"), {
         statusCode: 404,
       });
-    const token = randomBytes(32).toString("hex"),
-      id = "local:" + randomUUID();
+    const token = randomBytes(32).toString("hex");
+    const isolate =
+      String(_req.headers["x-melt-local-user"] || "") === "isolated";
+    const prior = db
+      .prepare("SELECT user_id FROM tasks ORDER BY rowid DESC LIMIT 1")
+      .get() as { user_id?: string } | undefined;
+    const id = isolate
+      ? "local:" + randomUUID()
+      : prior?.user_id || "local:playground";
     db.prepare("INSERT INTO auth_sessions VALUES(?,?,?,?)").run(
       digest(token),
       id,
@@ -180,13 +246,103 @@ async function owned(req: any) {
     throw Object.assign(Error("Session not found"), { statusCode: 404 });
   return { task, user };
 }
+async function accessibleEnvelope(req: any) {
+  const user = await authenticate(req);
+  const envelope = getEnvelope(req.params.id);
+  if (!canAccessEnvelope(envelope, user))
+    throw Object.assign(Error("Envelope not found"), { statusCode: 404 });
+  return { envelope, user };
+}
+app.get("/api/envelopes", async (req) => {
+  const user = await authenticate(req);
+  return listEnvelopes(user.id, user.owner);
+});
+app.post(
+  "/api/envelopes",
+  { config: { rateLimit: { max: local ? 120 : 10, timeWindow: "1 minute" } } },
+  async (req, reply) => {
+    const user = await authenticate(req);
+    if (user.apiKey)
+      throw Object.assign(Error("Only the owner can fund a new envelope"), {
+        statusCode: 403,
+      });
+    const input = createEnvelope.parse(req.body);
+    const raw = req.headers["idempotency-key"];
+    if (typeof raw !== "string" || raw.length < 8 || raw.length > 128)
+      throw Error("Provide an Idempotency-Key header (8–128 characters)");
+    const key = user.id + ":envelope:" + raw;
+    return serial("create:" + user.id, async () => {
+      const previous = db
+        .prepare("SELECT task_id FROM idempotency WHERE key=?")
+        .get(key);
+      if (previous) return getEnvelope(previous.task_id as string);
+      const openEnvelopes = list(user.id).filter(
+        (t) => t.status !== "closed" && t.envelopeId,
+      ).length;
+      if (openEnvelopes >= (local ? 40 : 20))
+        throw Error("Close an existing envelope before creating another");
+      const envelope = await createFundedEnvelope(user, input);
+      db.prepare("INSERT INTO idempotency VALUES(?,?)").run(key, envelope.id);
+      reply.code(201);
+      return envelope;
+    });
+  },
+);
+app.get(
+  "/api/envelopes/:id",
+  async (req) => (await accessibleEnvelope(req)).envelope,
+);
+app.get("/api/envelopes/:id/options", async (req) => {
+  const { envelope } = await accessibleEnvelope(req);
+  const request = String((req.query as { q?: string }).q || "");
+  return findEnvelopeOptions(envelope, request);
+});
+app.post(
+  "/api/envelopes/:id/propose",
+  { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+  async (req) => {
+    const { envelope } = await accessibleEnvelope(req);
+    const body = z
+      .object({
+        sku: z.string().trim().min(1).max(80),
+        request: z.string().trim().max(500).optional().default(""),
+      })
+      .parse(req.body);
+    return proposePurchase(envelope, body.sku, body.request);
+  },
+);
+app.post(
+  "/api/envelopes/:id/redeem",
+  { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+  async (req) => {
+    const { envelope } = await accessibleEnvelope(req);
+    const body = req.body as Record<string, unknown> | undefined;
+    if (
+      body &&
+      (body.to || body.transfer || body.recipient || body.amount) &&
+      !body.quoteId
+    )
+      throw Object.assign(
+        Error(
+          "An envelope cannot send unrestricted cash. Propose a purchase, then redeem that quote.",
+        ),
+        { statusCode: 400 },
+      );
+    const parsed = z.object({ quoteId: z.string().uuid() }).parse(req.body);
+    return redeemQuote(envelope, parsed.quoteId);
+  },
+);
+app.get("/api/envelopes/:id/redemptions", async (req) => {
+  const { envelope } = await accessibleEnvelope(req);
+  return redemptionStatus(envelope);
+});
 app.get("/api/sessions", async (req) => {
   const user = await authenticate(req);
   return list(user.id);
 });
 app.post(
   "/api/sessions",
-  { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+  { config: { rateLimit: { max: local ? 120 : 10, timeWindow: "1 minute" } } },
   async (req, reply) => {
     const user = await authenticate(req);
     if (user.apiKey)
@@ -197,6 +353,58 @@ app.post(
     const input = createTask.parse(req.body);
     if (input.recovery.toLowerCase() !== user.owner.toLowerCase())
       throw Error("Recovery must be your authenticated wallet");
+    // Reliable natural-language swaps: a plain instruction like "swap 0.05 ETH
+    // for USDC" becomes a deterministic onchain swap when Uniswap is available.
+    if (
+      input.kind === "browse" &&
+      !input.url &&
+      !input.target &&
+      (await swapAvailable())
+    ) {
+      const intent = parseSwapIntent(input.instruction);
+      if (intent) {
+        try {
+          const token = await resolveToken(intent.tokenOut);
+          input.kind = "swap";
+          input.swap = {
+            tokenOut: token.address,
+            symbol: token.symbol,
+            amountIn: intent.amountIn,
+            slippageBps: 50,
+            buys: 1,
+            intervalSec: 60,
+          };
+        } catch {
+          /* Unknown token symbol; keep this as a browser task. */
+        }
+      }
+    }
+    if (input.kind === "swap") {
+      if (!input.swap) throw Error("A swap task needs swap details");
+      if (!(await swapAvailable()))
+        throw Error(
+          "Onchain swaps need a Uniswap-enabled network. Run with MELT_FORK=1 or use a Uniswap-supported chain.",
+        );
+      const token = await resolveToken(input.swap.tokenOut);
+      // Validate that a route exists now so the user does not fund a dead pair.
+      await quoteSwap({
+        tokenOut: token.address,
+        amountIn: input.swap.amountIn,
+        slippageBps: input.swap.slippageBps,
+      });
+      input.swap.tokenOut = token.address;
+      input.swap.symbol = token.symbol;
+      // Lock the vault to only the Uniswap router + swap function, and hold
+      // exactly the total across all scheduled buys so nothing else is spent.
+      const totalWei =
+        parseEther(input.swap.amountIn) * BigInt(input.swap.buys);
+      if (totalWei > parseEther("10"))
+        throw Error("Total swap budget must be 10 or less");
+      input.target = UNISWAP.router;
+      input.selector = SWAP_SELECTOR;
+      input.budget = formatEther(totalWei);
+      input.url = "";
+    }
     if (
       input.selector &&
       forbiddenSelectors.includes(input.selector.toLowerCase())
@@ -221,8 +429,11 @@ app.post(
           );
         return prior;
       }
-      await requireBrowser();
-      if (list(user.id).filter((t) => t.status !== "closed").length >= 10)
+      if (input.kind !== "swap") await requireBrowser();
+      const openJobs = list(user.id).filter(
+        (t) => t.status !== "closed" && !t.envelopeId,
+      ).length;
+      if (openJobs >= (local ? 40 : 10))
         throw Error("Close an existing session before creating another");
       const task: Task = {
         ...input,
@@ -238,8 +449,7 @@ app.post(
         events: [],
         transactions: [],
         assets: [],
-        agentMode:
-          process.env.AI_API_KEY && process.env.AI_MODEL ? "model" : "manual",
+        agentMode: hasModelConfiguration() ? "model" : "manual",
         outcome: "pending",
       };
       save(task);
@@ -247,6 +457,7 @@ app.post(
       event(task, "info", "Spending limit set");
       try {
         await deployTask(task);
+        emit(user.id, "session.created", task);
       } catch (e) {
         task.status = "attention";
         task.error = errorMessage(e);
@@ -274,7 +485,7 @@ app.post("/api/sessions/:id/start", async (req) => {
   const { manual } = z
     .object({ manual: z.boolean().default(false) })
     .parse(req.body || {});
-  await requireBrowser();
+  if (task.kind !== "swap") await requireBrowser();
   await start(task.id, manual);
   return task;
 });
@@ -314,7 +525,9 @@ app.post("/api/sessions/:id/recover", async (req) => {
   else task.assets.push({ ...input, recovered: false });
   save(task);
   await finish(task.id);
-  return task;
+  const closed = get(task.id);
+  emit(closed.userId, "session.recovered", closed);
+  return closed;
 });
 app.post("/api/sessions/:id/funding", async (req) => {
   const { task, user } = await owned(req);
@@ -346,9 +559,15 @@ app.post("/api/sessions/:id/funding", async (req) => {
     event(task, "success", "Funds added to your task wallet", hash);
   }
   await refreshBalance(task);
-  if (task.status === "funding" && Number(task.balance) > 0)
+  if (task.status === "funding" && Number(task.balance) > 0) {
     task.status = "ready";
-  save(task);
+    save(task);
+    emit(task.userId, "session.funded", task);
+    if (task.envelopeId)
+      emit(task.userId, "envelope.funded", task, {
+        envelopeId: task.envelopeId,
+      });
+  } else save(task);
   return task;
 });
 app.post("/api/sessions/:id/refresh", async (req) => {
@@ -359,6 +578,11 @@ app.post("/api/sessions/:id/refresh", async (req) => {
     if (task.status === "funding" && Number(task.balance) > 0) {
       task.status = "ready";
       save(task);
+      emit(task.userId, "session.funded", task);
+      if (task.envelopeId)
+        emit(task.userId, "envelope.funded", task, {
+          envelopeId: task.envelopeId,
+        });
     }
     return task;
   });
@@ -392,6 +616,61 @@ app.get("/api/sessions/:id/receipt", async (req, reply) => {
       network: chain.name,
     });
 });
+app.get(
+  "/api/public/receipts/:token",
+  { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+  async (req) => {
+    const token = String((req.params as { token: string }).token || "");
+    const task = getByReceiptToken(token);
+    return publicReceipt(task, {
+      id: chain.id,
+      name: chain.name,
+      symbol: chain.nativeCurrency.symbol,
+      explorer: process.env.EXPLORER_URL,
+    });
+  },
+);
+app.get("/api/events", async (req) => {
+  const user = await authenticate(req);
+  if (user.apiKey) throw Error("Owner sign-in required");
+  return listEvents(user.id);
+});
+app.get("/api/webhooks", async (req) => {
+  const user = await authenticate(req);
+  if (user.apiKey) throw Error("Owner sign-in required");
+  return listWebhooks(user.id);
+});
+app.post("/api/webhooks", async (req) => {
+  const user = await authenticate(req);
+  if (user.apiKey) throw Error("Owner sign-in required");
+  const body = z
+    .object({
+      url: z.string().trim().url().max(2048),
+      events: z
+        .array(z.enum(WEBHOOK_TYPES))
+        .min(1)
+        .max(WEBHOOK_TYPES.length)
+        .default(
+          WEBHOOK_TYPES.filter((type) => type !== "webhook.test") as [
+            WebhookType,
+            ...WebhookType[],
+          ],
+        ),
+    })
+    .parse(req.body);
+  return createWebhook(user.id, body.url, body.events);
+});
+app.post("/api/webhooks/:id/ping", async (req) => {
+  const user = await authenticate(req);
+  if (user.apiKey) throw Error("Owner sign-in required");
+  return pingWebhook(user.id, (req.params as { id: string }).id);
+});
+app.delete("/api/webhooks/:id", async (req) => {
+  const user = await authenticate(req);
+  if (user.apiKey) throw Error("Owner sign-in required");
+  deleteWebhook(user.id, (req.params as { id: string }).id);
+  return { ok: true };
+});
 app.get("/api/keys", async (req) => {
   const user = await authenticate(req);
   if (user.apiKey) throw Error("Owner sign-in required");
@@ -408,10 +687,20 @@ app.post("/api/keys", async (req) => {
     .object({ name: z.string().trim().min(1).max(80) })
     .parse(req.body);
   const token = "melt_" + randomBytes(32).toString("hex");
-  db.prepare(
-    "INSERT INTO tokens(hash,user_id,name,created) VALUES(?,?,?,?)",
-  ).run(digest(token), user.id, name, new Date().toISOString());
-  return { token, scopes: ["sessions:read", "sessions:run", "sessions:close"] };
+  const inserted = db
+    .prepare("INSERT INTO tokens(hash,user_id,name,created) VALUES(?,?,?,?)")
+    .run(digest(token), user.id, name, new Date().toISOString());
+  return {
+    token,
+    id: Number(inserted.lastInsertRowid),
+    scopes: [
+      "sessions:read",
+      "sessions:run",
+      "sessions:close",
+      "envelopes:read",
+      "envelopes:redeem",
+    ],
+  };
 });
 app.delete("/api/keys/:id", async (req) => {
   const user = await authenticate(req);
@@ -422,6 +711,29 @@ app.delete("/api/keys/:id", async (req) => {
   );
   return { ok: true };
 });
+app.get("/api/swap/tokens", async () => ({
+  available: await swapAvailable(),
+  router: UNISWAP.router,
+  tokens: TOKENS,
+}));
+app.post(
+  "/api/swap/quote",
+  { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+  async (req) => {
+    await authenticate(req);
+    const body = z
+      .object({
+        tokenOut: z.union([address, z.string().trim().min(1).max(20)]),
+        amountIn: z
+          .string()
+          .regex(/^\d+(\.\d{1,18})?$/)
+          .refine((v) => Number(v) > 0 && Number(v) <= 10, "Use 0–10"),
+        slippageBps: z.number().int().min(1).max(5000).optional(),
+      })
+      .parse(req.body);
+    return quoteSwap(body);
+  },
+);
 app.post("/api/uniswap/quote", async (req) => {
   const user = await authenticate(req);
   if (user.apiKey) throw Error("Owner sign-in required");

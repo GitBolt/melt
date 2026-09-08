@@ -17,16 +17,29 @@ function stop(code = 0) {
 process.on("SIGINT", () => stop());
 process.on("SIGTERM", () => stop());
 if (!process.env.RPC_URL) {
+  // Optional mainnet fork so real Uniswap contracts are available locally for
+  // onchain swaps. The chain id stays 31337 so every other local flow is
+  // unchanged. Set MELT_FORK=1 for a default public RPC, or FORK_RPC_URL=... .
+  const forkRpc =
+    process.env.FORK_RPC_URL ||
+    (process.env.MELT_FORK ? "https://ethereum-rpc.publicnode.com" : "");
+  const forkArgs = forkRpc
+    ? [
+        "--fork-url",
+        forkRpc,
+        "--chain-id",
+        "31337",
+        ...(process.env.FORK_BLOCK ? ["--fork-block-number", process.env.FORK_BLOCK] : []),
+      ]
+    : ["--state", "data/anvil-state.json", "--state-interval", "10"];
+  if (forkRpc) console.log(`Forking ${forkRpc} on chain id 31337 for Uniswap.`);
   run(process.env.ANVIL_BIN || `${process.env.HOME}/.foundry/bin/anvil`, [
     "--host",
     "127.0.0.1",
     "--port",
     "8545",
     "--silent",
-    "--state",
-    "data/anvil-state.json",
-    "--state-interval",
-    "10",
+    ...forkArgs,
   ]);
   for (let i = 0; i < 50; i++) {
     try {

@@ -12,7 +12,14 @@ import {
   type BrowserAction,
 } from "./agent.js";
 export { actionSchema } from "./agent.js";
-import { toHex, toEventSelector, type Hex, type Address } from "viem";
+import {
+  toHex,
+  toEventSelector,
+  formatUnits,
+  parseUnits,
+  type Hex,
+  type Address,
+} from "viem";
 import { validateTransaction, lockedSpend } from "./policy.js";
 import {
   client,
@@ -28,6 +35,8 @@ import {
   signAgentTypedData,
 } from "./chain.js";
 import { get, event, serial, save } from "./store.js";
+import { emit } from "./webhooks.js";
+import { quoteSwap, buildSwapCall, knownToken } from "./swap.js";
 import type { Task } from "../../../packages/shared/src/index.js";
 async function launchBrowser(args: string[]) {
   if (process.env.BROWSERLESS_TOKEN) {
@@ -421,19 +430,39 @@ export async function discoverAssets(task: Task) {
       const tokenId = log.topics[3]
         ? BigInt(log.topics[3]).toString()
         : undefined;
-      if (
-        !task.assets.some(
-          (a) =>
-            a.token.toLowerCase() === log.address.toLowerCase() &&
-            a.tokenId === tokenId,
-        )
-      )
-        task.assets.push({
-          token: log.address,
-          tokenId,
-          kind: tokenId ? "erc721" : "erc20",
-          recovered: false,
-        });
+      const rawAmount =
+        !tokenId && log.data && log.data !== "0x" ? BigInt(log.data) : 0n;
+      const known = knownToken(log.address);
+      const existing = task.assets.find(
+        (a) =>
+          a.token.toLowerCase() === log.address.toLowerCase() &&
+          a.tokenId === tokenId,
+      );
+      if (existing) {
+        if (existing.kind === "erc20" && rawAmount > 0n) {
+          const decimals = known?.decimals ?? 18;
+          let prev = 0n;
+          try {
+            if (existing.amount) prev = parseUnits(existing.amount, decimals);
+          } catch {
+            prev = 0n;
+          }
+          existing.amount = formatUnits(prev + rawAmount, decimals);
+          existing.symbol ||= known?.symbol;
+        }
+        continue;
+      }
+      task.assets.push({
+        token: log.address,
+        tokenId,
+        kind: tokenId ? "erc721" : "erc20",
+        recovered: false,
+        symbol: known?.symbol,
+        amount:
+          !tokenId && rawAmount > 0n
+            ? formatUnits(rawAmount, known?.decimals ?? 18)
+            : undefined,
+      });
     }
   }
   save(task);
@@ -553,6 +582,7 @@ export async function finish(id: string) {
         task.outcomeReason = "The session ended without a task transaction.";
       }
       await recover(task);
+      emit(get(id).userId, "session.closed", get(id));
     } catch (e) {
       task.status = "attention";
       task.error = errorMessage(e);
@@ -567,7 +597,39 @@ export async function start(id: string, manual = false) {
   if (Date.now() >= task.expiresAt * 1000)
     throw Error("Session expired; return funds instead");
   await reconcile(task);
-  if (lockedSpend(task) && hasConfirmedExecution(task)) return finish(id);
+  // A locked single-purchase session that already executed is complete; a
+  // recurring (DCA) swap resumes its remaining buys instead of finishing.
+  if (
+    lockedSpend(task) &&
+    hasConfirmedExecution(task) &&
+    (task.swap?.buys ?? 1) <= 1
+  )
+    return finish(id);
+  if (task.kind === "swap") {
+    const generation = (generations.get(id) || 0) + 1;
+    generations.set(id, generation);
+    task.status = "running";
+    task.outcome = "pending";
+    delete task.outcomeReason;
+    delete task.error;
+    save(task);
+    emit(task.userId, "session.started", task);
+    void runSwaps(id, generation).catch((e) => {
+      if (task.status === "running" && generations.get(id) === generation) {
+        const message = errorMessage(e);
+        task.status = "paused";
+        task.error = message;
+        task.outcome = "failed";
+        task.outcomeReason = `The swap did not complete: ${message}`;
+        event(
+          task,
+          "error",
+          `Swap paused: ${message}. Your funds are safe and can be returned.`,
+        );
+      }
+    });
+    return;
+  }
   if (!manual && task.agentMode === "model" && !hasModelConfiguration())
     throw Error(
       "AI agent is not configured. Start with manual control instead.",
@@ -579,6 +641,7 @@ export async function start(id: string, manual = false) {
   delete task.outcomeReason;
   delete task.error;
   save(task);
+  emit(task.userId, "session.started", task);
   try {
     if (!sessions.has(id)) await openBrowser(task);
   } catch (e) {
@@ -732,6 +795,95 @@ async function runAgent(id: string, generation: number) {
       "Agent paused at its step limit. Review the session before resuming.",
     );
   }
+}
+const confirmedSwaps = (task: Task) =>
+  task.transactions.filter(
+    (t) => t.kind === "Execute dapp transaction" && t.status === "success",
+  ).length;
+// Deterministic Uniswap swaps: no browser, no model. The vault forwards its
+// native allowance to the Uniswap router (a native-value call that needs no
+// approval) and the purchased token is returned to the owner on close. With
+// `buys > 1` this dollar-cost-averages across time under one onchain budget.
+async function runSwaps(id: string, generation: number) {
+  const task = get(id);
+  if (!task.swap) throw Error("This session has no swap details");
+  const symbol = chain.nativeCurrency.symbol;
+  const buys = task.swap.buys ?? 1;
+  const intervalSec = task.swap.intervalSec ?? 60;
+  const live = () =>
+    task.status === "running" && generations.get(id) === generation;
+  if (buys > 1)
+    event(
+      task,
+      "info",
+      `Recurring buy: ${buys} × ${task.swap.amountIn} ${symbol} → ${task.swap.symbol}, every ${intervalSec}s within one limit.`,
+    );
+  for (let i = confirmedSwaps(task); i < buys; i++) {
+    if (!live()) return;
+    if (Date.now() >= task.expiresAt * 1000) {
+      event(task, "info", "Session window ended before all buys completed.");
+      break;
+    }
+    const quote = await quoteSwap({
+      tokenOut: task.swap.tokenOut,
+      amountIn: task.swap.amountIn,
+      slippageBps: task.swap.slippageBps,
+    });
+    if (!live()) return;
+    const call = buildSwapCall({
+      tokenOut: quote.tokenOut,
+      recipient: task.vault as Address,
+      amountInWei: BigInt(quote.amountInWei),
+      minOutWei: BigInt(quote.minOutWei),
+      fee: quote.fee,
+    });
+    const label = buys > 1 ? `Buy ${i + 1} of ${buys}` : "Swap";
+    event(
+      task,
+      "info",
+      `${label}: Uniswap V3 ${(quote.fee / 10000).toFixed(2)}% pool · min ${quote.minOut} ${quote.symbol}.`,
+    );
+    await serial(task.id, async () => {
+      await reconcile(task);
+      await refreshBalance(task);
+      // Simulate as the vault before the relayer signs anything real.
+      await client.call({
+        account: task.vault as Address,
+        to: call.to,
+        value: call.value,
+        data: call.data,
+      });
+      const hash = await vaultCall(
+        task,
+        "execute",
+        [call.to, call.value, call.data],
+        "Execute dapp transaction",
+      );
+      await refreshBalance(task);
+      await discoverAssets(task);
+      event(
+        task,
+        "success",
+        `${label} confirmed · about ${Number(quote.amountOut).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${quote.symbol} received`,
+        hash,
+      );
+      emit(task.userId, "swap.executed", task, {
+        buy: i + 1,
+        buys,
+        amountOut: quote.amountOut,
+        symbol: quote.symbol,
+        hash,
+      });
+    });
+    if (!live()) return;
+    if (i < buys - 1)
+      await new Promise((r) =>
+        setTimeout(r, Math.min(intervalSec, 3600) * 1000),
+      );
+  }
+  if (!live()) return;
+  Object.assign(task, executionOutcome(task));
+  await finish(id);
 }
 export async function shutdownBrowsers() {
   await Promise.all([...browsers.values()].map((b) => b.close()));

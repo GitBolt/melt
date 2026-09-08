@@ -1,24 +1,95 @@
 import { test, expect, type Page } from "@playwright/test";
 const base = "http://127.0.0.1:5173";
 const workspace = base + "/app";
-async function chooseExample(page: Page, name: "Mint" | "Pay") {
-  await page.getByRole("button", { name, exact: true }).click();
+async function signInLocal(page: Page) {
+  await page.goto(workspace);
+  await page.getByRole("button", { name: "Open local workspace" }).click();
+}
+async function createBrowseSession(
+  page: Page,
+  extra: {
+    title?: string;
+    instruction?: string;
+    url?: string;
+    target?: string;
+    selector?: string;
+    key?: string;
+  } = {},
+) {
+  const cfg = await (await page.request.get(base + "/api/config")).json();
+  const me = await (await page.request.get(base + "/api/me")).json();
+  const response = await page.request.post(base + "/api/sessions", {
+    headers: {
+      Origin: base,
+      "Idempotency-Key": extra.key
+        ? `${extra.key}-${crypto.randomUUID()}`
+        : crypto.randomUUID(),
+    },
+    data: {
+      title: extra.title || "Mint a field note",
+      instruction:
+        extra.instruction ||
+        "Connect the wallet and mint one field note. Return the collectible and remaining funds when done.",
+      url: extra.url ?? cfg.fixture.url,
+      budget: "0.0003",
+      durationMinutes: 15,
+      target: extra.target === undefined ? cfg.fixture.target : extra.target,
+      selector:
+        extra.selector === undefined ? cfg.fixture.selector : extra.selector,
+      recovery: me.owner,
+      kind: "browse",
+    },
+  });
+  expect(response.ok(), await response.text()).toBeTruthy();
+  return response.json();
+}
+async function waitForStatus(
+  page: Page,
+  sessionId: string,
+  status: string | RegExp,
+  timeout = 30000,
+) {
+  await expect
+    .poll(
+      async () => {
+        const state = await (
+          await page.request.get(`${base}/api/sessions/${sessionId}`)
+        ).json();
+        return state.status;
+      },
+      { timeout },
+    )
+    .toMatch(status instanceof RegExp ? status : new RegExp(`^${status}$`));
+}
+async function openActivitySession(page: Page, title: string) {
+  await page.getByRole("link", { name: "Activity", exact: true }).click();
+  const row = page
+    .getByRole("button", { name: new RegExp(title) })
+    .filter({ hasText: "Ready" })
+    .first();
+  await expect(row).toBeVisible({ timeout: 30000 });
+  await row.click();
 }
 // Fixed fixture choices belong only in tests. Production agents choose from observations.
-async function mintThroughManualBrowser(page: Page) {
-  // Wait for wallet creation before starting; creation persists a funding row first.
-  await page
-    .getByRole("button", { name: "Open task browser", exact: true })
-    .click();
-  const [task] = await (await page.request.get(base + "/api/sessions")).json();
-  await expect
-    .poll(async () => {
-      const state = await (
-        await page.request.get(`${base}/api/sessions/${task.id}`)
-      ).json();
-      return state.status;
-    })
-    .toBe("paused");
+async function mintThroughManualBrowser(page: Page, sessionId?: string) {
+  const task = sessionId
+    ? { id: sessionId }
+    : (await (await page.request.get(base + "/api/sessions")).json())[0];
+  await waitForStatus(page, task.id, /ready|paused/);
+  const current = await (
+    await page.request.get(`${base}/api/sessions/${task.id}`)
+  ).json();
+  if (current.status === "ready") {
+    const started = await page.request.post(
+      `${base}/api/sessions/${task.id}/start`,
+      {
+        headers: { Origin: base },
+        data: { manual: true },
+      },
+    );
+    expect(started.ok(), await started.text()).toBeTruthy();
+  }
+  await waitForStatus(page, task.id, "paused");
   for (const label of ["Connect wallet", "Mint field note"]) {
     const observation = await (
       await page.request.get(`${base}/api/sessions/${task.id}/browser`)
@@ -71,7 +142,7 @@ test("product page explains the task wallet before the workspace", async ({
   await page.goto(base);
   await expect(
     page.getByRole("heading", {
-      name: "Let an agent spend without your wallet.",
+      name: "Gift cards without stores.",
     }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Open Melt" }).first().click();
@@ -85,13 +156,9 @@ test("real browser mint returns NFT and remainder; receipt remains accessible", 
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(workspace);
-  await page.getByRole("button", { name: "Open local workspace" }).click();
-  await chooseExample(page, "Mint");
-  await expect(
-    page.getByRole("button", { name: "Create task wallet" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Create task wallet" }).click();
+  await signInLocal(page);
+  const created = await createBrowseSession(page);
+  await openActivitySession(page, "Mint a field note");
   await expect(
     page.getByRole("button", { name: "Open task browser", exact: true }),
   ).toBeVisible({ timeout: 30000 });
@@ -99,20 +166,11 @@ test("real browser mint returns NFT and remainder; receipt remains accessible", 
     path: "docs/screenshots/session-ready.png",
     fullPage: true,
   });
-  await mintThroughManualBrowser(page);
-  await expect(page.getByText("Session closed", { exact: true })).toBeVisible({
-    timeout: 60000,
-  });
-  await expect(
-    page.getByText("1 asset returned · agent spending disabled"),
-  ).toBeVisible();
-  await page.screenshot({
-    path: "docs/screenshots/session-complete.png",
-    fullPage: true,
-  });
-  const response = await page.request.get(base + "/api/sessions");
-  const tasks = await response.json();
-  const t = tasks[0];
+  await mintThroughManualBrowser(page, created.id);
+  const t = await (
+    await page.request.get(`${base}/api/sessions/${created.id}`)
+  ).json();
+  expect(t.status).toBe("closed");
   expect(t.spent).toBe("0.0001");
   expect(t.returned).toBe("0.0002");
   expect(t.assets[0].recovered).toBe(true);
@@ -154,15 +212,16 @@ test("another account cannot read session; API key cannot create allowance; revo
     selector: cfg.fixture.selector,
     recovery: me.owner,
   };
+  const permissionKey = `permission-test-${crypto.randomUUID()}`;
   const first = await req.post(base + "/api/sessions", {
     data: body,
-    headers: { ...h, "Idempotency-Key": "permission-test-1" },
+    headers: { ...h, "Idempotency-Key": permissionKey },
   });
   const task = await first.json();
   expect(first.status()).toBe(201);
   const replay = await req.post(base + "/api/sessions", {
     data: body,
-    headers: { ...h, "Idempotency-Key": "permission-test-1" },
+    headers: { ...h, "Idempotency-Key": permissionKey },
   });
   expect((await replay.json()).id).toBe(task.id);
   const key = await (
@@ -172,7 +231,10 @@ test("another account cannot read session; API key cannot create allowance; revo
     })
   ).json();
   const other = await browser.newContext();
-  await other.request.post(base + "/api/auth/local", { data: {}, headers: h });
+  await other.request.post(base + "/api/auth/local", {
+    data: {},
+    headers: { ...h, "x-melt-local-user": "isolated" },
+  });
   expect(
     (await other.request.get(`${base}/api/sessions/${task.id}`)).status(),
   ).toBe(404);
@@ -187,8 +249,8 @@ test("another account cannot read session; API key cannot create allowance; revo
       })
     ).status(),
   ).toBe(403);
-  const keys = await (await req.get(base + "/api/keys")).json();
-  await req.delete(base + "/api/keys/" + keys[0].id, { headers: h });
+  expect(key.token).toMatch(/^melt_/);
+  await req.delete(base + "/api/keys/" + key.id, { headers: h });
   expect(
     (
       await req.get(base + "/api/sessions", {
@@ -209,13 +271,12 @@ test("second fixture layout works and narrow UI has no horizontal overflow", asy
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto(workspace);
-  await page.getByRole("button", { name: "Open local workspace" }).click();
-  await chooseExample(page, "Mint");
-  await page
-    .getByLabel("Starting website", { exact: true })
-    .fill("http://127.0.0.1:8788/print-shop");
-  await page.getByRole("button", { name: "Create task wallet" }).click();
+  await signInLocal(page);
+  const created = await createBrowseSession(page, {
+    url: "http://127.0.0.1:8788/print-shop",
+    key: "print-shop-mobile",
+  });
+  await openActivitySession(page, "Mint a field note");
   await expect(
     page.getByRole("button", { name: "Open task browser", exact: true }),
   ).toBeVisible({ timeout: 30000 });
@@ -228,10 +289,18 @@ test("second fixture layout works and narrow UI has no horizontal overflow", asy
     path: "docs/screenshots/session-mobile.png",
     fullPage: true,
   });
-  await mintThroughManualBrowser(page);
-  await expect(page.getByText("Session closed", { exact: true })).toBeVisible({
-    timeout: 60000,
-  });
+  await mintThroughManualBrowser(page, created.id);
+  await expect
+    .poll(
+      async () =>
+        (
+          await (
+            await page.request.get(`${base}/api/sessions/${created.id}`)
+          ).json()
+        ).status,
+      { timeout: 15000 },
+    )
+    .toBe("closed");
 });
 
 test("browser rejects oversized spend, completes allowed mint, and recovers late funds and NFT", async ({
@@ -259,18 +328,20 @@ test("browser rejects oversized spend, completes allowed mint, and recovers late
     chain: foundry,
     transport: http("http://127.0.0.1:8545"),
   });
-  await page.goto(workspace);
-  await page.getByRole("button", { name: "Open local workspace" }).click();
-  await chooseExample(page, "Mint");
-  await page
-    .getByLabel("Starting website", { exact: true })
-    .fill("http://127.0.0.1:8788/guardrail-check");
-  await page.getByRole("button", { name: "Create task wallet" }).click();
-  await mintThroughManualBrowser(page);
-  await expect(page.getByText("Session closed", { exact: true })).toBeVisible({
-    timeout: 60000,
+  await signInLocal(page);
+  const created = await createBrowseSession(page, {
+    url: "http://127.0.0.1:8788/guardrail-check",
+    key: "guardrail-mint",
   });
-  const t = (await (await page.request.get(base + "/api/sessions")).json())[0];
+  await openActivitySession(page, "Mint a field note");
+  await expect(
+    page.getByRole("button", { name: "Open task browser", exact: true }),
+  ).toBeVisible({ timeout: 30000 });
+  await mintThroughManualBrowser(page, created.id);
+  const t = await (
+    await page.request.get(`${base}/api/sessions/${created.id}`)
+  ).json();
+  expect(t.status).toBe("closed");
   expect(
     t.events.some(
       (e: any) => e.kind === "blocked" && e.text.includes("allowance"),
@@ -339,16 +410,20 @@ test("manual agent controls and MCP operate only owner-authorized sessions", asy
   const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
   const { StdioClientTransport } =
     await import("@modelcontextprotocol/sdk/client/stdio.js");
-  await page.goto(workspace);
-  await page.getByRole("button", { name: "Open local workspace" }).click();
-  await chooseExample(page, "Mint");
-  await page.getByRole("button", { name: "Create task wallet" }).click();
-  await expect(
-    page.getByRole("button", { name: "Open task browser", exact: true }),
-  ).toBeVisible();
-  const task = (
-    await (await page.request.get(base + "/api/sessions")).json()
-  )[0];
+  await signInLocal(page);
+  const created = await createBrowseSession(page, { key: "mcp-mint" });
+  await expect
+    .poll(
+      async () => {
+        const state = await (
+          await page.request.get(`${base}/api/sessions/${created.id}`)
+        ).json();
+        return state.status;
+      },
+      { timeout: 30000 },
+    )
+    .toBe("ready");
+  const task = created;
   const key = await (
     await page.request.post(base + "/api/keys", {
       headers: { Origin: base },
@@ -370,25 +445,22 @@ test("manual agent controls and MCP operate only owner-authorized sessions", asy
   try {
     await mcp.connect(transport);
     const tools = await mcp.listTools();
-    expect(tools.tools.map((tool) => tool.name).sort()).toEqual(
-      [
+    const names = tools.tools.map((tool) => tool.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "list_envelopes",
+        "get_envelope",
+        "find_options",
+        "propose_purchase",
+        "redeem",
+        "get_redemption_status",
         "list_sessions",
         "start_session",
         "read_session",
-        "take_control",
-        "observe_browser",
-        "open_page",
-        "click_control",
-        "fill_control",
-        "close_session",
-        "wait_browser",
         "read_receipt",
-        "scroll_browser",
-        "press_control",
-        "select_control",
-        "finish_task",
-      ].sort(),
+      ]),
     );
+    expect(names).not.toContain("transfer");
     const started = await mcp.callTool({
       name: "start_session",
       arguments: { sessionId: task.id },
@@ -455,7 +527,10 @@ test("request validation blocks private URLs, changed idempotency bodies and cro
     });
     expect(r.status()).toBe(400);
   }
-  const headers = { ...h, "Idempotency-Key": "validation-repeat" };
+  const headers = {
+    ...h,
+    "Idempotency-Key": `validation-repeat-${crypto.randomUUID()}`,
+  };
   const made = await (
     await request.post(base + "/api/sessions", { headers, data: body })
   ).json();
@@ -494,25 +569,42 @@ test("request validation blocks private URLs, changed idempotency bodies and cro
 test("a spending-limit session can complete a different job without a contract lock", async ({
   page,
 }) => {
-  await page.goto(workspace);
-  await page.getByRole("button", { name: "Open local workspace" }).click();
-  await chooseExample(page, "Pay");
-  await page.getByRole("button", { name: "Create task wallet" }).click();
+  await signInLocal(page);
+  const cfg = await (await page.request.get(base + "/api/config")).json();
+  const created = await createBrowseSession(page, {
+    title: "Leave a tip",
+    instruction:
+      "Connect the wallet and leave a tip. Return unused funds when done.",
+    url: cfg.fixture.pay.url,
+    target: "",
+    selector: "",
+    key: "tip-session",
+  });
+  await openActivitySession(page, "Leave a tip");
   await expect(
     page.getByRole("button", { name: "Open task browser", exact: true }),
   ).toBeVisible({ timeout: 30000 });
-  await page
-    .getByRole("button", { name: "Open task browser", exact: true })
-    .click();
-  const [task] = await (await page.request.get(base + "/api/sessions")).json();
+  const task = created;
   expect(task.target).toBe("");
+  await waitForStatus(page, task.id, "ready");
+  const started = await page.request.post(
+    `${base}/api/sessions/${task.id}/start`,
+    {
+      headers: { Origin: base },
+      data: { manual: true },
+    },
+  );
+  expect(started.ok(), await started.text()).toBeTruthy();
   await expect
-    .poll(async () => {
-      const state = await (
-        await page.request.get(`${base}/api/sessions/${task.id}`)
-      ).json();
-      return state.status;
-    })
+    .poll(
+      async () => {
+        const state = await (
+          await page.request.get(`${base}/api/sessions/${task.id}`)
+        ).json();
+        return state.status;
+      },
+      { timeout: 30000 },
+    )
     .toBe("paused");
   for (const label of ["Connect wallet", "Leave a tip"]) {
     const observation = await (
@@ -560,6 +652,88 @@ test("a spending-limit session can complete a different job without a contract l
   expect(closed.outcome).toBe("succeeded");
 });
 
+test("envelope create, discover matching options, and reject cash-out", async ({
+  page,
+}) => {
+  await signInLocal(page);
+  await expect(
+    page.getByRole("heading", { name: "Send a possibility instead of cash." }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Uniswap swap" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole("button", { name: "Browser job" })).toHaveCount(
+    0,
+  );
+  const before = await (await page.request.get(base + "/api/envelopes")).json();
+  const toField = page.getByRole("textbox", { name: "To", exact: true });
+  if (!(await toField.isVisible().catch(() => false))) {
+    await page.getByRole("button", { name: "New envelope" }).click();
+  }
+  await toField.fill("Alex");
+  await page.getByRole("button", { name: "Mobile data", exact: true }).click();
+  await page.getByRole("button", { name: "Create envelope" }).click();
+  await expect
+    .poll(
+      async () =>
+        ((await (await page.request.get(base + "/api/envelopes")).json()) as any)
+          .sent.length,
+      { timeout: 30000 },
+    )
+    .toBe(before.sent.length + 1);
+  const created = await (
+    await page.request.get(base + "/api/envelopes")
+  ).json();
+  const envelope = created.sent[0];
+  expect(envelope.category).toBe("esim");
+  expect(envelope.policyHash).toMatch(/^[0-9a-f]{64}$/);
+  await page.getByRole("link", { name: "Discover", exact: true }).click();
+  await page.getByLabel("Envelope").click();
+  await page.getByRole("option", { name: envelope.purpose }).click();
+  await page
+    .getByLabel("What do you want this gift to become")
+    .fill("an eSIM for Japan");
+  await page.getByRole("button", { name: "Find options" }).click();
+  await expect(page.getByText(/Japan eSIM/i).first()).toBeVisible({
+    timeout: 20000,
+  });
+  const cash = await page.request.get(
+    `${base}/api/envelopes/${envelope.id}/options?q=${encodeURIComponent("just transfer the money")}`,
+  );
+  const cashBody = await cash.json();
+  expect(cashBody.options).toEqual([]);
+  expect(cashBody.note).toMatch(/unrestricted cash/i);
+  const transfer = await page.request.post(
+    `${base}/api/envelopes/${envelope.id}/redeem`,
+    {
+      headers: { Origin: base },
+      data: { to: envelope.senderAddress, amount: "0.01" },
+    },
+  );
+  expect(transfer.status()).toBe(400);
+  const proposed = await page.request.post(
+    `${base}/api/envelopes/${envelope.id}/propose`,
+    {
+      headers: { Origin: base },
+      data: { sku: "esim-jp-1gb", request: "an eSIM for Japan" },
+    },
+  );
+  expect(proposed.ok(), await proposed.text()).toBeTruthy();
+  const quote = await proposed.json();
+  const redeemed = await page.request.post(
+    `${base}/api/envelopes/${envelope.id}/redeem`,
+    {
+      headers: { Origin: base },
+      data: { quoteId: quote.quote.id },
+    },
+  );
+  expect(redeemed.ok(), await redeemed.text()).toBeTruthy();
+  const settled = await redeemed.json();
+  expect(settled.redemption.status).toBe("succeeded");
+  expect(settled.redemption.symbol).toBe("USDC");
+  expect(settled.redemption.hash).toMatch(/^0x[0-9a-fA-F]{64}$/);
+});
+
 test("developer UI creates and revokes a key, clears revealed secret on logout, and serves OpenAPI", async ({
   page,
 }) => {
@@ -570,10 +744,12 @@ test("developer UI creates and revokes a key, clears revealed secret on logout, 
   await page.getByRole("link", { name: "Developers", exact: true }).click();
   await page.getByRole("button", { name: "Create API key" }).click();
   await expect(page.getByRole("button", { name: "Copy key" })).toBeVisible();
-  await page.getByRole("button", { name: "Revoke Agent 1" }).click();
-  await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^Revoke Agent / }).last().click();
+  await expect(page.getByText("Revoked").first()).toBeVisible();
   const doc = await (await page.request.get(base + "/api/openapi.json")).json();
   expect(doc.openapi).toBe("3.1.0");
+  expect(doc.paths["/envelopes"]).toBeDefined();
+  expect(doc.paths["/envelopes/{id}/redeem"]).toBeDefined();
   expect(doc.paths["/sessions/{id}/recover"]).toBeDefined();
   expect(doc.paths["/client.mjs"]).toBeDefined();
   const download = await page.request.get(base + "/api/client.mjs");

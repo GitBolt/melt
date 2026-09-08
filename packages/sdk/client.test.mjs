@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { Melt, MeltError } from "./client.mjs";
+import { createHmac } from "node:crypto";
+import { Melt, MeltError, publicReceipt, constructEvent } from "./client.mjs";
 
 const id = "1277b125-7623-4cd1-a7be-16a1da9ae253";
 const task = (status = "ready") => ({
@@ -273,4 +274,96 @@ test("expanded controls carry only validated fields and optional reasons", async
     /160/,
   );
   assert.equal(bodies.length, 4);
+});
+
+test("constructEvent verifies Stripe-style HMAC over the raw body", async () => {
+  const secret = "whsec_test";
+  const payload = '{"id":"evt_1","object":"event","type":"session.closed"}';
+  const timestamp = 1_700_000_000;
+  const v1 = createHmac("sha256", secret)
+    .update(`${timestamp}.${payload}`)
+    .digest("hex");
+  const original = Date.now;
+  Date.now = () => timestamp * 1000;
+  try {
+    const event = await constructEvent(
+      payload,
+      `t=${timestamp},v1=${v1}`,
+      secret,
+    );
+    assert.equal(event.id, "evt_1");
+    await assert.rejects(
+      () => constructEvent(payload + " ", `t=${timestamp},v1=${v1}`, secret),
+      (error) =>
+        error instanceof MeltError && error.code === "INVALID_SIGNATURE",
+    );
+  } finally {
+    Date.now = original;
+  }
+});
+
+test("envelope tools list, search, propose and redeem; they reject a generic transfer", async (t) => {
+  const envId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+  const quoteId = "11111111-2222-4333-8444-555555555555";
+  const calls = [];
+  const envelope = {
+    object: "envelope",
+    id: envId,
+    purpose: "mobile data for your trip, up to $20",
+    budget: "0.01",
+    remaining: "0.01",
+    policyHash: "abc",
+    status: "open",
+  };
+  const base = await endpoint(t, async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    calls.push({ url: req.url, method: req.method, body });
+    if (req.url === "/api/envelopes")
+      return json(res, { sent: [envelope], received: [] });
+    if (req.url?.startsWith(`/api/envelopes/${envId}/options`))
+      return json(res, {
+        options: [{ sku: "esim-jp-1gb", title: "Japan eSIM" }],
+      });
+    if (req.url === `/api/envelopes/${envId}/propose`)
+      return json(res, { quote: { id: quoteId, sku: "esim-jp-1gb" } });
+    if (req.url === `/api/envelopes/${envId}/redeem`)
+      return json(res, {
+        redemption: { id: "r1", status: "succeeded", quoteId },
+      });
+    if (req.url === `/api/envelopes/${envId}/redemptions`)
+      return json(res, { status: "open", redemptions: [] });
+    json(res, envelope);
+  });
+  const melt = client(base);
+  assert.equal((await melt.envelopes()).sent[0].purpose, envelope.purpose);
+  assert.equal(
+    (await melt.findOptions(envId, "eligible eSIM")).options[0].sku,
+    "esim-jp-1gb",
+  );
+  const proposed = await melt.proposePurchase(envId, {
+    sku: "esim-jp-1gb",
+    request: "eSIM for Japan",
+  });
+  assert.equal(proposed.quote.id, quoteId);
+  const redeemed = await melt.redeem(envId, quoteId);
+  assert.equal(redeemed.redemption.status, "succeeded");
+  assert.equal((await melt.redemptionStatus(envId)).status, "open");
+  assert.equal(
+    calls.find((call) => call.url.includes("/options")).url.includes("eSIM"),
+    true,
+  );
+  assert.throws(() => melt.redeem(envId, ""), /quote ID/);
+});
+
+test("publicReceipt fetches an unauthenticated receipt by token", async (t) => {
+  const token = "ab".repeat(24);
+  const base = await endpoint(t, (req, res) => {
+    assert.equal(req.url, `/api/public/receipts/${token}`);
+    assert.equal(req.headers.authorization, undefined);
+    json(res, { object: "receipt", id, url: `/r/${token}` });
+  });
+  const receipt = await publicReceipt(token, { baseUrl: base });
+  assert.equal(receipt.object, "receipt");
+  assert.equal(receipt.url, `/r/${token}`);
 });
