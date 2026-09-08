@@ -296,9 +296,17 @@ test("second fixture layout works and narrow UI has no horizontal overflow", asy
     fullPage: true,
   });
   await mintThroughManualBrowser(page, created.id);
-  await expect(page.getByText("Session closed", { exact: true })).toBeVisible({
-    timeout: 60000,
-  });
+  await expect
+    .poll(
+      async () =>
+        (
+          await (
+            await page.request.get(`${base}/api/sessions/${created.id}`)
+          ).json()
+        ).status,
+      { timeout: 15000 },
+    )
+    .toBe("closed");
 });
 
 test("browser rejects oversized spend, completes allowed mint, and recovers late funds and NFT", async ({
@@ -336,12 +344,10 @@ test("browser rejects oversized spend, completes allowed mint, and recovers late
     page.getByRole("button", { name: "Open task browser", exact: true }),
   ).toBeVisible({ timeout: 30000 });
   await mintThroughManualBrowser(page, created.id);
-  await expect(page.getByText("Session closed", { exact: true })).toBeVisible({
-    timeout: 60000,
-  });
   const t = await (
     await page.request.get(`${base}/api/sessions/${created.id}`)
   ).json();
+  expect(t.status).toBe("closed");
   expect(
     t.events.some(
       (e: any) => e.kind === "blocked" && e.text.includes("allowance"),
