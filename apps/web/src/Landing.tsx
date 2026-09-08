@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { MeltWordmark } from "./components/MeltMotion";
@@ -14,34 +14,52 @@ import "./landing.css";
 const app = "/app";
 const examples = [
   {
-    quote: "Dinner for two, anywhere you like, up to $120, before New Year.",
+    kind: "Dinner",
+    usd: "$120",
+    quote: "Dinner for two, anywhere you like, before New Year.",
     ok: "Any restaurant that is still dinner",
     no: "Not groceries. Not cash.",
+    tilt: "-1.4deg",
   },
   {
-    quote: "A flight home for Thanksgiving, up to $400.",
+    kind: "Flight",
+    usd: "$400",
+    quote: "A flight home for Thanksgiving.",
     ok: "A real ticket in that window",
     no: "Not hotel points. Not a transfer.",
+    tilt: "1.2deg",
   },
   {
-    quote: "Any concert you want this summer, up to $150.",
+    kind: "Concert",
+    usd: "$150",
+    quote: "Any concert you want this summer.",
     ok: "Tickets they actually want to see",
     no: "Not merch, unless you said so.",
+    tilt: "-0.8deg",
   },
   {
-    quote: "Mobile data for your Japan trip, up to $20.",
+    kind: "eSIM",
+    usd: "$20",
+    quote: "Mobile data for your Japan trip.",
     ok: "An eSIM or a local top-up",
     no: "Not headphones. Not spending money.",
+    tilt: "0.9deg",
   },
   {
+    kind: "Apartment",
+    usd: "$200",
     quote: "Something for your new apartment, except electronics.",
     ok: "Kitchen, linens, a lamp",
     no: "Not a laptop or a speaker.",
+    tilt: "-1.1deg",
   },
   {
+    kind: "Game",
+    usd: "$40",
     quote: "Any indie game under $40.",
     ok: "A game that fits the cap",
     no: "Not a Steam wallet dump.",
+    tilt: "1.4deg",
   },
 ];
 const steps = [
@@ -58,7 +76,7 @@ const steps = [
   {
     n: "03",
     title: "They choose later",
-    text: "In Melt, or in ChatGPT, Claude, Codex, or Grok. The assistant finds a match.",
+    text: "In Melt, or in an assistant they already use. The assistant finds a match.",
   },
   {
     n: "04",
@@ -196,9 +214,9 @@ export default function Landing() {
             <div className="hero-stage-copy">
               <span>Envelope for Alex</span>
               <strong>
-                0.05 <small>ETH</small>
+                $120 <small>USD</small>
               </strong>
-              <BudgetRibbon value={0.008} total={0.05} large />
+              <BudgetRibbon value={86} total={120} large symbol="USD" />
               <p>Dinner for two, anywhere they like, before New Year.</p>
             </div>
           </div>
@@ -220,16 +238,26 @@ export default function Landing() {
           <h2>Write the gift in plain English.</h2>
           <div className="example-grid">
             {examples.map((item) => (
-              <article key={item.quote} className="panel example-card">
+              <article
+                key={item.kind}
+                className="example-slip"
+                style={{ "--tilt": item.tilt } as CSSProperties}
+              >
+                <header>
+                  <span>{item.kind}</span>
+                  <strong>{item.usd}</strong>
+                </header>
                 <blockquote>{item.quote}</blockquote>
-                <p>
-                  <span>Can become</span>
-                  {item.ok}
-                </p>
-                <p>
-                  <span>Cannot become</span>
-                  {item.no}
-                </p>
+                <ul>
+                  <li>
+                    <span>Can</span>
+                    {item.ok}
+                  </li>
+                  <li>
+                    <span>Cannot</span>
+                    {item.no}
+                  </li>
+                </ul>
               </article>
             ))}
           </div>
@@ -255,7 +283,7 @@ export default function Landing() {
       <motion.section className="landing-block" {...reveal}>
         <div className="landing-wrap">
           <p className="landing-kicker">One gift, two sessions</p>
-          <h2>Their ChatGPT can spend what you funded in Melt.</h2>
+          <h2>They spend it in Melt, or in the assistant they already use.</h2>
           <div className="story-grid">
             {story.map((item) => (
               <article key={item.who} className="panel story-card">
@@ -279,9 +307,9 @@ export default function Landing() {
               </p>
               <h2>They do not need a new shopping app.</h2>
               <p>
-                Create the envelope here. Weeks later they tell Claude to use
-                it. Melt is the wallet that assistant calls. You never hand it
-                an unrestricted key.
+                Create the envelope here. Weeks later they tell an assistant to
+                use it, e.g. ChatGPT or Claude. Melt is the wallet that
+                assistant calls. You never hand it an unrestricted key.
               </p>
             </div>
             <figure className="feature-media panel">
@@ -332,12 +360,13 @@ export default function Landing() {
       <motion.section className="landing-block" {...reveal}>
         <div className="landing-wrap agents-grid">
           <div>
-            <p className="landing-kicker">For ChatGPT, Claude, Codex, Grok</p>
+            <p className="landing-kicker">Any MCP client</p>
             <h2>Connect an agent. It can spend a gift, not send cash.</h2>
             <p>
               Fund the envelope yourself. Give the recipient an API key. Their
-              assistant can find options, propose a purchase, and redeem. It
-              cannot create envelopes or raise the amount.
+              assistant can find options, propose a purchase, and redeem, e.g.
+              ChatGPT, Claude, Cursor, or Grok. It cannot create envelopes or
+              raise the amount.
             </p>
             <a className="secondary" href={`${app}#developers`}>
               Agent docs

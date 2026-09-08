@@ -1,5 +1,11 @@
 import { MeltLoader, MeltWordmark } from "./components/MeltMotion";
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type CSSProperties,
+} from "react";
 import {
   ArrowUpRight,
   ArrowRight,
@@ -35,6 +41,7 @@ import { GooeyNav } from "./components/ui/gooey-nav";
 import { SessionSeal } from "./SessionSeal";
 import { FundingSwap } from "./FundingSwap";
 import { NetworkStrip } from "./NetworkStrip";
+import { isTxHash, TxToastStack, type ChainToast } from "./components/TxToasts";
 import {
   DiscoverPanel,
   EnvelopeComposer,
@@ -81,6 +88,26 @@ const statusLabel: Record<TaskStatus, string> = {
 };
 const PAGES = ["Envelopes", "Discover", "Activity", "Developers"] as const;
 type Page = (typeof PAGES)[number];
+const LAUNCH_GIFTS = [
+  {
+    kind: "Dinner",
+    usd: "$120",
+    note: "Anywhere they like, before New Year",
+    tilt: "-1.2deg",
+  },
+  {
+    kind: "Flight",
+    usd: "$400",
+    note: "Home for Thanksgiving",
+    tilt: "1.1deg",
+  },
+  {
+    kind: "eSIM",
+    usd: "$20",
+    note: "Data for the Japan trip",
+    tilt: "-0.6deg",
+  },
+];
 const pageFromHash = (): Page => {
   const hash = window.location.hash.toLowerCase();
   if (hash === "#developers") return "Developers";
@@ -147,8 +174,23 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     [busy, setBusy] = useState(""),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
+    [txToasts, setTxToasts] = useState<ChainToast[]>([]),
     [newTask, setNewTask] = useState(false),
     [now, setNow] = useState(() => Date.now());
+  const seenTx = useRef(new Set<string>());
+  const primedTx = useRef(false);
+  const noteTx = useCallback((hash: string, label = "Sent onchain") => {
+    if (!isTxHash(hash)) return;
+    const key = hash.toLowerCase();
+    if (seenTx.current.has(key)) return;
+    seenTx.current.add(key);
+    const id = crypto.randomUUID();
+    setTxToasts((items) => [...items.slice(-4), { id, hash, label }]);
+    window.setTimeout(
+      () => setTxToasts((items) => items.filter((item) => item.id !== id)),
+      12000,
+    );
+  }, []);
   useEffect(() => {
     const onHashChange = () => {
       setPage(pageFromHash());
@@ -269,6 +311,34 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
       ),
     ],
     envelope = allEnvelopes.find((item) => item.id === selectedEnvelope);
+  const wiredAuth = auth
+    ? {
+        ...auth,
+        send: async (tx: Parameters<NonNullable<Auth["send"]>>[0]) => {
+          const hash = await auth.send(tx);
+          noteTx(hash, "Sent onchain");
+          return hash;
+        },
+      }
+    : auth;
+  useEffect(() => {
+    if (!user) {
+      primedTx.current = false;
+      return;
+    }
+    const hashes = [
+      ...tasks.flatMap((item) => item.transactions.map((tx) => tx.hash)),
+      ...allEnvelopes.flatMap((item) =>
+        item.redemptions.map((entry) => entry.hash),
+      ),
+    ].filter((hash): hash is string => !!hash);
+    if (!primedTx.current) {
+      hashes.forEach((hash) => seenTx.current.add(hash.toLowerCase()));
+      primedTx.current = true;
+      return;
+    }
+    hashes.forEach((hash) => noteTx(hash, "Confirmed onchain"));
+  }, [user, tasks, envelopes, noteTx]);
   async function download(t: Task) {
     const data = await request(`/sessions/${t.id}/receipt`);
     const url = URL.createObjectURL(
@@ -365,6 +435,13 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
           {notice}
         </div>
       )}
+      <TxToastStack
+        items={txToasts}
+        explorer={config.chain.explorer}
+        onDismiss={(id) =>
+          setTxToasts((items) => items.filter((item) => item.id !== id))
+        }
+      />
       <main>
         {page === "Developers" ? (
           <Developers
@@ -387,7 +464,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               request={request}
               busy={busy}
               act={act}
-              auth={auth}
+              auth={wiredAuth}
               owner={user?.owner || ""}
               notify={setNotice}
               now={now}
@@ -426,7 +503,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               now={now}
               act={act}
               request={request}
-              auth={auth}
+              auth={wiredAuth}
               onDiscover={() => {
                 setDiscoverId(envelope.id);
                 setSelectedEnvelope(undefined);
@@ -435,13 +512,13 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               }}
               onShare={() => {
                 if (!envelope.receiptToken) {
-                  setNotice("Receipt link is not ready yet");
+                  setNotice("Gift link is not ready yet");
                   return;
                 }
                 void navigator.clipboard
-                  .writeText(`${location.origin}/r/${envelope.receiptToken}`)
-                  .then(() => setNotice("Receipt link copied"))
-                  .catch(() => setError("Could not copy the receipt link"));
+                  .writeText(`${location.origin}/g/${envelope.receiptToken}`)
+                  .then(() => setNotice("Gift link copied"))
+                  .catch(() => setError("Could not copy the gift link"));
               }}
             />
           </>
@@ -465,6 +542,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                 act={act}
                 busy={busy}
                 symbol={config.chain.symbol}
+                onTx={noteTx}
               />
             ) : (
               <div className="empty">
@@ -508,96 +586,88 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
             (!user || newTask || !allEnvelopes.length) ? (
               <div
                 className={
-                  user && allEnvelopes.length ? "compose-solo" : "launch-grid"
+                  user && allEnvelopes.length ? "compose-solo" : "launch"
                 }
               >
-                <section className="compose panel">
-                  <div className="section-top">
-                    <h2>Create an envelope</h2>
-                    <span className="quiet">01</span>
+                {!user && (
+                  <div className="gift-slips">
+                    {LAUNCH_GIFTS.map((gift) => (
+                      <article
+                        key={gift.kind}
+                        className="gift-slip"
+                        style={{ "--tilt": gift.tilt } as CSSProperties}
+                      >
+                        <header>
+                          <span>{gift.kind}</span>
+                          <strong>{gift.usd}</strong>
+                        </header>
+                        <p>{gift.note}</p>
+                      </article>
+                    ))}
                   </div>
+                )}
+                <section
+                  className={`compose panel${user ? "" : " launch-auth"}`}
+                >
                   {user ? (
-                    <EnvelopeComposer
-                      config={config}
-                      owner={user.owner}
-                      busy={busy}
-                      onCancel={
-                        allEnvelopes.length
-                          ? () => setNewTask(false)
-                          : undefined
-                      }
-                      onSubmit={(body) =>
-                        act("create", async () => {
-                          const created = await request(
-                            "/envelopes",
-                            body,
-                            "POST",
-                            { "Idempotency-Key": crypto.randomUUID() },
-                          );
-                          setSelectedEnvelope(created.id);
-                          setDiscoverId(created.id);
-                          setNewTask(false);
-                        })
-                      }
-                    />
+                    <>
+                      <div className="section-top">
+                        <h2>Create an envelope</h2>
+                      </div>
+                      <EnvelopeComposer
+                        config={config}
+                        owner={user.owner}
+                        busy={busy}
+                        onCancel={
+                          allEnvelopes.length
+                            ? () => setNewTask(false)
+                            : undefined
+                        }
+                        onSubmit={(body) =>
+                          act("create", async () => {
+                            const created = await request(
+                              "/envelopes",
+                              body,
+                              "POST",
+                              { "Idempotency-Key": crypto.randomUUID() },
+                            );
+                            setSelectedEnvelope(created.id);
+                            setDiscoverId(created.id);
+                            setNewTask(false);
+                          })
+                        }
+                      />
+                    </>
                   ) : (
                     <>
-                      <p className="sign-in-copy">
-                        Dinner for two. A flight home. An eSIM for Japan. Not
-                        unrestricted cash. They spend it later in Melt or in
-                        ChatGPT.
-                      </p>
-                      <div className="example-task">
-                        <Globe size={17} />
-                        <span>
-                          Dinner for two, anywhere you like
-                          <span>Up to $120 · before New Year</span>
-                        </span>
-                        <ArrowUpRight size={17} />
+                      <div>
+                        <h2>Write one of your own</h2>
+                        <p>
+                          Lock a purpose and an amount. They spend it later in
+                          Melt or in an assistant they already use.
+                        </p>
                       </div>
-                      <button
-                        className="primary sign-in-cta"
-                        onClick={signIn}
-                        disabled={!!busy}
-                      >
-                        {busy === "signin" ? <MeltLoader size={16} /> : null}
-                        {config.mode === "local"
-                          ? "Open local workspace"
-                          : "Continue with email or wallet"}
-                        <ArrowRight size={16} />
-                      </button>
-                      {auth?.passkey && (
+                      <div className="launch-actions">
                         <button
-                          className="quiet-button"
-                          onClick={() => act("passkey", auth.passkey!)}
+                          className="primary sign-in-cta"
+                          onClick={signIn}
+                          disabled={!!busy}
                         >
-                          Sign in with a passkey
+                          {busy === "signin" ? <MeltLoader size={16} /> : null}
+                          {config.mode === "local"
+                            ? "Open local workspace"
+                            : "Continue with email or wallet"}
+                          <ArrowRight size={16} />
                         </button>
-                      )}
-                      <p className="helper">
-                        {config.mode === "local"
-                          ? "No wallet or funds needed. Uses local test ETH."
-                          : "Sign in with email to create an embedded wallet."}
-                      </p>
+                        <p className="helper">
+                          {config.mode === "local"
+                            ? "No wallet or funds needed. Uses local test ETH."
+                            : "Sign in with email to create an embedded wallet."}
+                        </p>
+                      </div>
                     </>
                   )}
                 </section>
-                {!(user && allEnvelopes.length) && (
-                  <aside className="welcome-wallet panel">
-                    <SessionSeal />
-                    <div>
-                      <h2>Dinner now. Restaurant later.</h2>
-                      <p>
-                        You lock $120 for dinner. They pick the place in ChatGPT
-                        next Friday. Headphones cannot come out of this gift.
-                      </p>
-                    </div>
-                    <div className="wallet-footer">
-                      <ShieldCheck size={14} />
-                      Purpose locked onchain
-                    </div>
-                  </aside>
-                )}
               </div>
             ) : null}
             {user &&
@@ -613,6 +683,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                     envelopes={envelopes.sent}
                     now={now}
                     symbol={config.chain.symbol}
+                    ethUsd={config.ethUsd}
                     onOpen={setSelectedEnvelope}
                   />
                   {envelopes.received.length > 0 && (
@@ -627,6 +698,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                         envelopes={envelopes.received}
                         now={now}
                         symbol={config.chain.symbol}
+                        ethUsd={config.ethUsd}
                         onOpen={setSelectedEnvelope}
                       />
                     </>
@@ -721,11 +793,6 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
       </main>
       <footer>
         <a href="/">Melt · Gift cards without stores</a>
-        {user && auth?.linkPasskey && (
-          <button onClick={() => act("passkey", auth.linkPasskey!)}>
-            Add a passkey
-          </button>
-        )}
         <button
           onClick={() => {
             setSelected(undefined);
@@ -1495,7 +1562,7 @@ function Developers({
     <>
       <section className="intro">
         <div>
-          <h1>Connect ChatGPT, Claude, or Codex</h1>
+          <h1>Connect ChatGPT, Claude, Cursor, or Grok</h1>
           <p>
             Their assistant can find options, propose a purchase, and redeem an
             existing envelope. It cannot create one, raise the amount, or send
@@ -1517,9 +1584,9 @@ function Developers({
         <section className="panel dev-panel">
           <h2>Let their assistant spend the gift</h2>
           <p>
-            Create and fund an envelope in Melt. ChatGPT, Claude, Codex, or Grok
-            can redeem it through MCP. Keys cannot create envelopes or increase
-            the gift.
+            Create and fund an envelope in Melt. Any MCP client can redeem it,
+            e.g. ChatGPT, Claude, Cursor, or Grok. Keys cannot create envelopes
+            or increase the gift.
           </p>
           <pre>
             <code>{`import { Melt } from './melt-client.mjs';\n\nconst melt = new Melt({\n  baseUrl: '${location.origin}',\n  apiKey: process.env.MELT_API_KEY\n});\n\nconst { sent } = await melt.envelopes();\nconst found = await melt.findOptions(sent[0].id, 'an eSIM for Japan');\nconst quote = await melt.proposePurchase(sent[0].id, { sku: found.options[0].sku });\nawait melt.redeem(sent[0].id, quote.quote.id);`}</code>
@@ -1634,9 +1701,9 @@ function Developers({
           <div className="mcp-note">
             <h2>Connect with MCP</h2>
             <p>
-              Use Melt from ChatGPT, Claude, Codex, or Grok. The MCP server can
-              list gifts, find options, propose, and redeem. It cannot send
-              cash.
+              Use Melt from any MCP client, e.g. ChatGPT, Claude, Cursor, or
+              Grok. The server can list gifts, find options, propose, and
+              redeem. It cannot send cash.
             </p>
             <pre>
               <code>npm run agent:mcp</code>

@@ -25,6 +25,7 @@ import {
 import type { Config } from "../../../packages/shared/src/index";
 import type { Auth } from "./App";
 import { SessionSeal } from "./SessionSeal";
+import { isTxHash, TxToastStack, type ChainToast } from "./components/TxToasts";
 import "./recovery.css";
 
 const abi = parseAbi([
@@ -86,6 +87,7 @@ export function DirectRecovery({
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [txToasts, setTxToasts] = useState<ChainToast[]>([]);
   const [token, setToken] = useState("");
   const [tokenId, setTokenId] = useState("");
   const [assetType, setAssetType] = useState<"erc20" | "erc721">("erc721");
@@ -313,10 +315,21 @@ export function DirectRecovery({
         const result = await auth.send(tx);
         hash = result as Hash;
       }
-      if (!hash || !/^0x[\da-f]{64}$/i.test(hash))
+      if (!hash || !isTxHash(hash))
         throw Error(
           "The wallet did not return a transaction hash. Check its activity before retrying.",
         );
+      const confirmed = hash;
+      const toastId = crypto.randomUUID();
+      setTxToasts((items) => [
+        ...items.slice(-4),
+        { id: toastId, hash: confirmed, label: "Sent onchain" },
+      ]);
+      window.setTimeout(
+        () =>
+          setTxToasts((items) => items.filter((item) => item.id !== toastId)),
+        12000,
+      );
       const action =
         kind === "close"
           ? "Close agent access"
@@ -377,6 +390,13 @@ export function DirectRecovery({
 
   return (
     <div className="app-shell recovery-shell">
+      <TxToastStack
+        items={txToasts}
+        explorer={config.chain.explorer}
+        onDismiss={(id) =>
+          setTxToasts((items) => items.filter((item) => item.id !== id))
+        }
+      />
       <header>
         <a className="wordmark" href="/">
           <MeltWordmark />

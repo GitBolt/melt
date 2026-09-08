@@ -69,13 +69,19 @@ import { publicReceipt } from "./receipt.js";
 import {
   canAccessEnvelope,
   createFundedEnvelope,
+  ethUsdRate,
   findEnvelopeOptions,
   getEnvelope,
   listEnvelopes,
+  markGiftOpened,
+  notifyEnvelopeSession,
   proposePurchase,
+  publicGiftByToken,
   redeemQuote,
   redemptionStatus,
+  resendGiftEmail,
 } from "./envelopes.js";
+import { mailConfigured } from "./mail.js";
 import {
   WEBHOOK_TYPES,
   createWebhook,
@@ -179,6 +185,8 @@ app.get("/api/config", async () => ({
   },
   publicRpcUrl: process.env.VITE_RPC_URL,
   envelopes: { available: true },
+  ethUsd: await ethUsdRate({ wait: false }),
+  mailConfigured: mailConfigured(),
   fixture: {
     available:
       local ||
@@ -339,6 +347,18 @@ app.get("/api/envelopes/:id/redemptions", async (req) => {
   const { envelope } = await accessibleEnvelope(req);
   return redemptionStatus(envelope);
 });
+app.post(
+  "/api/envelopes/:id/notify",
+  { config: { rateLimit: { max: local ? 30 : 6, timeWindow: "1 minute" } } },
+  async (req) => {
+    const { envelope, user } = await accessibleEnvelope(req);
+    if (envelope.userId !== user.id)
+      throw Object.assign(Error("Only the sender can resend this gift"), {
+        statusCode: 403,
+      });
+    return resendGiftEmail(envelope);
+  },
+);
 app.get("/api/sessions", async (req) => {
   const user = await authenticate(req);
   return list(user.id);
@@ -566,10 +586,12 @@ app.post("/api/sessions/:id/funding", async (req) => {
     task.status = "ready";
     save(task);
     emit(task.userId, "session.funded", task);
-    if (task.envelopeId)
+    if (task.envelopeId) {
       emit(task.userId, "envelope.funded", task, {
         envelopeId: task.envelopeId,
       });
+      await notifyEnvelopeSession(task.id, "ready");
+    }
   } else save(task);
   return task;
 });
@@ -582,10 +604,12 @@ app.post("/api/sessions/:id/refresh", async (req) => {
       task.status = "ready";
       save(task);
       emit(task.userId, "session.funded", task);
-      if (task.envelopeId)
+      if (task.envelopeId) {
         emit(task.userId, "envelope.funded", task, {
           envelopeId: task.envelopeId,
         });
+        await notifyEnvelopeSession(task.id, "ready");
+      }
     }
     return task;
   });
@@ -631,6 +655,22 @@ app.get(
       symbol: chain.nativeCurrency.symbol,
       explorer: process.env.EXPLORER_URL,
     });
+  },
+);
+app.get(
+  "/api/public/gifts/:token",
+  { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+  async (req) => {
+    const token = String((req.params as { token: string }).token || "");
+    return publicGiftByToken(token);
+  },
+);
+app.post(
+  "/api/public/gifts/:token/opened",
+  { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+  async (req) => {
+    const token = String((req.params as { token: string }).token || "");
+    return markGiftOpened(token);
   },
 );
 app.get("/api/events", async (req) => {

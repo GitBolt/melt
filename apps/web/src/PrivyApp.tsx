@@ -1,10 +1,4 @@
-import {
-  PrivyProvider,
-  usePrivy,
-  useWallets,
-  useLoginWithPasskey,
-  useLinkWithPasskey,
-} from "@privy-io/react-auth";
+import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
 import { defineChain, createWalletClient, custom } from "viem";
 import type { Config } from "../../../packages/shared/src/index";
 import App, { type Auth } from "./App";
@@ -18,8 +12,6 @@ function Connected({
 }) {
   const { login, logout, getAccessToken, authenticated, ready } = usePrivy();
   const { wallets } = useWallets();
-  const { loginWithPasskey } = useLoginWithPasskey();
-  const { linkWithPasskey } = useLinkWithPasskey();
   const provider = async (owner?: string) => {
     const wallet = owner
       ? wallets.find((w) => w.address.toLowerCase() === owner.toLowerCase())
@@ -34,8 +26,6 @@ function Connected({
     login,
     logout,
     getToken: getAccessToken,
-    passkey: loginWithPasskey,
-    linkPasskey: linkWithPasskey,
     signTypedData: async (data, owner) => {
       const p = await provider(owner);
       const permit = data as any;
