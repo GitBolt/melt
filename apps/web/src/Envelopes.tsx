@@ -1,5 +1,5 @@
 import { MeltLoader } from "./components/MeltMotion";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -9,7 +9,9 @@ import {
   Wallet,
   Search,
   ShieldCheck,
+  ChevronDown,
 } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { parseEther, toHex } from "viem";
 import type { Config, Envelope } from "../../../packages/shared/src/index";
 import { BudgetRibbon } from "./components/BudgetRibbon";
@@ -500,6 +502,123 @@ export function EnvelopeDetail({
   );
 }
 
+function EnvelopePicker({
+  envelopes,
+  selectedId,
+  onSelect,
+  symbol,
+}: {
+  envelopes: Envelope[];
+  selectedId?: string;
+  onSelect: (id: string) => void;
+  symbol: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const reduced = useReducedMotion();
+  const root = useRef<HTMLDivElement>(null);
+  const labelId = useId();
+  const listId = useId();
+  const selected = envelopes.find((item) => item.id === selectedId);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (event: MouseEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return (
+    <div className="envelope-picker" ref={root}>
+      <span id={labelId}>Envelope</span>
+      <button
+        type="button"
+        className={`picker-trigger${open ? " open" : ""}`}
+        aria-labelledby={labelId}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <div
+          className={`mini-seal ${selected?.status === "closed" || selected?.status === "exhausted" ? "complete" : ""}`}
+        >
+          {selected?.status === "closed" || selected?.status === "exhausted" ? (
+            <Check size={16} />
+          ) : (
+            <Gift size={16} />
+          )}
+        </div>
+        <div className="row-name">
+          <strong>{selected ? selected.purpose : "Choose a gift"}</strong>
+          <span>
+            {selected
+              ? `${selected.remaining} ${symbol} remaining · ${selected.policy.category}`
+              : "Pick an envelope to redeem"}
+          </span>
+        </div>
+        <ChevronDown size={16} />
+      </button>
+      <AnimatePresence>
+        {open ? (
+          <motion.ul
+            id={listId}
+            role="listbox"
+            className="picker-menu"
+            aria-labelledby={labelId}
+            initial={reduced ? false : { opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={reduced ? undefined : { opacity: 0, y: -6, scale: 0.98 }}
+            transition={
+              reduced
+                ? { duration: 0 }
+                : { type: "spring", stiffness: 200, damping: 28, mass: 1 }
+            }
+          >
+            {envelopes.map((item) => (
+              <li key={item.id} role="none">
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={item.id === selectedId}
+                  className={item.id === selectedId ? "chosen" : ""}
+                  onClick={() => {
+                    onSelect(item.id);
+                    setOpen(false);
+                  }}
+                >
+                  <div
+                    className={`mini-seal ${item.status === "closed" || item.status === "exhausted" ? "complete" : ""}`}
+                  >
+                    {item.status === "closed" || item.status === "exhausted" ? (
+                      <Check size={16} />
+                    ) : (
+                      <Gift size={16} />
+                    )}
+                  </div>
+                  <div className="row-name">
+                    <strong>{item.purpose}</strong>
+                    <span>
+                      {item.remaining} {symbol} · {item.policy.category}
+                      {item.partialUse ? " · partial use" : ""}
+                    </span>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </motion.ul>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export function DiscoverPanel({
   envelopes,
   selectedId,
@@ -526,6 +645,7 @@ export function DiscoverPanel({
   const [result, setResult] = useState<any>(null);
   const [settled, setSettled] = useState<any>(null);
   const envelope = envelopes.find((item) => item.id === selectedId);
+  const lastRedemption = envelope?.redemptions?.at(-1);
   async function search(next = query) {
     if (!selectedId) return;
     const found = await request(
@@ -552,26 +672,12 @@ export function DiscoverPanel({
           <h2>Use an envelope</h2>
           <span className="quiet">MCP · Melt</span>
         </div>
-        <label>
-          Envelope
-          <select
-            value={selectedId || ""}
-            onChange={(e) => onSelect(e.target.value)}
-          >
-            <option value="">Choose a gift</option>
-            {envelopes.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.purpose.slice(0, 72)}
-              </option>
-            ))}
-          </select>
-        </label>
-        {envelope && (
-          <p className="helper">
-            {envelope.remaining} {symbol} remaining · {envelope.policy.category}{" "}
-            · {envelope.partialUse ? "partial use" : "one purchase"}
-          </p>
-        )}
+        <EnvelopePicker
+          envelopes={envelopes}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          symbol={symbol}
+        />
         <form
           className="discover-search"
           onSubmit={(e) => {
@@ -602,10 +708,13 @@ export function DiscoverPanel({
           </p>
         )}
         {settled && (
-          <div className="settlement-proof">
-            <Check size={16} />
+          <div className="settlement-card panel" role="status">
+            <div className="mini-seal complete">
+              <Check size={16} />
+            </div>
             <div>
-              <strong>{settled.title} settled</strong>
+              <span className="quiet">Settled</span>
+              <strong>{settled.title}</strong>
               <p>
                 {settled.amountOut} {settled.symbol} via Uniswap. Leftover funds
                 stay in the envelope.
@@ -615,11 +724,11 @@ export function DiscoverPanel({
             </div>
           </div>
         )}
-        {envelope?.redemptions?.length > 0 && !settled && (
+        {lastRedemption && !settled && (
           <p className="helper">
-            Last purchase: {envelope.redemptions.at(-1)?.title}
-            {envelope.redemptions.at(-1)?.symbol
-              ? ` · ${envelope.redemptions.at(-1)?.amountOut} ${envelope.redemptions.at(-1)?.symbol}`
+            Last purchase: {lastRedemption.title}
+            {lastRedemption.symbol
+              ? ` · ${lastRedemption.amountOut} ${lastRedemption.symbol}`
               : ""}
           </p>
         )}
@@ -645,9 +754,12 @@ export function DiscoverPanel({
                     `/envelopes/${selectedId}/propose`,
                     { sku: option.sku, request: query },
                   );
-                  const done = await request(`/envelopes/${selectedId}/redeem`, {
-                    quoteId: proposed.quote.id,
-                  });
+                  const done = await request(
+                    `/envelopes/${selectedId}/redeem`,
+                    {
+                      quoteId: proposed.quote.id,
+                    },
+                  );
                   setSettled(done.redemption);
                   await search(query);
                 })

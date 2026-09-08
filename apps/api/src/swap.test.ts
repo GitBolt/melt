@@ -7,6 +7,8 @@ import {
   TOKENS,
   UNISWAP,
   priceImpactBps,
+  tokensFor,
+  uniswapFor,
 } from "./swap.js";
 
 const routerAbi = [
@@ -35,6 +37,14 @@ const routerAbi = [
 
 test("exposes the SwapRouter02 exactInputSingle selector", () =>
   assert.equal(SWAP_SELECTOR, "0x04e45aaf"));
+
+test("Sepolia uses official Uniswap V3 testnet deployments", () => {
+  const sepolia = uniswapFor(11155111);
+  assert.equal(sepolia.router, "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E");
+  assert.equal(sepolia.quoter, "0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3");
+  const usdc = tokensFor(11155111).find((t) => t.symbol === "USDC");
+  assert.equal(usdc?.address, "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238");
+});
 
 test("token registry includes USDC with correct decimals", () => {
   const usdc = TOKENS.find((t) => t.symbol === "USDC");

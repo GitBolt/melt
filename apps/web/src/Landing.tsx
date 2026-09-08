@@ -4,6 +4,11 @@ import { motion, useReducedMotion } from "motion/react";
 import { MeltWordmark } from "./components/MeltMotion";
 import { BudgetRibbon } from "./components/BudgetRibbon";
 import { SessionSeal } from "./SessionSeal";
+import { NetworkStrip } from "./NetworkStrip";
+import {
+  networkKind,
+  SEPOLIA_FAUCET,
+} from "../../../packages/shared/src/index";
 import "./landing.css";
 
 const app = "/app";
@@ -67,6 +72,10 @@ const flow = [
 export default function Landing() {
   const reduced = useReducedMotion();
   const [scrolled, setScrolled] = useState(false);
+  const [mainnetNote, setMainnetNote] = useState(false);
+  const hostedChainId = Number(import.meta.env.VITE_CHAIN_ID || 11155111);
+  const hostedNetwork = networkKind(hostedChainId);
+  const hostedName = import.meta.env.VITE_CHAIN_NAME || "Sepolia";
   const reveal = reduced
     ? {}
     : {
@@ -131,6 +140,22 @@ export default function Landing() {
               <a className="secondary" href="#how">
                 See how it works
               </a>
+            </div>
+            <div className="hero-network">
+              <NetworkStrip
+                network={hostedNetwork}
+                chainName={hostedName}
+                faucetUrl={
+                  hostedNetwork === "testnet" ? SEPOLIA_FAUCET : undefined
+                }
+                onExplainMainnet={() => setMainnetNote(true)}
+              />
+              {mainnetNote ? (
+                <p className="helper">
+                  This hosted Melt is Sepolia. Mainnet would spend real ETH and
+                  is not this deployment.
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="hero-stage panel">

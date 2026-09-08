@@ -70,6 +70,19 @@
   gap: 12px;
   margin-top: 28px;
 }
+.hero-network {
+  margin-top: 22px;
+}
+.hero-network .network-strip {
+  color: var(--muted);
+  font-size: 13px;
+}
+.hero-network p {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 36em;
+}
 .hero-stage {
   padding: 28px 28px 24px;
   display: grid;

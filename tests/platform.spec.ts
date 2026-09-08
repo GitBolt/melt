@@ -688,9 +688,8 @@ test("envelope create, discover matching options, and reject cash-out", async ({
   expect(envelope.category).toBe("esim");
   expect(envelope.policyHash).toMatch(/^[0-9a-f]{64}$/);
   await page.getByRole("link", { name: "Discover", exact: true }).click();
-  await page
-    .getByLabel("Envelope")
-    .selectOption({ value: envelope.id });
+  await page.getByLabel("Envelope").click();
+  await page.getByRole("option", { name: envelope.purpose }).click();
   await page
     .getByLabel("What do you want this gift to become")
     .fill("an eSIM for Japan");
