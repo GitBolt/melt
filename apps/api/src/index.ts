@@ -423,7 +423,10 @@ app.post(
         return prior;
       }
       if (input.kind !== "swap") await requireBrowser();
-      if (list(user.id).filter((t) => t.status !== "closed").length >= 10)
+      const openJobs = list(user.id).filter(
+        (t) => t.status !== "closed" && !t.envelopeId,
+      ).length;
+      if (openJobs >= (local ? 40 : 10))
         throw Error("Close an existing session before creating another");
       const task: Task = {
         ...input,
