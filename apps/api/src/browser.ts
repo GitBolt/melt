@@ -13,6 +13,7 @@ import {
 } from "./agent.js";
 export { actionSchema } from "./agent.js";
 import { toHex, toEventSelector, type Hex, type Address } from "viem";
+import { validateTransaction, lockedSpend } from "./policy.js";
 import {
   client,
   chain,
@@ -23,9 +24,10 @@ import {
   reconcile,
   operator,
   vaultArtifact,
+  signAgentMessage,
+  signAgentTypedData,
 } from "./chain.js";
 import { get, event, serial, save } from "./store.js";
-import { validateTransaction } from "./policy.js";
 import type { Task } from "../../../packages/shared/src/index.js";
 async function launchBrowser(args: string[]) {
   if (process.env.BROWSERLESS_TOKEN) {
@@ -239,16 +241,39 @@ export async function provider(
   if (
     !readMethods.includes(method) &&
     method !== "eth_sendTransaction" &&
-    method !== "wallet_switchEthereumChain"
+    method !== "wallet_switchEthereumChain" &&
+    method !== "personal_sign" &&
+    method !== "eth_signTypedData_v4"
   )
     throw Object.assign(
-      Error("This session does not sign messages, permits, or approvals"),
+      Error("This session does not sign permits, or raw transactions"),
       { code: 4200 },
     );
   if (method === "eth_accounts" || method === "eth_requestAccounts")
     return ["running", "paused"].includes(task.status) ? [task.vault] : [];
   if (method === "eth_chainId") return toHex(chain.id);
   if (method === "net_version") return String(chain.id);
+  if (method === "personal_sign") {
+    const from = String(params[1] || "").toLowerCase();
+    if (from && from !== task.vault.toLowerCase()) throw Error("Wrong sender");
+    return signAgentMessage(String(params[0] || "0x"));
+  }
+  if (method === "eth_signTypedData_v4") {
+    const from = String(params[0] || "").toLowerCase();
+    if (from && from !== task.vault.toLowerCase()) throw Error("Wrong sender");
+    let typed: {
+      domain: Record<string, unknown>;
+      types: Record<string, { name: string; type: string }[]>;
+      primaryType: string;
+      message: Record<string, unknown>;
+    };
+    try {
+      typed = JSON.parse(String(params[1]));
+    } catch {
+      throw Error("Typed data is not valid JSON");
+    }
+    return signAgentTypedData(typed);
+  }
   if (method === "wallet_switchEthereumChain") {
     if (BigInt((params[0] as any)?.chainId || 0) !== BigInt(chain.id))
       throw Error("This task stays on its approved chain");
@@ -277,7 +302,11 @@ export async function provider(
     return serial(task.id, async () => {
       try {
         await reconcile(task);
-        if (task.agentMode === "model" && hasConfirmedExecution(task))
+        if (
+          task.agentMode === "model" &&
+          lockedSpend(task) &&
+          hasConfirmedExecution(task)
+        )
           throw Error(
             "This task already has a confirmed transaction. End the session to return your funds.",
           );
@@ -358,31 +387,10 @@ export async function discoverAssets(task: Task) {
   save(task);
 }
 export async function openBrowser(task: Task) {
-  await checkURL(task.url);
-  const allowedHosts = new Set([
-    new URL(task.url).hostname,
-    ...(process.env.BROWSER_RESOURCE_HOSTS || "")
-      .split(",")
-      .map((h) => h.trim())
-      .filter(Boolean),
-  ]);
-  const rules: string[] = [];
-  for (const host of allowedHosts) {
-    if (!/^[a-zA-Z0-9.-]+$/.test(host))
-      throw Error("Invalid browser resource hostname");
-    if (local && host === "127.0.0.1") {
-      rules.push("MAP 127.0.0.1 127.0.0.1");
-      continue;
-    }
-    const ips = await lookup(host, { all: true, family: 4 });
-    if (!ips.length || ips.some((i) => privateIP(i.address)))
-      throw Error("Private browser address blocked");
-    rules.push(`MAP ${host} ${ips[0].address}`);
-  }
-  const browser = await launchBrowser([
-    "--disable-quic",
-    `--host-resolver-rules=${rules.join(", ")}, MAP * ~NOTFOUND`,
-  ]);
+  const startUrl = task.url || `${fixtureOrigin}/start`;
+  if (task.url) await checkURL(task.url);
+  else if (local) await checkURL(startUrl);
+  const browser = await launchBrowser(["--disable-quic"]);
   browsers.set(task.id, browser);
   browser.on("disconnected", () => {
     if (browsers.get(task.id) !== browser) return;
@@ -405,16 +413,7 @@ export async function openBrowser(task: Task) {
   });
   await context.route("**/*", async (route) => {
     try {
-      const req = route.request();
-      await checkURL(req.url());
-      if (!allowedHosts.has(new URL(req.url()).hostname))
-        throw Error("Resource host not approved");
-      if (
-        req.isNavigationRequest() &&
-        req.frame() === req.frame().page().mainFrame() &&
-        new URL(req.url()).origin !== new URL(task.url).origin
-      )
-        throw Error("Cross-site navigation is disabled");
+      await checkURL(route.request().url());
       await route.continue();
     } catch {
       await route.abort("blockedbyclient");
@@ -428,11 +427,15 @@ export async function openBrowser(task: Task) {
   await context.exposeBinding(
     "__meltRpc",
     async ({ frame }, arg: { method: string; params?: unknown[] }) => {
-      if (
-        frame !== frame.page().mainFrame() ||
-        new URL(frame.url()).origin !== new URL(task.url).origin
-      )
+      if (frame !== frame.page().mainFrame())
         throw Error("Wallet unavailable in this frame");
+      const frameUrl = frame.url();
+      if (
+        frameUrl &&
+        frameUrl !== "about:blank" &&
+        !frameUrl.startsWith("data:")
+      )
+        await checkURL(frameUrl);
       return provider(task, arg.method, arg.params);
     },
   );
@@ -452,10 +455,16 @@ export async function openBrowser(task: Task) {
   const page = await context.newPage();
   sessions.set(task.id, { context, page });
   try {
-    await page.goto(task.url, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
-    });
+    if (!task.url && !local) {
+      await page.setContent(
+        `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Start the task</title><style>body{margin:0;background:#fafafa;color:#35363e;font:16px system-ui}main{max-width:560px;margin:72px auto;padding:0 24px}h1{font-weight:500;font-size:36px;letter-spacing:-1.5px}p{color:#747783;line-height:1.7}label{display:block;margin:24px 0 12px;font-size:13px}input{width:100%;padding:12px 14px;border:1px solid #d7dbe7;border-radius:10px;font:inherit}button{margin-top:16px;border:0;border-radius:9px;background:#424a64;color:#fff;padding:13px 22px;font:inherit;cursor:pointer}</style><main><h1>Open a website</h1><p>This session can spend only the limit you set. Enter the site for the job.</p><label>Website<input id="url" type="url" placeholder="https://"></label><button id="go">Open site</button></main><script>document.getElementById('go').onclick=()=>{const v=document.getElementById('url').value.trim();if(v)location.href=v;}</script></html>`,
+      );
+    } else {
+      await page.goto(task.url || startUrl, {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
+    }
     task.browserUrl = page.url();
     task.browserTitle = await page.title();
     event(task, "info", "Task browser opened");
@@ -503,7 +512,7 @@ export async function start(id: string, manual = false) {
   if (Date.now() >= task.expiresAt * 1000)
     throw Error("Session expired; return funds instead");
   await reconcile(task);
-  if (hasConfirmedExecution(task)) return finish(id);
+  if (lockedSpend(task) && hasConfirmedExecution(task)) return finish(id);
   if (!manual && task.agentMode === "model" && !hasModelConfiguration())
     throw Error(
       "AI agent is not configured. Start with manual control instead.",
@@ -551,7 +560,7 @@ async function runAgent(id: string, generation: number) {
   event(
     task,
     "info",
-    "Agent started. The session ends after one confirmed task transaction.",
+    "Agent started. It will work until the job is done or the session ends.",
   );
   const firstEvent = task.events.length;
   const history: BrowserAction[] = [];
@@ -560,7 +569,7 @@ async function runAgent(id: string, generation: number) {
     task.status === "running" && generations.get(id) === generation;
     step++
   ) {
-    if (hasConfirmedExecution(task)) {
+    if (lockedSpend(task) && hasConfirmedExecution(task)) {
       Object.assign(task, executionOutcome(task));
       event(task, "success", task.outcomeReason!);
       await finish(id);
@@ -614,7 +623,7 @@ async function runAgent(id: string, generation: number) {
     });
     if (task.status !== "running" || generations.get(id) !== generation) return;
     // A transaction may confirm while the model is choosing its next action.
-    if (hasConfirmedExecution(task)) {
+    if (lockedSpend(task) && hasConfirmedExecution(task)) {
       Object.assign(task, executionOutcome(task));
       event(task, "success", task.outcomeReason!);
       await finish(id);

@@ -1,6 +1,6 @@
 # Melt · a wallet for one task
 
-Give a browser agent one job, a spending limit, one allowed contract function, and a deadline. Melt opens an isolated browser with a separate task wallet. When the session ends, spending access closes onchain and supported assets return to your wallet. Recovery stays available for assets that arrive later.
+Give a browser agent one job, a spending limit, and a deadline. Melt opens an isolated browser with a separate task wallet. When the session ends, spending access closes onchain and supported assets return to your wallet. Recovery stays available for assets that arrive later.
 
 [Open Melt](https://melt-woad.vercel.app) · [API reference](docs/api.md) · [Connect an agent](docs/agents.md) · [Verification record](docs/verification.md)
 
@@ -18,7 +18,7 @@ npm run dev
 
 Open [the local app](http://127.0.0.1:5173), choose **Open local workspace**, create a task wallet, then **Open task browser**. Under **View browser controls**, connect the wallet, refresh the controls, and choose the mint button. End the session to return the collectible and remaining ETH.
 
-Without model credentials, you or an external agent control the browser through visible controls. There is no scripted production driver. With a configured model, Melt chooses actions from page observations and stops after the first confirmed permitted transaction. The browser tests choose fixture buttons explicitly inside the test suite.
+Without model credentials, you or an external agent control the browser through visible controls. There is no scripted production driver. With a configured model, Melt chooses actions from page observations and finishes when the job is done or a locked session confirms its permitted transaction. The browser tests choose fixture buttons explicitly inside the test suite.
 
 Local development starts Anvil on 8545, the API on 8787, test dapps on 8788, and the web app on 5173. Its ETH and wallets are public development accounts with no monetary value. No provider account or payment is required for manual local use.
 
@@ -44,7 +44,7 @@ The client includes status polling, cancellation, screenshots, receipts and clea
 ## What's implemented
 
 - Owner-authorized wallet creation, separate funding, isolated browser execution, live preview, manual takeover, expiry, recovery and downloadable receipts.
-- Solidity task wallets with immutable owner, agent, permitted target/function, cumulative native-token budget and expiry.
+- Solidity task wallets with immutable owner, agent, optional permitted target/function, cumulative native-token budget and expiry.
 - ERC-20 and ERC-721 recovery, including late assets. Native refunds are derived from confirmed recovery logs.
 - SQLite persistence, idempotent creation, transaction reconciliation, account isolation and hashed, revocable agent keys.
 - Privy email/wallet authentication, embedded wallets, passkey support, verified owner identity and Privy-managed relayer signing in configured mode.
@@ -89,4 +89,4 @@ This builds the app and runs contract, adapter, SDK, browser/API/MCP and worker-
 - [Competitor and track research](docs/research/validation-2026-09-07.md)
 - [Submission plan](docs/hackathon.md), [check-in draft](docs/check-in.md) and [Uniswap feedback](FEEDBACK.md)
 
-The supported execution surface is native-value contract calls. Signature-based login, ERC-20 spending approvals, ERC-1155, cross-chain actions and arbitrary dapp navigation are outside it. This hackathon implementation has not undergone an independent security audit.
+The supported execution surface is native-value contract calls. Optional locks can pin a session to one contract function. ERC-1155, cross-chain actions and private-network browsing are outside it. This hackathon implementation has not undergone an independent security audit.

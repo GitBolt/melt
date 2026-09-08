@@ -57,3 +57,56 @@ test("create input rejects non-finite amounts and malformed selectors", () =>
     }).success,
     false,
   ));
+test("create input accepts a job and spending limit without a contract lock", () => {
+  const parsed = createTask.parse({
+    title: "Pay the kiosk",
+    instruction: "Connect and leave a tip",
+    url: "https://example.com/pay",
+    budget: "0.0003",
+    recovery: vault,
+  });
+  assert.equal(parsed.target, "");
+  assert.equal(parsed.selector, "");
+});
+test("create input accepts an empty website and still requires a matching lock pair", () => {
+  assert.equal(
+    createTask.safeParse({
+      title: "Write the job first",
+      instruction: "Do the work within the spending limit",
+      url: "",
+      budget: "0.001",
+      recovery: vault,
+    }).success,
+    true,
+  );
+  assert.equal(
+    createTask.safeParse({
+      title: "Partial lock",
+      instruction: "Lock only the contract",
+      url: "https://example.com",
+      budget: "0.001",
+      target,
+      recovery: vault,
+    }).success,
+    false,
+  );
+});
+test("unlocked sessions may call any contract except forbidden selectors", () => {
+  const open = { ...task, target: "", selector: "" };
+  assert.equal(
+    validateTransaction(open, {
+      ...tx,
+      to: "0x3333333333333333333333333333333333333333",
+      data: "0x1249c58b",
+    }).to,
+    "0x3333333333333333333333333333333333333333",
+  );
+  assert.throws(
+    () =>
+      validateTransaction(open, {
+        ...tx,
+        data: "0xa9059cbb0000000000000000000000001111111111111111111111111111111111111111",
+      }),
+    /approvals/,
+  );
+});

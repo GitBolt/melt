@@ -32,7 +32,7 @@ Paths below are relative to the base URL.
 | GET        | `/openapi.json`, `/client.mjs`, `/client.d.mts`        | Public         | Reference and standalone client downloads                           |
 | GET        | `/me`                                                  | Owner or agent | Identity; agent keys do not expose an owner signing credential      |
 | GET        | `/sessions`                                            | Owner or agent | List the account's sessions                                         |
-| POST       | `/sessions`                                            | Owner          | Create a wallet with an authorized contract call and spending limit |
+| POST       | `/sessions`                                            | Owner          | Create a wallet with a spending limit and an optional contract lock |
 | GET        | `/sessions/{id}`                                       | Owner or agent | Status, events, transactions and assets                             |
 | POST       | `/sessions/{id}/start`                                 | Owner or agent | Run the configured model, or open manual control                    |
 | POST       | `/sessions/{id}/pause`                                 | Owner or agent | Pause the agent and enable manual actions                           |
@@ -80,22 +80,20 @@ Normally, use the web app for this step. Custom owner frontends can call `POST /
 
 ```json
 {
-  "title": "Mint a collectible",
-  "instruction": "Mint one collectible, then return it and unused funds.",
+  "title": "Leave a tip",
+  "instruction": "Connect and leave a tip, then return unused funds.",
   "url": "https://YOUR_DAPP_URL",
   "budget": "0.0003",
   "durationMinutes": 15,
-  "target": "0xYOUR_DEPLOYED_CONTRACT_ADDRESS",
-  "selector": "0x1249c58b",
   "recovery": "0xYOUR_AUTHENTICATED_WALLET"
 }
 ```
 
-Replace the URL and addresses with the intended public dapp, its deployed contract on the configured chain, and the authenticated owner's wallet. Read `/config` for the active network and supported task templates. The example selector is `mint()`; derive the actual four-byte selector from the chosen contract's ABI. Do not send the example placeholders unchanged.
+Website, contract address (`target`) and function selector are optional. Omit the contract lock to allow any call inside the spending limit, except token approvals and transfers. If you set a lock, send both `target` and `selector`. Read `/config` for the active network and example jobs. Do not send example placeholders unchanged.
 
 Include an `Idempotency-Key` header, 8–128 characters. Reusing it with the same body returns the same session; a changed body returns 409. Keep the key when retrying an uncertain create request. The session is persisted before chain work; a 201 response can contain `attention` if deployment failed. Inspect status and transaction hashes.
 
-Budget is a decimal native-token string, up to 18 decimal places and at most 10 tokens. Duration is 1–60 minutes. The contract target is exact, the selector is four bytes, and the return address must match the authenticated owner's wallet. Funding is a separate owner-signed native-token transfer to the deployed wallet. Record its confirmed hash with `POST /sessions/{id}/funding` and `{ "hash": "0x..." }`. Relayer gas is separate from the spending limit. Testnet ETH has no monetary value; never present it as mainnet funds.
+Budget is a decimal native-token string, up to 18 decimal places and at most 10 tokens. Duration is 1–60 minutes. If a contract lock is set, the target is exact and the selector is four bytes. The return address must match the authenticated owner's wallet. Funding is a separate owner-signed native-token transfer to the deployed wallet. Record its confirmed hash with `POST /sessions/{id}/funding` and `{ "hash": "0x..." }`. Relayer gas is separate from the spending limit. Testnet ETH has no monetary value; never present it as mainnet funds.
 
 ## Browser actions
 

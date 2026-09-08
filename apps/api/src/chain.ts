@@ -62,9 +62,11 @@ export const client = createPublicClient({ chain, transport: http() });
 const devWallet = createWalletClient({ account, chain, transport: http() });
 export let operator: Address;
 export let fixture: Address;
+export let tipJar: Address;
 let privyId = "";
 export let vaultArtifact: { abi: any; evm: { bytecode: { object: string } } };
 export let fixtureArtifact: typeof vaultArtifact;
+export let tipJarArtifact: typeof vaultArtifact;
 export async function send(
   tx: { to?: Address; data?: Hex; value?: bigint; gas?: bigint },
   task?: Task,
@@ -123,7 +125,7 @@ export async function initialize() {
     throw Error("RPC chain mismatch");
   const { default: solc } = await import("solc" as string);
   const sources = Object.fromEntries(
-    ["TaskVault", "StudioCollectible"].map((name) => [
+    ["TaskVault", "StudioCollectible", "TipJar"].map((name) => [
       `${name}.sol`,
       { content: readFileSync(`contracts/src/${name}.sol`, "utf8") },
     ]),
@@ -145,6 +147,7 @@ export async function initialize() {
   vaultArtifact = compiled.contracts["TaskVault.sol"].TaskVault;
   fixtureArtifact =
     compiled.contracts["StudioCollectible.sol"].StudioCollectible;
+  tipJarArtifact = compiled.contracts["TipJar.sol"].TipJar;
   if (local) operator = account.address;
   else {
     privyId =
@@ -174,6 +177,19 @@ export async function initialize() {
     fixture = (await client.getTransactionReceipt({ hash })).contractAddress!;
     setSetting(`fixture:${chain.id}`, fixture);
   } else fixture = "0x0000000000000000000000000000000000000000";
+  const prevTip = process.env.TIP_JAR_CONTRACT || setting(`tipjar:${chain.id}`);
+  if (prevTip && (await client.getCode({ address: prevTip as Address })))
+    tipJar = prevTip as Address;
+  else if (local) {
+    const hash = await send({
+      data: encodeDeployData({
+        abi: tipJarArtifact.abi,
+        bytecode: `0x${tipJarArtifact.evm.bytecode.object}`,
+      }),
+    });
+    tipJar = (await client.getTransactionReceipt({ hash })).contractAddress!;
+    setSetting(`tipjar:${chain.id}`, tipJar);
+  } else tipJar = "0x0000000000000000000000000000000000000000";
 }
 export async function deployTask(task: Task) {
   const data = encodeDeployData({
@@ -184,8 +200,8 @@ export async function deployTask(task: Task) {
       operator,
       parseEther(task.budget),
       BigInt(task.expiresAt),
-      [task.target],
-      [task.selector],
+      task.target ? [task.target] : [],
+      task.selector ? [task.selector] : [],
     ],
   });
   const hash = await send({ data }, task, "Create task wallet");
@@ -345,4 +361,40 @@ export async function recover(task: Task) {
       ? "Recovery needs attention"
       : "Session closed. Recovery is complete.",
   );
+}
+export async function signAgentMessage(message: string | Uint8Array | Hex) {
+  if (local)
+    return account.signMessage({
+      message:
+        typeof message === "string" && !message.startsWith("0x")
+          ? message
+          : { raw: message as Hex },
+    });
+  const signed = await privy!
+    .wallets()
+    .ethereum()
+    .signMessage(privyId, {
+      message:
+        typeof message === "string" && message.startsWith("0x")
+          ? Buffer.from(message.slice(2), "hex")
+          : message,
+    });
+  return (signed as { signature: Hex }).signature;
+}
+export async function signAgentTypedData(typedData: {
+  domain: Record<string, unknown>;
+  types: Record<string, { name: string; type: string }[]>;
+  primaryType: string;
+  message: Record<string, unknown>;
+}) {
+  if (/permit/i.test(typedData.primaryType))
+    throw Error("This session does not sign permits, or approvals");
+  if (local) return account.signTypedData(typedData as any);
+  const signed = await privy!
+    .wallets()
+    .ethereum()
+    .signTypedData(privyId, {
+      typed_data: typedData as any,
+    } as any);
+  return (signed as { signature: Hex }).signature;
 }

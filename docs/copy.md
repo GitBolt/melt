@@ -20,7 +20,7 @@ Keep headings brief. Give supporting text one job. Buttons describe the action, 
 - **Receipt:** the session’s spending, transactions, returned assets, recovery status and task outcome.
 - **API key:** access to operate sessions already authorized by the owner; it cannot create wallets or raise spending limits.
 
-Use exact technical terms where they help someone configure the product: contract address, function selector, base units, ERC-20, ERC-721, API, and MCP.
+Use exact technical terms where they help someone configure the product: contract address, function selector, base units, ERC-20, ERC-721, API, and MCP. Contract locks are optional.
 
 ## Examples
 

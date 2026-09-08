@@ -7,13 +7,16 @@ import { randomUUID, randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
+import { toFunctionSelector } from "viem";
 import { createTask, type Task } from "../../../packages/shared/src/index.js";
+import { forbiddenSelectors } from "./policy.js";
 import { db, digest, get, list, save, event, serial } from "./store.js";
 import {
   local,
   chain,
   operator,
   fixture,
+  tipJar,
   initialize,
   deployTask,
   refreshBalance,
@@ -124,6 +127,16 @@ app.get("/api/config", async () => ({
     target: fixture,
     selector: "0x1249c58b",
     price: "0.0001",
+    pay: {
+      available:
+        local ||
+        (process.env.ENABLE_TEST_FIXTURES === "true" &&
+          tipJar !== "0x0000000000000000000000000000000000000000"),
+      url: `${fixtureOrigin}/kiosk`,
+      target: tipJar,
+      selector: toFunctionSelector("tip()"),
+      price: "0.0001",
+    },
   },
   operator,
 }));
@@ -185,17 +198,12 @@ app.post(
     if (input.recovery.toLowerCase() !== user.owner.toLowerCase())
       throw Error("Recovery must be your authenticated wallet");
     if (
-      [
-        "0x095ea7b3",
-        "0xa22cb465",
-        "0xd505accf",
-        "0x23b872dd",
-        "0xa9059cbb",
-      ].includes(input.selector.toLowerCase())
+      input.selector &&
+      forbiddenSelectors.includes(input.selector.toLowerCase())
     )
       throw Error("Token approvals and arbitrary transfers are not supported");
 
-    await checkURL(input.url);
+    if (input.url) await checkURL(input.url);
     const raw = req.headers["idempotency-key"];
     if (typeof raw !== "string" || raw.length < 8 || raw.length > 128)
       throw Error("Provide an Idempotency-Key header (8–128 characters)");

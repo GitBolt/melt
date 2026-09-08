@@ -164,4 +164,48 @@ contract TaskVaultTest {
         vault.recoverNative();
         require(address(vault).balance == 1 ether);
     }
+
+    function openVault() internal returns (TaskVault) {
+        address[] memory targets = new address[](0);
+        bytes4[] memory selectors = new bytes4[](0);
+        TaskVault opened =
+            new TaskVault(owner, agent, 0.0002 ether, block.timestamp + 900, targets, selectors);
+        vm.deal(address(opened), 1 ether);
+        return opened;
+    }
+
+    function testOpenSpendCanCallUnlistedContract() public {
+        TaskVault opened = openVault();
+        vm.prank(agent);
+        opened.execute(address(note), 0.0001 ether, abi.encodeCall(note.mint, ()));
+        require(note.ownerOf(1) == address(opened));
+        require(opened.spent() == 0.0001 ether);
+    }
+
+    function testOpenSpendStillBlocksApprovalsAndTransfers() public {
+        TaskVault opened = openVault();
+        vm.expectRevert();
+        vm.prank(agent);
+        opened.execute(address(note), 0, hex"095ea7b3");
+        vm.expectRevert();
+        vm.prank(agent);
+        opened.execute(address(note), 0, hex"a9059cbb");
+    }
+
+    function testOpenSpendStillCapsNativeBudget() public {
+        TaskVault opened = openVault();
+        vm.prank(agent);
+        opened.execute(address(note), 0.0001 ether, abi.encodeCall(note.mint, ()));
+        vm.prank(agent);
+        opened.execute(address(note), 0.0001 ether, abi.encodeCall(note.mint, ()));
+        vm.expectRevert();
+        vm.prank(agent);
+        opened.execute(address(note), 0.0001 ether, abi.encodeCall(note.mint, ()));
+    }
+
+    function testLockedSpendStillRejectsUnlistedContract() public {
+        vm.expectRevert();
+        vm.prank(agent);
+        vault.execute(owner, 0.0001 ether, abi.encodeCall(note.mint, ()));
+    }
 }

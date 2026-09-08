@@ -1,6 +1,6 @@
 # Check-in draft — not posted
 
-I'm building Melt, a wallet for one browser task. You give an agent a job, a spending limit and one allowed contract action. It gets a separate wallet, does the task, and returns the assets and unused funds when the session ends. You can still recover assets that arrive later.
+I'm building Melt, a wallet for one browser task. You give an agent a job and a spending limit. It gets a separate wallet, does the task, and returns the assets and unused funds when the session ends. You can still recover assets that arrive later.
 
 The hosted flow now works on Sepolia: I signed in with email, funded a task wallet with 0.0003 ETH, and let the AI connect to a test dapp and mint a collectible. It spent 0.0001 ETH, then returned the NFT and the remaining 0.0002 ETH. The receipts and final NFT ownership are verified onchain.
 
