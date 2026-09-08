@@ -255,7 +255,7 @@ app.get("/api/envelopes", async (req) => {
 });
 app.post(
   "/api/envelopes",
-  { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+  { config: { rateLimit: { max: local ? 120 : 10, timeWindow: "1 minute" } } },
   async (req, reply) => {
     const user = await authenticate(req);
     if (user.apiKey)
@@ -338,7 +338,7 @@ app.get("/api/sessions", async (req) => {
 });
 app.post(
   "/api/sessions",
-  { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+  { config: { rateLimit: { max: local ? 120 : 10, timeWindow: "1 minute" } } },
   async (req, reply) => {
     const user = await authenticate(req);
     if (user.apiKey)
