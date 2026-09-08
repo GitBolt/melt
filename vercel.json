@@ -12,18 +12,33 @@
     {
       "source": "/demo/:path*",
       "destination": "https://melt-api-production-1b26.up.railway.app/demo/:path*"
+    },
+    {
+      "source": "/recover",
+      "destination": "/index.html"
     }
   ],
   "headers": [
     {
       "source": "/api/:path*",
-      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
     },
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "no-referrer" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
       ]
     }
   ]

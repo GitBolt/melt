@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtemp, rm, mkdir } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { resolve } from "node:path";
 
 test(
@@ -14,7 +15,7 @@ test(
     let child: ChildProcess | undefined,
       logs = "",
       cookie = "";
-    const launch = async () => {
+    const launch = async (browserUnavailable = false) => {
       child = spawn(
         process.execPath,
         ["--import", "tsx", "apps/api/src/index.ts"],
@@ -29,6 +30,10 @@ test(
             FIXTURE_ORIGIN: "http://127.0.0.1:8791",
             APP_ORIGIN: base,
             DATA_DIR: dir,
+            BROWSERLESS_TOKEN: "",
+            ...(browserUnavailable
+              ? { PLAYWRIGHT_BROWSERS_PATH: resolve(dir, "missing-browser") }
+              : {}),
             AI_API_KEY: "",
             AI_MODEL: "",
           },
@@ -111,8 +116,49 @@ test(
       }
       assert.equal(before.assets.length, 1);
       assert.equal(before.spent, "0.0001");
+      assert.equal(before.agentMode, "manual");
+      assert.ok(
+        before.transactions.some(
+          (tx: any) =>
+            tx.kind === "Execute dapp transaction" && tx.status === "success",
+        ),
+      );
       await stop();
-      await launch();
+      // Simulate a successful deployment whose receipt was not saved before shutdown.
+      const disk = new DatabaseSync(resolve(dir, "melt.sqlite"));
+      const saved = JSON.parse(
+        (
+          disk.prepare("SELECT body FROM tasks WHERE id=?").get(task.id) as {
+            body: string;
+          }
+        ).body,
+      );
+      saved.vault = "";
+      saved.transactions.find(
+        (tx: any) => tx.kind === "Create task wallet",
+      ).status = "pending";
+      disk
+        .prepare("UPDATE tasks SET body=? WHERE id=?")
+        .run(JSON.stringify(saved), task.id);
+      disk.close();
+      await launch(true);
+      assert.equal((await req("/health")).browser, "unavailable");
+      assert.equal((await req("/config")).browserAvailable, false);
+      const unavailableStart = await fetch(
+        base + `/api/sessions/${task.id}/start`,
+        {
+          method: "POST",
+          headers: {
+            Origin: base,
+            Cookie: cookie,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ manual: true }),
+        },
+      );
+      assert.equal(unavailableStart.status, 503);
+      const refreshed = await req(`/sessions/${task.id}/refresh`, {});
+      assert.equal(refreshed.vault.toLowerCase(), task.vault.toLowerCase());
       const restored = await req(`/sessions/${task.id}`);
       assert.equal(restored.status, "attention");
       assert.equal(restored.transactions.length, before.transactions.length);
@@ -120,6 +166,10 @@ test(
       assert.equal(closed.status, "closed");
       assert.equal(closed.returned, "0.0002");
       assert.equal(closed.assets[0].recovered, true);
+      assert.equal(closed.outcome, "succeeded");
+      const receipt = await req(`/sessions/${task.id}/receipt`);
+      assert.equal(receipt.chainId, 31337);
+      assert.equal(receipt.transactions.length, closed.transactions.length);
     } finally {
       await stop();
       await rm(dir, { recursive: true, force: true });

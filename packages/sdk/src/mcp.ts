@@ -1,11 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { Melt } from "./index.js";
+import { Melt, MeltError } from "./index.js";
 if (!process.env.MELT_API_KEY)
   throw Error("Set MELT_API_KEY to a key created in Melt → Developers");
 const client = new Melt({
-  baseUrl: process.env.MELT_API_URL || "http://127.0.0.1:8787",
+  baseUrl: process.env.MELT_API_URL || "https://melt-woad.vercel.app",
   apiKey: process.env.MELT_API_KEY,
 });
 const server = new McpServer({ name: "melt", version: "0.2.0" });
@@ -18,7 +18,21 @@ const result = async (fn: () => Promise<unknown>) => {
   } catch (e) {
     return {
       isError: true,
-      content: [{ type: "text" as const, text: (e as Error).message }],
+      content: [
+        {
+          type: "text" as const,
+          text:
+            e instanceof MeltError
+              ? JSON.stringify({
+                  error: e.message,
+                  code: e.code,
+                  status: e.status,
+                  retryAfterMs: e.retryAfterMs,
+                  uncertain: e.uncertain,
+                })
+              : (e as Error).message,
+        },
+      ],
     };
   }
 };
@@ -52,7 +66,7 @@ server.registerTool(
   "take_control",
   {
     description:
-      "Pause the built-in driver so this agent can use visible browser controls.",
+      "Pause the built-in agent so this agent can use visible browser controls.",
     inputSchema: id,
   },
   ({ sessionId }) => result(() => client.pause(sessionId)),
@@ -71,7 +85,7 @@ server.registerTool(
   {
     description:
       "Click a visible control from the latest observation, while paused. All wallet requests remain policy checked.",
-    inputSchema: id.extend({ index: z.number().int().min(0) }),
+    inputSchema: id.extend({ index: z.number().int().min(0).max(199) }),
   },
   ({ sessionId, index }) =>
     result(() => client.action(sessionId, { type: "click", index })),
@@ -82,7 +96,7 @@ server.registerTool(
     description:
       "Fill a visible field. Never supply passwords or credentials to an untrusted page.",
     inputSchema: id.extend({
-      index: z.number().int().min(0),
+      index: z.number().int().min(0).max(199),
       value: z.string().max(2000),
     }),
   },
@@ -97,5 +111,69 @@ server.registerTool(
     inputSchema: id,
   },
   ({ sessionId }) => result(() => client.close(sessionId)),
+);
+server.registerTool(
+  "wait_browser",
+  {
+    description:
+      "Allow the page to settle while paused. Observe it again afterwards; do not repeat a submitted transaction.",
+    inputSchema: id,
+  },
+  ({ sessionId }) => result(() => client.action(sessionId, { type: "wait" })),
+);
+server.registerTool(
+  "read_receipt",
+  {
+    description:
+      "Read the session receipt, outcome and chain transaction hashes. Closed means spending ended; check outcome separately.",
+    inputSchema: id,
+  },
+  ({ sessionId }) => result(() => client.receipt(sessionId)),
+);
+server.registerTool(
+  "scroll_browser",
+  {
+    description:
+      "Scroll the page to reveal more content, then observe the updated controls.",
+    inputSchema: id.extend({ direction: z.enum(["up", "down"]) }),
+  },
+  ({ sessionId, direction }) =>
+    result(() => client.action(sessionId, { type: "scroll", direction })),
+);
+server.registerTool(
+  "press_control",
+  {
+    description:
+      "Press a supported key on a control from the latest observation, while paused.",
+    inputSchema: id.extend({
+      index: z.number().int().min(0).max(199),
+      key: z.enum(["Enter", "Tab", "Escape", "ArrowUp", "ArrowDown"]),
+    }),
+  },
+  ({ sessionId, index, key }) =>
+    result(() => client.action(sessionId, { type: "press", index, key })),
+);
+server.registerTool(
+  "select_control",
+  {
+    description:
+      "Select an option value on a dropdown from the latest observation, while paused.",
+    inputSchema: id.extend({
+      index: z.number().int().min(0).max(199),
+      value: z.string().max(2000),
+    }),
+  },
+  ({ sessionId, index, value }) =>
+    result(() => client.action(sessionId, { type: "select", index, value })),
+);
+server.registerTool(
+  "finish_task",
+  {
+    description:
+      "Finish only after observing the requested result. Ends spending and recovers supported assets. Inspect the recorded outcome separately.",
+    inputSchema: id.extend({ reason: z.string().max(160).optional() }),
+  },
+  ({ sessionId, reason }) =>
+    result(() => client.action(sessionId, { type: "finish", reason })),
 );
 await server.connect(new StdioServerTransport());

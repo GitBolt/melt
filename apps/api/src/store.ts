@@ -42,6 +42,7 @@ export function get(id: string): Task {
   if (!row)
     throw Object.assign(Error("Session not found"), { statusCode: 404 });
   const task = JSON.parse(row.body);
+  if (task.agentMode === "local-script") task.agentMode = "manual";
   cache.set(id, task);
   return task;
 }

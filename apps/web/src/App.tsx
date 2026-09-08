@@ -30,7 +30,7 @@ import type {
   CreateTask,
   TaskStatus,
 } from "../../../packages/shared/src/index";
-import { CapacityRibbon } from "./components/CapacityMotion";
+import { BudgetRibbon } from "./components/BudgetRibbon";
 import { GooeyNav } from "./components/ui/gooey-nav";
 import { SessionSeal } from "./SessionSeal";
 import { FundingSwap } from "./FundingSwap";
@@ -70,7 +70,9 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     [busy, setBusy] = useState(""),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
-    [newTask, setNewTask] = useState(false);
+    [newTask, setNewTask] = useState(false),
+    [draft, setDraft] = useState<CreateTask>();
+  const refreshing = useRef(false);
   const request = useCallback(
     async (
       path: string,
@@ -98,6 +100,8 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     [auth?.authenticated],
   );
   const refresh = useCallback(async () => {
+    if (refreshing.current) return;
+    refreshing.current = true;
     try {
       const me = await request("/me");
       setUser(me);
@@ -107,13 +111,15 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
         setUser(null);
         setTasks([]);
       } else setError((e as Error).message);
+    } finally {
+      refreshing.current = false;
     }
   }, [request]);
   useEffect(() => {
     void refresh();
     const timer = setInterval(() => {
       if (!document.hidden) void refresh();
-    }, 2000);
+    }, 5000);
     return () => clearInterval(timer);
   }, [refresh]);
   useEffect(() => {
@@ -183,6 +189,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
         />
         <button
           className="account"
+          title={user ? `Wallet: ${user.owner}` : undefined}
           onClick={
             user
               ? () =>
@@ -211,10 +218,10 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
           </span>
         </span>
         <span>
-          {config.modelConfigured
-            ? "AI agent enabled"
-            : config.mode === "local"
-              ? "Scripted demo"
+          {config.browserAvailable === false
+            ? "Browser unavailable · recovery available"
+            : config.modelConfigured
+              ? "AI agent enabled"
               : "Manual control"}
         </span>
       </div>
@@ -257,6 +264,12 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               auth={auth}
               owner={user?.owner || ""}
               download={() => download(task)}
+              repeat={() => {
+                setDraft(task);
+                setSelected(undefined);
+                setPage("Sessions");
+                setNewTask(true);
+              }}
             />
           </>
         ) : (
@@ -296,6 +309,8 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                   </div>
                   {user ? (
                     <Composer
+                      key={draft ? JSON.stringify(draft) : "new"}
+                      initial={draft}
                       config={config}
                       owner={user.owner}
                       busy={busy}
@@ -309,6 +324,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                           });
                           setSelected(t.id);
                           setNewTask(false);
+                          setDraft(undefined);
                         })
                       }
                     />
@@ -335,7 +351,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                           <Loader2 size={16} className="spin" />
                         ) : null}
                         {config.mode === "local"
-                          ? "Try the demo"
+                          ? "Open local workspace"
                           : "Continue with email or wallet"}
                         <ArrowRight size={16} />
                       </button>
@@ -447,6 +463,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
   );
 }
 function Composer({
+  initial,
   config,
   owner,
   busy,
@@ -456,21 +473,33 @@ function Composer({
   config: Config;
   owner: string;
   busy: string;
+  initial?: CreateTask;
   onSubmit: (body: CreateTask) => void;
   onCancel?: () => void;
 }) {
-  const [custom, setCustom] = useState(!config.fixture.available),
+  const [custom, setCustom] = useState(!!initial || !config.fixture.available),
     [url, setUrl] = useState(
-      config.fixture.available ? config.fixture.url : "",
+      initial?.url || (config.fixture.available ? config.fixture.url : ""),
     ),
-    [title, setTitle] = useState("Mint a field note"),
+    [title, setTitle] = useState(
+      initial?.title || (config.fixture.available ? "Mint a field note" : ""),
+    ),
     [instruction, setInstruction] = useState(
-      "Connect the wallet and mint one field note. Return the collectible and remaining funds when done.",
+      initial?.instruction ||
+        (config.fixture.available
+          ? "Connect the wallet and mint one field note. Return the collectible and remaining funds when done."
+          : ""),
     ),
-    [budget, setBudget] = useState("0.0003"),
-    [minutes, setMinutes] = useState(15),
-    [target, setTarget] = useState(config.fixture.target),
-    [selector, setSelector] = useState(config.fixture.selector);
+    [budget, setBudget] = useState(initial?.budget || "0.0003"),
+    [minutes, setMinutes] = useState(initial?.durationMinutes || 15),
+    [target, setTarget] = useState(
+      initial?.target ||
+        (config.fixture.available ? config.fixture.target : ""),
+    ),
+    [selector, setSelector] = useState(
+      initial?.selector ||
+        (config.fixture.available ? config.fixture.selector : ""),
+    );
   return (
     <form
       onSubmit={(e) => {
@@ -560,7 +589,7 @@ function Composer({
             </span>
           </label>
         </div>
-        <CapacityRibbon value={Number(budget)} total={0.001} large />
+        <BudgetRibbon value={Number(budget)} total={0.001} large />
       </div>
       <label className="duration-label">
         Session length<span>{minutes} min</span>
@@ -612,7 +641,10 @@ function Composer({
             Cancel
           </button>
         )}
-        <button className="primary" disabled={!!busy}>
+        <button
+          className="primary"
+          disabled={!!busy || config.browserAvailable === false}
+        >
           {busy === "create" ? (
             <Loader2 size={16} className="spin" />
           ) : (
@@ -634,6 +666,7 @@ function SessionDetail({
   auth,
   owner,
   download,
+  repeat,
 }: {
   task: Task;
   config: Config;
@@ -643,6 +676,7 @@ function SessionDetail({
   auth?: Auth;
   owner: string;
   download: () => void;
+  repeat: () => void;
 }) {
   const [shot, setShot] = useState(""),
     [controls, setControls] = useState<any[]>([]),
@@ -686,7 +720,12 @@ function SessionDetail({
     };
   }, [t.id, t.status]);
   async function command(name: string) {
-    await act(name, () => request(`/sessions/${t.id}/${name}`, {}));
+    await act(name, () =>
+      request(
+        `/sessions/${t.id}/${name}`,
+        name === "start" ? { manual: !config.modelConfigured } : {},
+      ),
+    );
   }
   const remaining = Math.max(0, t.expiresAt - Math.floor(Date.now() / 1000)),
     gas = t.transactions.reduce(
@@ -701,11 +740,7 @@ function SessionDetail({
           <h1>{t.title}</h1>
           <p>
             {new URL(t.url).hostname} <span className="divider-dot">·</span>{" "}
-            {t.agentMode === "model"
-              ? "AI browser agent"
-              : config.mode === "local"
-                ? "Scripted demo"
-                : "Manual control"}
+            {t.agentMode === "model" ? "AI browser agent" : "Manual control"}
           </p>
         </div>
         <span className={`status status-${t.status}`}>
@@ -722,7 +757,7 @@ function SessionDetail({
               <small>{config.chain.symbol}</small>
             </h2>
           </div>
-          <CapacityRibbon
+          <BudgetRibbon
             value={Math.max(0, Number(t.budget) - Number(t.spent))}
             total={Number(t.budget)}
             large
@@ -782,13 +817,32 @@ function SessionDetail({
           ) : (
             <button
               className="quiet-button wide"
-              disabled={!!busy || t.status === "closing" || !t.vault}
+              disabled={
+                !!busy ||
+                t.status === "closing" ||
+                (!t.vault &&
+                  !t.transactions.some(
+                    (tx) =>
+                      tx.kind === "Create task wallet" &&
+                      tx.status !== "reverted",
+                  ))
+              }
               onClick={() => command("close")}
             >
               <Square size={12} />
               {t.status === "attention"
                 ? "Retry recovery"
                 : "End & return funds"}
+            </button>
+          )}
+          {t.vault && (
+            <a className="quiet-button wide" href={`/recover?vault=${t.vault}`}>
+              <ShieldCheck size={14} /> Recover without Melt
+            </a>
+          )}
+          {t.status === "closed" && (
+            <button className="secondary wide" onClick={repeat}>
+              <RotateCcw size={14} /> Use this setup again
             </button>
           )}
           {["closed", "attention"].includes(t.status) && (
@@ -808,7 +862,7 @@ function SessionDetail({
                   Take control
                 </button>
               )}
-              {t.status === "paused" && (
+              {t.status === "paused" && config.modelConfigured && (
                 <button disabled={!!busy} onClick={() => command("start")}>
                   <Play size={14} />
                   Resume agent
@@ -877,7 +931,9 @@ function SessionDetail({
                     ) : (
                       <Play size={15} />
                     )}
-                    Start task
+                    {config.modelConfigured
+                      ? "Start task"
+                      : "Open task browser"}
                   </button>
                 )}
                 {t.status === "funding" && (
@@ -932,7 +988,37 @@ function SessionDetail({
                         your wallet before sending again.
                       </p>
                     )}
-                    <p className="identifier">{t.vault}</p>
+                    <details className="funding-help">
+                      <summary>
+                        Need {config.chain.symbol} in your wallet?
+                      </summary>
+                      <p>
+                        Send {config.chain.symbol} on {config.chain.name} to
+                        your return wallet, then fund this task.
+                      </p>
+                      <code>{owner}</code>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() =>
+                          act("copy-owner", async () => {
+                            await navigator.clipboard.writeText(owner);
+                          })
+                        }
+                      >
+                        <Copy size={14} /> Copy wallet address
+                      </button>
+                      {config.chain.id === 11155111 && (
+                        <a
+                          href="https://ethglobal.com/faucet/sepolia-11155111-eth"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Get test ETH <ExternalLink size={12} />
+                        </a>
+                      )}
+                    </details>
+                    <p className="identifier">Task wallet: {t.vault}</p>
                   </>
                 )}
               </div>
@@ -987,7 +1073,7 @@ function SessionDetail({
               )}
             </div>
           )}
-          {t.status === "funding" && auth && (
+          {t.status === "funding" && auth && config.swapsConfigured && (
             <FundingSwap
               request={request}
               auth={auth}
@@ -996,6 +1082,18 @@ function SessionDetail({
               act={act}
               busy={busy}
             />
+          )}
+          {t.outcome && t.outcome !== "pending" && (
+            <p className="task-outcome">
+              <strong>
+                {t.outcome === "succeeded"
+                  ? "Action confirmed"
+                  : t.outcome === "cancelled"
+                    ? "Task ended"
+                    : "Task incomplete"}
+              </strong>
+              {t.outcomeReason && <span>{t.outcomeReason}</span>}
+            </p>
           )}
           <div className="activity">
             <div className="section-top">
@@ -1113,8 +1211,14 @@ function Developers({
             Keys can’t create wallets or increase spending limits.
           </p>
           <pre>
-            <code>{`import { Melt } from '@melt/sdk';\n\nconst melt = new Melt({\n  baseUrl: 'http://127.0.0.1:8787',\n  apiKey: process.env.MELT_API_KEY\n});\n\nawait melt.start(sessionId);\nconst receipt = await melt.wait(sessionId);`}</code>
+            <code>{`import { Melt } from './melt-client.mjs';\n\nconst melt = new Melt({\n  baseUrl: '${location.origin}',\n  apiKey: process.env.MELT_API_KEY\n});\n\nawait melt.start(sessionId);\nawait melt.wait(sessionId);\nconst receipt = await melt.receipt(sessionId);`}</code>
           </pre>
+          <a className="secondary" href="/api/client.mjs">
+            <Download size={14} /> Download JavaScript client
+          </a>
+          <p className="helper">
+            One file, no dependencies. Keep your API key on the server.
+          </p>
           <div className="api-endpoints">
             {[
               ["GET", "/api/sessions", "List your sessions"],

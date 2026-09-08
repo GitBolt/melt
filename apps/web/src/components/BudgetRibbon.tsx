@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from "react";
 import { motion, useReducedMotion } from "motion/react";
 
 /** A folded ribbon: height and colour encode the selected/available fraction. */
-export function CapacityRibbon({
+export function BudgetRibbon({
   value,
   total,
   large = false,
@@ -14,10 +14,10 @@ export function CapacityRibbon({
   const [pointer, setPointer] = useState<number | null>(null);
   const reduced = useReducedMotion();
   const count = large ? 36 : 24;
-  const fraction = Math.min(1, Math.max(0, value / Math.max(1, total)));
+  const fraction = Math.min(1, Math.max(0, total > 0 ? value / total : 0));
   return (
     <span
-      className={`capacity-ribbon${large ? " ribbon-large" : ""}`}
+      className={`budget-ribbon${large ? " ribbon-large" : ""}`}
       aria-hidden="true"
       onPointerMove={(e) => {
         if (e.pointerType === "touch") return;
@@ -34,6 +34,7 @@ export function CapacityRibbon({
         return (
           <motion.i
             key={i}
+            initial={false}
             className={fill > 0 ? "ribbon-filled" : ""}
             animate={{
               height:
@@ -57,54 +58,6 @@ export function CapacityRibbon({
           />
         );
       })}
-    </span>
-  );
-}
-
-/** Layered image frames open on interaction and advance only for actual work. */
-export function FrameStack({
-  active = false,
-  complete = false,
-  large = false,
-}: {
-  active?: boolean;
-  complete?: boolean;
-  large?: boolean;
-}) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`frame-stack${large ? " frame-large" : ""}${active ? " frame-running" : ""}${complete ? " frame-complete" : ""}`}
-    >
-      <i className="frame-sheet frame-back" />
-      <i className="frame-sheet frame-mid" />
-      <i className="frame-sheet frame-front">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d={complete ? "m6 12 4 4 8-8" : "m4 17 5-6 4 4 3-3 4 5"} />
-          <path className="frame-image-sun" d="M16 7h.01" />
-        </svg>
-      </i>
-    </span>
-  );
-}
-
-/** A one-day horizon. Absolute expiry remains written beside the folds. */
-export function ExpiryFold({ expiresAt }: { expiresAt: number }) {
-  const fraction = Math.max(
-    0,
-    Math.min(1, (expiresAt * 1000 - Date.now()) / 86400000),
-  );
-  return (
-    <span className="expiry-fold" aria-hidden="true">
-      {Array.from({ length: 6 }, (_, i) => (
-        <i
-          key={i}
-          style={{
-            opacity: i < fraction * 6 ? 1 : 0.16,
-            transform: `translateY(${Math.abs(i - 2.5) * 1.5}px) rotate(${(i - 2.5) * 7}deg)`,
-          }}
-        />
-      ))}
     </span>
   );
 }

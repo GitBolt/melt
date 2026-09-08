@@ -17,7 +17,7 @@ Keep headings brief. Give supporting text one job. Buttons describe the action, 
 - **Task wallet:** the wallet used by the agent, separate from the main wallet.
 - **Spending limit:** the maximum native-token value the wallet may spend. Gas costs are separate.
 - **Return wallet:** the fixed destination for returned funds and supported assets.
-- **Receipt:** the session’s spending, transactions, returned assets, and recovery status.
+- **Receipt:** the session’s spending, transactions, returned assets, recovery status and task outcome.
 - **API key:** access to operate sessions already authorized by the owner; it cannot create wallets or raise spending limits.
 
 Use exact technical terms where they help someone configure the product: contract address, function selector, base units, ERC-20, ERC-721, API, and MCP.
@@ -35,9 +35,9 @@ Use exact technical terms where they help someone configure the product: contrac
 
 ## Claims and states
 
-Describe session-level authorization, not approval of every agent purchase. Do not promise support for every website or token, guaranteed recovery, zero risk, or universal protection of funds. Describe failed or pending recovery explicitly. Do not imply that closing the session means the task succeeded.
+Describe session-level authorization, not approval of every agent purchase. Do not promise support for every website or token, guaranteed recovery, zero risk, or universal protection of funds. Describe failed or pending recovery explicitly. Keep “Session closed” separate from task outcome. “Transaction confirmed” establishes the permitted onchain action; it does not prove every semantic instruction was satisfied.
 
-Label the local experience as a scripted demo using local test ETH. “AI agent enabled” describes configured model access, not verified model performance. Funding and swap buttons must disclose their action; preserve approval language before opening a wallet prompt. Never turn a submitted transaction into a confirmed status through wording alone.
+Label local development as a local workspace using test ETH. Show “Manual control” when no model is configured; never imply a built-in autonomous run is available in that state. The production app has no scripted driver. “AI agent enabled” describes configured model access, not verified model performance. Funding and swap buttons must disclose their action; preserve approval language before opening a wallet prompt. Never turn a submitted transaction into a confirmed status through wording alone.
 
 ## Review
 

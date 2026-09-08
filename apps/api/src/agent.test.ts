@@ -1,8 +1,27 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decide } from "./agent.js";
+import {
+  actionSchema,
+  actionSummary,
+  decide,
+  executionOutcome,
+} from "./agent.js";
+import type { Task } from "../../../packages/shared/src/index.js";
+
+function modelEnvironment(t: any) {
+  const previous = { key: process.env.AI_API_KEY, model: process.env.AI_MODEL };
+  process.env.AI_API_KEY = "test-only-model-key";
+  process.env.AI_MODEL = "test-only-model";
+  t.after(() => {
+    if (previous.key === undefined) delete process.env.AI_API_KEY;
+    else process.env.AI_API_KEY = previous.key;
+    if (previous.model === undefined) delete process.env.AI_MODEL;
+    else process.env.AI_MODEL = previous.model;
+  });
+}
 
 test("model adapter sends observations separately and accepts a bounded action", async (t) => {
+  modelEnvironment(t);
   let payload: any;
   t.mock.method(globalThis, "fetch", async (_url: any, init: any) => {
     payload = JSON.parse(init.body);
@@ -24,6 +43,7 @@ test("model adapter sends observations separately and accepts a bounded action",
   assert.equal(payload.messages[1].role, "user");
 });
 test("model adapter rejects arbitrary tools, missing output and service errors", async (t) => {
+  modelEnvironment(t);
   const fake = t.mock.method(globalThis, "fetch", async () =>
     Response.json({
       choices: [
@@ -36,4 +56,76 @@ test("model adapter rejects arbitrary tools, missing output and service errors",
   await assert.rejects(decide({}), /no browser action/);
   fake.mock.mockImplementation(async () => new Response("", { status: 429 }));
   await assert.rejects(decide({}), /429/);
+});
+
+test("missing model configuration never invokes a scripted or remote fallback", async (t) => {
+  modelEnvironment(t);
+  delete process.env.AI_API_KEY;
+  const fetch = t.mock.method(globalThis, "fetch", async () => {
+    throw Error("Must not request a model");
+  });
+  await assert.rejects(decide({}), /not configured/);
+  assert.equal(fetch.mock.callCount(), 0);
+});
+
+test("browser actions expose bounded navigation controls without arbitrary execution", () => {
+  for (const action of [
+    { type: "scroll", direction: "down" },
+    { type: "press", index: 199, key: "Enter" },
+    { type: "select", index: 0, value: "blue" },
+    { type: "click", index: 0, reason: "Open the wallet connection" },
+  ])
+    assert.equal(actionSchema.safeParse(action).success, true);
+  for (const action of [
+    { type: "click", index: 200 },
+    { type: "press", index: 0, key: "Control+L" },
+    { type: "scroll", direction: "sideways" },
+    { type: "navigate", url: "https://elsewhere.example" },
+    { type: "evaluate", code: "arbitrary()" },
+    { type: "fill", index: 0, value: "a".repeat(2001) },
+    { type: "wait", reason: "a".repeat(161) },
+  ])
+    assert.equal(actionSchema.safeParse(action).success, false);
+});
+
+test("only a confirmed task transaction proves a successful agent outcome", () => {
+  const transaction = {
+    hash: "0x123",
+    kind: "Execute dapp transaction",
+    status: "success" as const,
+  };
+  assert.equal(
+    executionOutcome({ transactions: [transaction] }).outcome,
+    "succeeded",
+  );
+  for (const transactions of [
+    [],
+    [{ ...transaction, kind: "Fund task wallet" }],
+    [{ ...transaction, status: "pending" }],
+    [{ ...transaction, status: "reverted" }],
+    [{ ...transaction, kind: "Return remaining funds" }],
+  ]) {
+    const result = executionOutcome({ transactions } as Pick<
+      Task,
+      "transactions"
+    >);
+    assert.equal(result.outcome, "failed");
+    assert.match(result.outcomeReason, /without a confirmed task transaction/);
+  }
+});
+
+test("activity summaries describe controls without copying entered values", () => {
+  assert.equal(
+    actionSummary({ type: "fill", index: 0, value: "private value" }, [
+      { index: 0, label: "Recipient" },
+    ]),
+    "Fill Recipient",
+  );
+  assert.equal(
+    actionSummary(
+      { type: "click", index: 1, reason: "Connect the task wallet" },
+      [{ index: 1, label: "Connect wallet" }],
+    ),
+    "Click Connect wallet · Connect the task wallet",
+  );
 });

@@ -32,7 +32,7 @@ Read live X search results for `"agent wallet"`, `from:privy_io (agent OR passke
 
 Technical choices were checked against primary documentation rather than inferred from social posts: [Privy embedded-wallet creation](https://docs.privy.io/basics/react/advanced/automatic-wallet-creation), [Privy token verification](https://docs.privy.io/authentication/user-authentication/access-tokens), [Privy policies](https://docs.privy.io/controls/policies/overview), and [Uniswap's integration guide](https://developers.uniswap.org/docs/trading/swapping-api/start-building/integration-guide). Email plus embedded wallets, optional passkeys, owner-reviewed transactions and backend-verified identity are implemented. Wallet connection remains available.
 
-The [earlier Discord notes](../competition-2026-09-07.md) are retained as a dated snapshot. Those searches surfaced Froggy and adjacent projects; they were not an audit of every channel/member's work. During the later research pass Safari was being used by the user, so I stopped operating it and used a separate research browser for X. No Discord message or check-in was posted.
+Earlier Discord searches surfaced Froggy and adjacent projects; they were not an audit of every channel/member's work. During the later research pass Safari was being used by the user, so I stopped operating it and used a separate research browser for X. No Discord message or check-in was posted.
 
 ## All partner tracks
 

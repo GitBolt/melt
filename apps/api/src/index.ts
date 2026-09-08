@@ -17,6 +17,7 @@ import {
   initialize,
   deployTask,
   refreshBalance,
+  reconcile,
   demoOwner,
   client,
 } from "./chain.js";
@@ -31,9 +32,32 @@ import {
   checkURL,
   shutdownBrowsers,
   actionSchema,
+  verifyBrowserRuntime,
 } from "./browser.js";
 import { startFixtures, registerFixtures } from "./fixtures.js";
 import { uniswapQuote, prepareSwap, checkApproval } from "./uniswap.js";
+let browserAvailable = false;
+let lastBrowserCheck = 0;
+let browserCheck: Promise<void> | undefined;
+async function checkBrowserRuntime() {
+  if (!browserCheck) {
+    browserCheck = verifyBrowserRuntime()
+      .then(
+        () => {
+          browserAvailable = true;
+        },
+        () => {
+          browserAvailable = false;
+        },
+      )
+      .finally(() => {
+        lastBrowserCheck = Date.now();
+        browserCheck = undefined;
+      });
+  }
+  await browserCheck;
+}
+await checkBrowserRuntime();
 await initialize();
 const fixtureServer = local ? await startFixtures() : undefined;
 const app = Fastify({
@@ -69,6 +93,11 @@ app.setErrorHandler((error: any, _req, reply) => {
 });
 app.get("/api/health", async () => ({
   ok: true,
+  browser: browserAvailable
+    ? process.env.BROWSERLESS_TOKEN
+      ? "remote-browser"
+      : "sandboxed-chromium"
+    : "unavailable",
   mode: local ? "local" : "configured",
   chainId: await client.getChainId(),
 }));
@@ -81,7 +110,10 @@ app.get("/api/config", async () => ({
     explorer: process.env.EXPLORER_URL,
   },
   privyAppId: local ? undefined : process.env.PRIVY_APP_ID,
+  browserAvailable,
   modelConfigured: !!(process.env.AI_API_KEY && process.env.AI_MODEL),
+  swapsConfigured: !!process.env.UNISWAP_API_KEY,
+  publicRpcUrl: process.env.VITE_RPC_URL,
   fixture: {
     available:
       local ||
@@ -181,6 +213,7 @@ app.post(
           );
         return prior;
       }
+      await requireBrowser();
       if (list(user.id).filter((t) => t.status !== "closed").length >= 10)
         throw Error("Close an existing session before creating another");
       const task: Task = {
@@ -198,9 +231,8 @@ app.post(
         transactions: [],
         assets: [],
         agentMode:
-          process.env.AI_API_KEY && process.env.AI_MODEL
-            ? "model"
-            : "local-script",
+          process.env.AI_API_KEY && process.env.AI_MODEL ? "model" : "manual",
+        outcome: "pending",
       };
       save(task);
       db.prepare("INSERT INTO idempotency VALUES(?,?)").run(key, task.id);
@@ -218,11 +250,23 @@ app.post(
   },
 );
 app.get("/api/sessions/:id", async (req) => (await owned(req)).task);
+async function requireBrowser() {
+  if (!browserAvailable && Date.now() - lastBrowserCheck > 60000)
+    await checkBrowserRuntime();
+  if (!browserAvailable)
+    throw Object.assign(
+      Error(
+        "Browser service is unavailable. Existing wallets can still be closed and recovered.",
+      ),
+      { statusCode: 503 },
+    );
+}
 app.post("/api/sessions/:id/start", async (req) => {
   const { task } = await owned(req);
   const { manual } = z
     .object({ manual: z.boolean().default(false) })
     .parse(req.body || {});
+  await requireBrowser();
   await start(task.id, manual);
   return task;
 });
@@ -301,12 +345,15 @@ app.post("/api/sessions/:id/funding", async (req) => {
 });
 app.post("/api/sessions/:id/refresh", async (req) => {
   const { task } = await owned(req);
-  await refreshBalance(task);
-  if (task.status === "funding" && Number(task.balance) > 0) {
-    task.status = "ready";
-    save(task);
-  }
-  return task;
+  return serial(task.id, async () => {
+    await reconcile(task);
+    await refreshBalance(task);
+    if (task.status === "funding" && Number(task.balance) > 0) {
+      task.status = "ready";
+      save(task);
+    }
+    return task;
+  });
 });
 app.get("/api/sessions/:id/browser", async (req) => {
   const { task } = await owned(req);
@@ -382,6 +429,28 @@ app.post("/api/uniswap/swap", async (req) => {
   if (user.apiKey) throw Error("Owner sign-in required");
   return prepareSwap(req.body, user.owner);
 });
+for (const [route, file, type] of [
+  [
+    "/api/client.mjs",
+    "packages/sdk/client.mjs",
+    "text/javascript; charset=utf-8",
+  ],
+  [
+    "/api/client.d.mts",
+    "packages/sdk/client.d.mts",
+    "text/plain; charset=utf-8",
+  ],
+] as const) {
+  app.get(route, async (_req, reply) =>
+    reply
+      .type(type)
+      .header(
+        "Content-Disposition",
+        `attachment; filename="melt-${file.split("/").pop()}"`,
+      )
+      .send(readFileSync(file, "utf8")),
+  );
+}
 app.get("/api/openapi.json", async () =>
   JSON.parse(readFileSync("docs/openapi.json", "utf8")),
 );

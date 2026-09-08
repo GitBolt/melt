@@ -59,15 +59,36 @@ const schemas: Record<string, any> = {
       url: str,
       title: str,
       text: str,
+      scroll: {
+        type: "object",
+        properties: {
+          y: { type: "number" },
+          viewportHeight: { type: "number" },
+          pageHeight: { type: "number" },
+        },
+      },
       controls: {
         type: "array",
         items: {
           type: "object",
           properties: {
-            index: { type: "integer" },
+            index: { type: "integer", minimum: 0, maximum: 199 },
             tag: str,
             label: str,
             type: { type: ["string", "null"] },
+            disabled: { type: "boolean" },
+            options: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  value: str,
+                  label: str,
+                  selected: { type: "boolean" },
+                  disabled: { type: "boolean" },
+                },
+              },
+            },
           },
         },
       },
@@ -160,7 +181,13 @@ schemas.Session = {
     spent: str,
     returned: str,
     balance: str,
-    agentMode: { enum: ["local-script", "model"] },
+    agentMode: { enum: ["manual", "model"] },
+    outcome: {
+      enum: ["pending", "succeeded", "failed", "cancelled"],
+      description:
+        "Task result, independent of wallet status. Older sessions may omit this field.",
+    },
+    outcomeReason: str,
     error: str,
     browserUrl: str,
     browserTitle: str,
@@ -174,6 +201,7 @@ schemas.Receipt = {
     ref("Session"),
     {
       type: "object",
+      required: ["schemaVersion", "chainId", "network"],
       properties: {
         schemaVersion: { const: 1 },
         chainId: { type: "integer" },
@@ -200,7 +228,7 @@ function route(
     responses: {
       [options.created ? "201" : "200"]: {
         description:
-          "Successful response. Inspect financial status and transaction hashes.",
+          "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
         content: { "application/json": { schema: response } },
       },
       ...Object.fromEntries(
@@ -367,6 +395,32 @@ for (const [path, schema] of [
 route("get", "/openapi.json", "Read this OpenAPI document", obj, undefined, {
   public: true,
 });
+for (const [path, mediaType, description] of [
+  [
+    "/client.mjs",
+    "text/javascript",
+    "Download the dependency-free native-fetch JavaScript client",
+  ],
+  [
+    "/client.d.mts",
+    "text/plain",
+    "Download optional TypeScript declarations for the JavaScript client",
+  ],
+]) {
+  const download = route("get", path, description, undefined, undefined, {
+    public: true,
+  });
+  download.responses["200"] = {
+    description,
+    headers: {
+      "Content-Disposition": {
+        schema: { type: "string" },
+        description: "Attachment filename",
+      },
+    },
+    content: { [mediaType]: { schema: { type: "string" } } },
+  };
+}
 writeFileSync(
   "docs/openapi.json",
   JSON.stringify(
@@ -376,9 +430,16 @@ writeFileSync(
         title: "Melt task wallet API",
         version: "0.2.0",
         description:
-          "A single-process, owner-authorized task-wallet service. Financial writes require status inspection; HTTP success alone is not proof of execution.",
+          "Owner-authorized wallets for browser tasks. Agent keys operate existing sessions in their account and cannot create wallets or increase spending limits. Financial writes require status and outcome inspection; HTTP success alone is not proof of execution. Download the dependency-free client at /api/client.mjs; no npm package is required.",
       },
-      servers: [{ url: "/api" }],
+      servers: [
+        { url: "https://melt-woad.vercel.app/api", description: "Hosted app" },
+        {
+          url: "https://melt-api-production-1b26.up.railway.app/api",
+          description: "Direct backend",
+        },
+        { url: "http://127.0.0.1:8787/api", description: "Local development" },
+      ],
       security: [{ bearerAuth: [] }, { localCookie: [] }],
       paths,
       components: {

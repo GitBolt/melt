@@ -1,4 +1,4 @@
-@import "./legacy.css";
+@import "./base.css";
 :root {
   --paper: #fafafa;
   --panel: #fff;
@@ -248,7 +248,7 @@ footer button {
 .amount-input > span {
   font-size: 11px;
 }
-.allowance-picker .capacity-ribbon {
+.allowance-picker .budget-ribbon {
   width: 180px;
 }
 .duration-label {
@@ -441,7 +441,7 @@ details label {
   letter-spacing: 0;
   margin-left: 8px;
 }
-.wallet-panel > .capacity-ribbon {
+.wallet-panel > .budget-ribbon {
   width: 100%;
   margin: 0 0 24px;
 }
@@ -996,7 +996,7 @@ details label {
   .balance-heading h2 {
     font-size: 27px;
   }
-  .wallet-panel > .capacity-ribbon {
+  .wallet-panel > .budget-ribbon {
     align-self: center;
     margin: 0;
   }
@@ -1063,7 +1063,7 @@ details label {
   .allowance-picker {
     gap: 16px;
   }
-  .allowance-picker .capacity-ribbon {
+  .allowance-picker .budget-ribbon {
     width: 130px;
   }
   .amount-input input {
@@ -1137,4 +1137,35 @@ summary:focus-visible {
   .workspace .browser-toolbar {
     padding: 12px 18px;
   }
+}
+
+.task-outcome {
+  margin: 20px 24px;
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+}
+.task-outcome span {
+  color: var(--muted);
+}
+a.quiet-button {
+  text-decoration: none;
+}
+
+.funding-help {
+  max-width: 100%;
+  text-align: left;
+  margin-top: 16px;
+  font-size: 12px;
+}
+.funding-help code {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 10px 0;
+}
+.funding-help a {
+  display: inline-flex;
+  gap: 5px;
+  padding: 10px;
+  color: var(--accent);
 }

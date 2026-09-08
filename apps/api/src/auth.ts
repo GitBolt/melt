@@ -1,6 +1,15 @@
 import type { FastifyRequest } from "fastify";
 import { privy, local, demoOwner } from "./chain.js";
 import { db, digest } from "./store.js";
+import { createWalletLookup } from "./auth-wallet-cache.js";
+const walletForUser = createWalletLookup(async (id) => {
+  const user = await privy!.users()._get(id);
+  const wallet = user.linked_accounts.find(
+    (a: any) => a.type === "wallet" && a.chain_type === "ethereum",
+  ) as any;
+  if (!wallet) throw Error("Add an Ethereum wallet to your account");
+  return wallet.address as string;
+});
 export interface Identity {
   id: string;
   owner: string;
@@ -20,12 +29,8 @@ export async function authenticate(req: FastifyRequest): Promise<Identity> {
   if (bearer && privy) {
     try {
       const verified = await privy.utils().auth().verifyAccessToken(bearer);
-      const user = await privy.users()._get(verified.user_id);
-      const wallet = user.linked_accounts.find(
-        (a: any) => a.type === "wallet" && a.chain_type === "ethereum",
-      ) as any;
-      if (!wallet) throw Error("Add an Ethereum wallet to your account");
-      return { id: verified.user_id, owner: wallet.address, apiKey: false };
+      const owner = await walletForUser(verified.user_id);
+      return { id: verified.user_id, owner, apiKey: false };
     } catch {
       throw Object.assign(Error("Sign in again to continue"), {
         statusCode: 401,

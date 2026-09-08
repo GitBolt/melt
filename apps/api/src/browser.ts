@@ -2,15 +2,17 @@ import { errorMessage } from "./errors.js";
 import { chromium, type BrowserContext, type Page } from "playwright";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { actionSchema, decide, type BrowserAction } from "./agent.js";
-export { actionSchema } from "./agent.js";
 import {
-  encodeFunctionData,
-  toHex,
-  toEventSelector,
-  type Hex,
-  type Address,
-} from "viem";
+  actionSchema,
+  actionSummary,
+  decide,
+  executionOutcome,
+  hasConfirmedExecution,
+  hasModelConfiguration,
+  type BrowserAction,
+} from "./agent.js";
+export { actionSchema } from "./agent.js";
+import { toHex, toEventSelector, type Hex, type Address } from "viem";
 import {
   client,
   chain,
@@ -19,10 +21,51 @@ import {
   refreshBalance,
   recover,
   reconcile,
+  operator,
+  vaultArtifact,
 } from "./chain.js";
 import { get, event, serial, save } from "./store.js";
 import { validateTransaction } from "./policy.js";
 import type { Task } from "../../../packages/shared/src/index.js";
+async function launchBrowser(args: string[]) {
+  if (process.env.BROWSERLESS_TOKEN) {
+    const endpoint = new URL(
+      "wss://production-sfo.browserless.io/chromium/playwright",
+    );
+    endpoint.searchParams.set("token", process.env.BROWSERLESS_TOKEN);
+    endpoint.searchParams.set("timeout", "120000");
+    // Native Playwright sessions have no recording/replay enabled.
+    try {
+      return await chromium.connect(endpoint.toString(), { timeout: 20000 });
+    } catch {
+      throw Error(
+        "Remote browser could not connect. Check provider availability and remaining free usage.",
+      );
+    }
+  }
+  return chromium.launch({
+    headless: true,
+    chromiumSandbox: true,
+    env: Object.fromEntries(
+      ["PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "DISPLAY"].flatMap((key) =>
+        process.env[key] ? [[key, process.env[key]!]] : [],
+      ),
+    ),
+    args,
+  });
+}
+export async function verifyBrowserRuntime() {
+  const browser = await launchBrowser([
+    "--host-resolver-rules=MAP * ~NOTFOUND",
+  ]);
+  try {
+    const page = await browser.newPage();
+    if ((await page.evaluate(() => 1 + 1)) !== 2)
+      throw Error("Browser runtime check failed");
+  } finally {
+    await browser.close();
+  }
+}
 const generations = new Map<string, number>();
 export function pause(id: string) {
   generations.set(id, (generations.get(id) || 0) + 1);
@@ -48,6 +91,16 @@ export async function checkURL(raw: string) {
     throw Error("Public browsing requires HTTPS on port 443");
   if (u.hostname === "localhost" || u.hostname.endsWith(".local"))
     throw Error("Private networks are not accessible");
+  if (process.env.BROWSERLESS_TOKEN) {
+    const approved = (process.env.BROWSER_ALLOWED_HOSTS || "")
+      .split(",")
+      .map((host) => host.trim())
+      .filter(Boolean);
+    if (!approved.includes(u.hostname))
+      throw Error(
+        "This site is not enabled on the hosted browser. Contact the operator to enable it.",
+      );
+  }
   const ips = isIP(u.hostname)
     ? [{ address: u.hostname }]
     : await lookup(u.hostname, { all: true, family: 4 });
@@ -79,6 +132,11 @@ export async function observe(id: string) {
       url: location.href,
       title: document.title,
       text: document.body.innerText.slice(0, 16000),
+      scroll: {
+        y: scrollY,
+        viewportHeight: innerHeight,
+        pageHeight: document.documentElement.scrollHeight,
+      },
       controls: elements.map((e, index) => {
         e.setAttribute("data-melt-control", String(index));
         return {
@@ -86,11 +144,31 @@ export async function observe(id: string) {
           tag: e.tagName.toLowerCase(),
           label:
             e.getAttribute("aria-label") ||
+            (e instanceof HTMLInputElement ||
+            e instanceof HTMLSelectElement ||
+            e instanceof HTMLTextAreaElement
+              ? e.labels?.[0]?.textContent?.trim()
+              : "") ||
             e.textContent?.trim().slice(0, 150) ||
             e.getAttribute("placeholder") ||
             e.getAttribute("name") ||
             "",
           type: e.getAttribute("type"),
+          disabled:
+            e.matches(":disabled") ||
+            e.getAttribute("aria-disabled") === "true",
+          ...(e instanceof HTMLSelectElement
+            ? {
+                options: Array.from(e.options)
+                  .slice(0, 100)
+                  .map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                    selected: option.selected,
+                    disabled: option.disabled,
+                  })),
+              }
+            : {}),
         };
       }),
     };
@@ -108,13 +186,31 @@ export async function doAction(id: string, raw: unknown) {
     await new Promise((r) => setTimeout(r, 750));
     return;
   }
-  const control = run.page.locator(`[data-melt-control="${action.index}"]`);
-  if (action.type === "click")
-    await control.click({ timeout: 8000, noWaitAfter: true });
-  else await control.fill(action.value, { timeout: 5000 });
+  if (action.type === "scroll") {
+    await run.page.mouse.wheel(0, action.direction === "down" ? 570 : -570);
+  } else {
+    const control = run.page.locator(`[data-melt-control="${action.index}"]`);
+    if (action.type === "click")
+      await control.click({ timeout: 8000, noWaitAfter: true });
+    else if (action.type === "fill")
+      await control.fill(action.value, { timeout: 5000 });
+    else if (action.type === "select")
+      await control.selectOption(action.value, { timeout: 5000 });
+    else await control.press(action.key, { timeout: 5000 });
+  }
   task.browserUrl = run.page.url();
   task.browserTitle = await run.page.title();
   save(task);
+}
+export async function estimatePermittedGas(
+  task: Task,
+  raw: Record<string, unknown>,
+  estimate: (tx: ReturnType<typeof validateTransaction>) => Promise<bigint>,
+) {
+  const tx = validateTransaction(task, raw);
+  const gas = await estimate(tx);
+  if (gas > 1000000n) throw Error("Transaction exceeds the session gas limit");
+  return toHex(gas);
 }
 export async function provider(
   task: Task,
@@ -129,6 +225,13 @@ export async function provider(
     "eth_blockNumber",
     "eth_getBalance",
     "eth_getTransactionReceipt",
+    "eth_getTransactionByHash",
+    "eth_getTransactionCount",
+    "eth_getBlockByNumber",
+    "eth_getBlockByHash",
+    "eth_gasPrice",
+    "eth_maxPriorityFeePerGas",
+    "eth_feeHistory",
     "eth_call",
     "eth_getCode",
     "eth_estimateGas",
@@ -151,9 +254,33 @@ export async function provider(
       throw Error("This task stays on its approved chain");
     return null;
   }
+  if (method === "eth_estimateGas") {
+    try {
+      return await estimatePermittedGas(
+        task,
+        params[0] as Record<string, unknown>,
+        async (tx) =>
+          client.estimateContractGas({
+            account: operator,
+            address: task.vault as Address,
+            abi: vaultArtifact.abi,
+            functionName: "execute",
+            args: [tx.to, tx.value, tx.data],
+          }),
+      );
+    } catch (error) {
+      event(task, "blocked", errorMessage(error));
+      throw Error(errorMessage(error));
+    }
+  }
   if (method === "eth_sendTransaction")
     return serial(task.id, async () => {
       try {
+        await reconcile(task);
+        if (task.agentMode === "model" && hasConfirmedExecution(task))
+          throw Error(
+            "This task already has a confirmed transaction. End the session to return your funds.",
+          );
         if (
           task.transactions.filter((t) => t.kind === "Execute dapp transaction")
             .length >= 20
@@ -252,20 +379,25 @@ export async function openBrowser(task: Task) {
       throw Error("Private browser address blocked");
     rules.push(`MAP ${host} ${ips[0].address}`);
   }
-  const browser = await chromium.launch({
-    headless: true,
-    chromiumSandbox: true,
-    env: Object.fromEntries(
-      ["PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "DISPLAY"].flatMap((key) =>
-        process.env[key] ? [[key, process.env[key]!]] : [],
-      ),
-    ),
-    args: [
-      "--disable-quic",
-      `--host-resolver-rules=${rules.join(", ")}, MAP * ~NOTFOUND`,
-    ],
-  });
+  const browser = await launchBrowser([
+    "--disable-quic",
+    `--host-resolver-rules=${rules.join(", ")}, MAP * ~NOTFOUND`,
+  ]);
   browsers.set(task.id, browser);
+  browser.on("disconnected", () => {
+    if (browsers.get(task.id) !== browser) return;
+    browsers.delete(task.id);
+    sessions.delete(task.id);
+    generations.set(task.id, (generations.get(task.id) || 0) + 1);
+    if (["running", "paused"].includes(task.status)) {
+      task.status = "paused";
+      event(
+        task,
+        "info",
+        "Browser connection ended. Reopen the browser to continue, or end the session to return funds.",
+      );
+    }
+  });
   const context = await browser.newContext({
     viewport: { width: 1200, height: 760 },
     serviceWorkers: "block",
@@ -335,9 +467,10 @@ export async function openBrowser(task: Task) {
 export async function closeBrowser(id: string) {
   const s = sessions.get(id);
   sessions.delete(id);
-  await s?.context.close();
-  await browsers.get(id)?.close();
+  const browser = browsers.get(id);
   browsers.delete(id);
+  // Browser teardown must never prevent on-chain recovery.
+  await Promise.allSettled([s?.context.close(), browser?.close()]);
 }
 export async function finish(id: string) {
   generations.set(id, (generations.get(id) || 0) + 1);
@@ -349,6 +482,12 @@ export async function finish(id: string) {
     try {
       await reconcile(task);
       await discoverAssets(task);
+      if (hasConfirmedExecution(task)) {
+        Object.assign(task, executionOutcome(task));
+      } else if (!task.outcome || task.outcome === "pending") {
+        task.outcome = "cancelled";
+        task.outcomeReason = "The session ended without a task transaction.";
+      }
       await recover(task);
     } catch (e) {
       task.status = "attention";
@@ -363,13 +502,21 @@ export async function start(id: string, manual = false) {
     throw Error("Fund the session before starting");
   if (Date.now() >= task.expiresAt * 1000)
     throw Error("Session expired; return funds instead");
+  if (!manual && task.agentMode === "model" && !hasModelConfiguration())
+    throw Error(
+      "AI agent is not configured. Start with manual control instead.",
+    );
   const generation = (generations.get(id) || 0) + 1;
   generations.set(id, generation);
   task.status = "running";
+  task.outcome = "pending";
+  delete task.outcomeReason;
+  delete task.error;
   save(task);
   try {
     if (!sessions.has(id)) await openBrowser(task);
   } catch (e) {
+    await closeBrowser(id);
     if (generations.get(id) === generation) {
       task.status = "attention";
       task.error = errorMessage(e);
@@ -381,93 +528,128 @@ export async function start(id: string, manual = false) {
     if (!["paused", "running"].includes(task.status)) await closeBrowser(id);
     return;
   }
-  if (manual) {
+  if (manual || task.agentMode === "manual") {
     pause(id);
     return;
   }
   void runAgent(id, generation).catch((e) => {
     if (task.status === "running" && generations.get(id) === generation) {
       task.status = "paused";
-      event(task, "error", `Agent paused: ${errorMessage(e)}`);
+      task.error = errorMessage(e);
+      task.outcome = "failed";
+      task.outcomeReason = `The agent stopped: ${task.error}`;
+      event(task, "error", `Agent paused: ${task.error}`);
     }
   });
 }
 async function runAgent(id: string, generation: number) {
   const task = get(id);
-  if (task.agentMode === "local-script") {
-    if (!local || new URL(task.url).origin !== fixtureOrigin) {
-      task.status = "paused";
-      event(
-        task,
-        "info",
-        "Browser ready. Use the controls to complete your task.",
-      );
-      return;
-    }
-    event(
-      task,
-      "info",
-      "Scripted demo started. Transactions use local test ETH.",
-    );
-    for (const label of ["Connect wallet", "Mint field note"]) {
-      if (task.status !== "running" || generations.get(id) !== generation)
-        return;
-      const obs = await observe(id);
-      if (task.assets.length) break;
-      const control = obs.controls.find((c) => c.label === label);
-      if (
-        !control &&
-        label === "Connect wallet" &&
-        obs.controls.some((c) => c.label === "Mint field note")
-      )
-        continue;
-      if (!control) throw Error(`Could not find ${label}`);
-      await doAction(id, { type: "click", index: control.index });
-      await new Promise((r) => setTimeout(r, 900));
-    }
-    // Wait for the page and chain to report the result before closing.
-    for (let i = 0; i < 30; i++) {
-      if (task.status !== "running" || generations.get(id) !== generation)
-        return;
-      if (task.assets.length) break;
-      await new Promise((r) => setTimeout(r, 500));
-    }
-    if (!task.assets.length)
-      throw Error(
-        "No collectible was received. Check the browser before trying again.",
-      );
-    await finish(id);
-    return;
-  }
+  if (!hasModelConfiguration())
+    throw Error("AI agent is not configured. Use manual browser control.");
+  event(
+    task,
+    "info",
+    "Agent started. The session ends after one confirmed task transaction.",
+  );
+  const firstEvent = task.events.length;
   const history: BrowserAction[] = [];
   for (
     let step = 0;
-    step < 30 &&
-    task.status === "running" &&
-    generations.get(id) === generation;
+    task.status === "running" && generations.get(id) === generation;
     step++
   ) {
-    if (Date.now() >= task.expiresAt * 1000) {
+    if (hasConfirmedExecution(task)) {
+      Object.assign(task, executionOutcome(task));
+      event(task, "success", task.outcomeReason!);
       await finish(id);
       return;
     }
+    const blocked = task.events
+      .slice(firstEvent)
+      .find((entry) => entry.kind === "blocked");
+    if (blocked) throw Error(blocked.text);
+    if (
+      task.transactions.some(
+        (tx) =>
+          tx.kind === "Execute dapp transaction" && tx.status === "reverted",
+      )
+    )
+      throw Error(
+        "The task transaction reverted. Review the session before trying again.",
+      );
+    if (Date.now() >= task.expiresAt * 1000) {
+      task.outcome = "failed";
+      task.outcomeReason =
+        "The session expired without a confirmed task transaction.";
+      await finish(id);
+      return;
+    }
+    if (task.transactions.some((tx) => tx.status === "pending")) {
+      // Pending requests are not a reason to ask the model to purchase again.
+      try {
+        await reconcile(task);
+      } catch {
+        /* A submitted transaction may still be mining. */
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      step--;
+      continue;
+    }
+    if (step >= 30) break;
     const obs = await observe(id);
     const action = await decide({
       instruction: task.instruction,
       allowance: task.budget,
       spent: task.spent,
+      transactions: task.transactions.map(({ hash, kind, status }) => ({
+        hash,
+        kind,
+        status,
+      })),
       step,
       page: obs,
       history: history.slice(-8),
     });
     if (task.status !== "running" || generations.get(id) !== generation) return;
+    // A transaction may confirm while the model is choosing its next action.
+    if (hasConfirmedExecution(task)) {
+      Object.assign(task, executionOutcome(task));
+      event(task, "success", task.outcomeReason!);
+      await finish(id);
+      return;
+    }
+    const actionBlocked = task.events
+      .slice(firstEvent)
+      .find((entry) => entry.kind === "blocked");
+    if (actionBlocked) throw Error(actionBlocked.text);
+    if (task.transactions.some((tx) => tx.status === "pending")) {
+      step--;
+      continue;
+    }
+    event(
+      task,
+      "info",
+      `Step ${step + 1} · ${actionSummary(action, obs.controls)}`,
+    );
+    if (action.type === "finish") {
+      Object.assign(task, executionOutcome(task));
+      event(
+        task,
+        task.outcome === "succeeded" ? "success" : "error",
+        task.outcomeReason!,
+      );
+      await finish(id);
+      return;
+    }
     await doAction(id, action);
     history.push(action);
-    if (action.type === "finish") return;
     await new Promise((r) => setTimeout(r, 800));
   }
   if (task.status === "running" && generations.get(id) === generation) {
     task.status = "paused";
+    task.outcome = "failed";
+    task.outcomeReason =
+      "The agent reached its step limit without a confirmed task transaction.";
     event(
       task,
       "info",

@@ -14,6 +14,7 @@ export function errorMessage(error: unknown) {
   for (const name of [
     "PRIVY_APP_SECRET",
     "AI_API_KEY",
+    "BROWSERLESS_TOKEN",
     "UNISWAP_API_KEY",
     "RPC_URL",
   ]) {

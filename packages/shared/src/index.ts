@@ -60,7 +60,9 @@ export interface Task extends CreateTask {
   assets: Asset[];
   browserUrl?: string;
   browserTitle?: string;
-  agentMode: "local-script" | "model";
+  agentMode: "manual" | "model";
+  outcome?: "pending" | "succeeded" | "failed" | "cancelled";
+  outcomeReason?: string;
   error?: string;
 }
 export interface Config {
@@ -68,6 +70,9 @@ export interface Config {
   chain: { id: number; name: string; symbol: string; explorer?: string };
   privyAppId?: string;
   modelConfigured: boolean;
+  browserAvailable?: boolean;
+  swapsConfigured?: boolean;
+  publicRpcUrl?: string;
   fixture: {
     available: boolean;
     url: string;

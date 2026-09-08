@@ -7,8 +7,15 @@ import {
 } from "@privy-io/react-auth";
 import { defineChain, createWalletClient, custom } from "viem";
 import type { Config } from "../../../packages/shared/src/index";
-import App from "./App";
-function Connected({ config }: { config: Config }) {
+import App, { type Auth } from "./App";
+import { DirectRecovery } from "./DirectRecovery";
+function Connected({
+  config,
+  recovery = false,
+}: {
+  config: Config;
+  recovery?: boolean;
+}) {
   const { login, logout, getAccessToken, authenticated, ready } = usePrivy();
   const { wallets } = useWallets();
   const { loginWithPasskey } = useLoginWithPasskey();
@@ -21,69 +28,82 @@ function Connected({ config }: { config: Config }) {
     await wallet.switchChain(config.chain.id);
     return wallet.getEthereumProvider();
   };
-  return (
-    <App
+  const auth: Auth = {
+    ready,
+    authenticated,
+    login,
+    logout,
+    getToken: getAccessToken,
+    passkey: loginWithPasskey,
+    linkPasskey: linkWithPasskey,
+    signTypedData: async (data, owner) => {
+      const p = await provider(owner);
+      const permit = data as any;
+      if (
+        Number(permit.domain?.chainId) !== config.chain.id ||
+        !permit.types?.PermitSingle ||
+        !permit.values
+      )
+        throw Error("Unexpected permit format");
+      return createWalletClient({ transport: custom(p) }).signTypedData({
+        account: owner as `0x${string}`,
+        domain: permit.domain,
+        types: permit.types,
+        primaryType: "PermitSingle",
+        message: permit.values,
+      });
+    },
+    wait: async (hash) => {
+      const p = await provider();
+      for (let i = 0; i < 90; i++) {
+        const r = (await p.request({
+          method: "eth_getTransactionReceipt",
+          params: [hash],
+        })) as any;
+        if (r) {
+          if (r.status !== "0x1") throw Error("Transaction reverted");
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      throw Error(
+        "Transaction is still pending. Check your wallet before retrying.",
+      );
+    },
+    send: async (tx) => {
+      const wallet = wallets.find(
+        (w) => w.address.toLowerCase() === tx.from.toLowerCase(),
+      );
+      if (!wallet) throw Error("Reconnect your return wallet");
+      await wallet.switchChain(config.chain.id);
+      const provider = await wallet.getEthereumProvider();
+      return provider.request({
+        method: "eth_sendTransaction",
+        params: [tx],
+      }) as Promise<string>;
+    },
+  };
+  return recovery ? (
+    <DirectRecovery
       config={config}
-      auth={{
-        ready,
-        authenticated,
-        login,
-        logout,
-        getToken: getAccessToken,
-        passkey: loginWithPasskey,
-        linkPasskey: linkWithPasskey,
-        signTypedData: async (data, owner) => {
-          const p = await provider(owner);
-          const permit = data as any;
-          if (
-            Number(permit.domain?.chainId) !== config.chain.id ||
-            !permit.types?.PermitSingle ||
-            !permit.values
-          )
-            throw Error("Unexpected permit format");
-          return createWalletClient({ transport: custom(p) }).signTypedData({
-            account: owner as `0x${string}`,
-            domain: permit.domain,
-            types: permit.types,
-            primaryType: "PermitSingle",
-            message: permit.values,
-          });
-        },
-        wait: async (hash) => {
-          const p = await provider();
-          for (let i = 0; i < 90; i++) {
-            const r = (await p.request({
-              method: "eth_getTransactionReceipt",
-              params: [hash],
-            })) as any;
-            if (r) {
-              if (r.status !== "0x1") throw Error("Transaction reverted");
-              return;
-            }
-            await new Promise((r) => setTimeout(r, 1000));
-          }
-          throw Error(
-            "Transaction is still pending. Check your wallet before retrying.",
-          );
-        },
-        send: async (tx) => {
-          const wallet = wallets.find(
-            (w) => w.address.toLowerCase() === tx.from.toLowerCase(),
-          );
-          if (!wallet) throw Error("Reconnect your return wallet");
-          await wallet.switchChain(config.chain.id);
-          const provider = await wallet.getEthereumProvider();
-          return provider.request({
-            method: "eth_sendTransaction",
-            params: [tx],
-          }) as Promise<string>;
-        },
-      }}
+      auth={auth}
+      owner={wallets[0]?.address}
+      publicRpcUrl={config.publicRpcUrl || import.meta.env.VITE_RPC_URL}
+      onSignIn={login}
     />
+  ) : (
+    <App config={config} auth={auth} />
   );
 }
-export default function PrivyApp({ config }: { config: Config }) {
-  if (!import.meta.env.VITE_RPC_URL)
+export default function PrivyApp({
+  config,
+  recovery = false,
+}: {
+  config: Config;
+  recovery?: boolean;
+}) {
+  const rpc = config.publicRpcUrl || import.meta.env.VITE_RPC_URL;
+  if (!rpc)
     return (
       <main>
         <h1>Network setup required</h1>
@@ -101,7 +121,7 @@ export default function PrivyApp({ config }: { config: Config }) {
       symbol: config.chain.symbol,
       decimals: 18,
     },
-    rpcUrls: { default: { http: [import.meta.env.VITE_RPC_URL] } },
+    rpcUrls: { default: { http: [rpc] } },
   });
   return (
     <PrivyProvider
@@ -120,7 +140,7 @@ export default function PrivyApp({ config }: { config: Config }) {
         defaultChain: network,
       }}
     >
-      <Connected config={config} />
+      <Connected config={config} recovery={recovery} />
     </PrivyProvider>
   );
 }
