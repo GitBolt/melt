@@ -391,15 +391,20 @@ details label {
   white-space: nowrap;
 }
 .status-running,
-.status-ready {
+.status-ready,
+.status-open,
+.status-redeeming {
   background: #eef1fc;
   color: #6472b5;
 }
-.status-attention {
+.status-attention,
+.status-funding {
   background: #fff4e6;
   color: #94754a;
 }
-.status-closed {
+.status-closed,
+.status-exhausted,
+.status-expired {
   background: #eff4f5;
   color: #71868b;
 }
@@ -1517,5 +1522,55 @@ a.quiet-button {
     height: auto;
     transform: rotate(90deg);
     margin: 2px 0;
+  }
+}
+
+.check-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: #5c6170;
+  margin: 18px 0 8px;
+}
+.check-line input {
+  width: auto;
+  margin-top: 3px;
+}
+.discover-grid {
+  display: grid;
+  gap: 22px;
+}
+.discover-search {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.discover-search input {
+  flex: 1;
+}
+.option-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  align-items: center;
+  padding: 20px 22px;
+  margin: 10px 0;
+}
+.option-card p {
+  margin: 6px 0 0;
+}
+.envelope-activity {
+  padding: 24px;
+}
+.envelope-activity h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+@media (max-width: 720px) {
+  .option-card,
+  .discover-search {
+    grid-template-columns: 1fr;
+    display: grid;
   }
 }

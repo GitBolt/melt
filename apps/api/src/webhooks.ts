@@ -16,6 +16,9 @@ export const WEBHOOK_TYPES = [
   "swap.executed",
   "session.closed",
   "session.recovered",
+  "envelope.created",
+  "envelope.funded",
+  "envelope.redeemed",
   "webhook.test",
 ] as const;
 export type WebhookType = (typeof WEBHOOK_TYPES)[number];

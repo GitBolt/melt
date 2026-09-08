@@ -2,7 +2,26 @@
 
 Use Melt through HTTP, a downloaded JavaScript client, or the MCP server in this repository. Nothing needs to be published to npm.
 
-First, the owner signs in at [Melt](https://melt-woad.vercel.app), creates a session, authorizes its contract call and spending limit, and adds funds. Create a key under **Developers** and give the agent that key and the session ID. The key can operate that account's existing sessions; it cannot create wallets, raise budgets, fund them, change the return address or create other keys. It is account-scoped, not restricted to a single session. Revoke it when it is no longer needed.
+Melt envelopes are purpose-bound purchasing power. The owner creates and funds a gift on Melt. An existing assistant — ChatGPT, Claude, Codex or Grok — later lists envelopes, finds matching purchases, proposes a quote and redeems it. The key can operate that account’s envelopes; it cannot create envelopes, raise the amount, change the return wallet or send unrestricted cash.
+
+```js
+import { Melt } from "./melt-client.mjs";
+
+const melt = new Melt({
+  baseUrl: "https://melt-woad.vercel.app",
+  apiKey: process.env.MELT_API_KEY,
+});
+
+const { sent, received } = await melt.envelopes();
+const envelope = received[0] || sent[0];
+const found = await melt.findOptions(envelope.id, "an eSIM for Japan");
+const proposed = await melt.proposePurchase(envelope.id, {
+  sku: found.options[0].sku,
+  request: "an eSIM for Japan",
+});
+const settled = await melt.redeem(envelope.id, proposed.quote.id);
+console.log(settled.redemption.status, settled.envelope.remaining);
+```
 
 ## Download the client
 
@@ -24,9 +43,8 @@ const melt = new Melt({
   apiKey: process.env.MELT_API_KEY,
 });
 
-const sessions = await melt.sessions();
-const session = await melt.session(process.env.MELT_SESSION_ID);
-console.log(session.status, session.balance);
+const sessions = await melt.envelopes();
+console.log(sessions.sent.length, sessions.received.length);
 ```
 
 `baseUrl` accepts an origin or an `/api` URL. The direct backend is `https://melt-api-production-1b26.up.railway.app`; local development uses `http://127.0.0.1:8787`. Keep the key on your agent's server or local machine, never in a public frontend bundle. Requests send bearer authentication, reject redirects, and use a 90-second timeout by default.

@@ -128,6 +128,15 @@ export interface SwapQuote {
   rate: string;
   priceImpactBps?: number;
 }
+export interface Envelope {
+  object: "envelope";
+  id: string;
+  purpose: string;
+  budget: string;
+  remaining: string;
+  policyHash: string;
+  status: string;
+}
 export interface MeltConfig {
   baseUrl?: string;
   apiKey: string;
@@ -153,6 +162,30 @@ export class MeltError extends Error {
 export class Melt {
   constructor(config: MeltConfig);
   sessions(options?: RequestOptions): Promise<Session[]>;
+  envelopes(options?: RequestOptions): Promise<{
+    sent: Envelope[];
+    received: Envelope[];
+  }>;
+  envelope(id: string, options?: RequestOptions): Promise<Envelope>;
+  findOptions(
+    id: string,
+    request?: string,
+    options?: RequestOptions,
+  ): Promise<{ options: unknown[]; note?: string }>;
+  proposePurchase(
+    id: string,
+    params: { sku: string; request?: string },
+    options?: RequestOptions,
+  ): Promise<{ quote: { id: string } }>;
+  redeem(
+    id: string,
+    quoteId: string,
+    options?: RequestOptions,
+  ): Promise<{ redemption: { id: string; status: string } }>;
+  redemptionStatus(
+    id: string,
+    options?: RequestOptions,
+  ): Promise<{ status: string; redemptions: unknown[] }>;
   tokens(options?: RequestOptions): Promise<SwapTokens>;
   quote(
     params: { tokenOut: string; amountIn: string; slippageBps?: number },

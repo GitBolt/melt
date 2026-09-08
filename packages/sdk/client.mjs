@@ -151,6 +151,24 @@ function positive(value, name) {
     throw new TypeError(`${name} must be a positive integer below 2147483648`);
   return value;
 }
+function envelopePath(id) {
+  if (
+    typeof id !== "string" ||
+    !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id)
+  )
+    throw new TypeError("Use the envelope ID returned by Melt");
+  return `/envelopes/${id}`;
+}
+function isEnvelope(value) {
+  return (
+    record(value) &&
+    value.object === "envelope" &&
+    typeof value.id === "string" &&
+    typeof value.purpose === "string" &&
+    typeof value.budget === "string" &&
+    typeof value.policyHash === "string"
+  );
+}
 function sessionPath(id) {
   if (
     typeof id !== "string" ||
@@ -333,6 +351,65 @@ export class Melt {
     return this.#request("/sessions", {
       ...options,
       validate: (value) => Array.isArray(value) && value.every(isSession),
+    });
+  }
+  envelopes(options = {}) {
+    return this.#request("/envelopes", {
+      ...options,
+      validate: (value) =>
+        record(value) &&
+        Array.isArray(value.sent) &&
+        Array.isArray(value.received) &&
+        value.sent.every(isEnvelope) &&
+        value.received.every(isEnvelope),
+    });
+  }
+  envelope(id, options = {}) {
+    return this.#request(envelopePath(id), {
+      ...options,
+      validate: isEnvelope,
+    });
+  }
+  findOptions(id, request = "", options = {}) {
+    if (typeof request !== "string" || request.length > 500)
+      throw new TypeError("request must be a short string");
+    const query = request ? `?q=${encodeURIComponent(request)}` : "";
+    return this.#request(`${envelopePath(id)}/options${query}`, {
+      ...options,
+      validate: (value) => record(value) && Array.isArray(value.options),
+    });
+  }
+  proposePurchase(id, params, options = {}) {
+    if (!record(params) || typeof params.sku !== "string" || !params.sku.trim())
+      throw new TypeError("proposePurchase needs { sku, request? }");
+    const body = { sku: params.sku };
+    if (params.request !== undefined) {
+      if (typeof params.request !== "string" || params.request.length > 500)
+        throw new TypeError("request must be a short string");
+      body.request = params.request;
+    }
+    return this.#request(`${envelopePath(id)}/propose`, {
+      ...options,
+      body,
+      validate: (value) => record(value) && record(value.quote),
+    });
+  }
+  redeem(id, quoteId, options = {}) {
+    if (typeof quoteId !== "string" || !quoteId)
+      throw new TypeError("redeem needs the quote ID from proposePurchase");
+    return this.#request(`${envelopePath(id)}/redeem`, {
+      ...options,
+      body: { quoteId },
+      validate: (value) => record(value) && record(value.redemption),
+    });
+  }
+  redemptionStatus(id, options = {}) {
+    return this.#request(`${envelopePath(id)}/redemptions`, {
+      ...options,
+      validate: (value) =>
+        record(value) &&
+        typeof value.status === "string" &&
+        Array.isArray(value.redemptions),
     });
   }
   // Read-only Uniswap price discovery so an agent can size a swap before an

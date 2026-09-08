@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { z } from "zod";
-import { createTask } from "../packages/shared/src/index.js";
+import { createTask, createEnvelope } from "../packages/shared/src/index.js";
 import { actionSchema } from "../apps/api/src/agent.js";
 const str = { type: "string" },
   obj = { type: "object", additionalProperties: true },
@@ -9,6 +9,7 @@ const str = { type: "string" },
 const ref = (name: string) => ({ $ref: "#/components/schemas/" + name });
 const schemas: Record<string, any> = {
   CreateSession: z.toJSONSchema(createTask),
+  CreateEnvelope: z.toJSONSchema(createEnvelope),
   Action: z.toJSONSchema(actionSchema),
   Error: { type: "object", required: ["error"], properties: { error: str } },
   Transaction: {
@@ -355,6 +356,58 @@ route("get", "/sessions", "List your sessions", {
   type: "array",
   items: ref("Session"),
 });
+route("get", "/envelopes", "List sent and received envelopes", obj);
+const createEnvelopeRoute = route(
+  "post",
+  "/envelopes",
+  "Create a purpose-bound envelope. Agent keys cannot do this.",
+  obj,
+  ref("CreateEnvelope"),
+  { owner: true, created: true },
+);
+createEnvelopeRoute.parameters = [
+  {
+    name: "Idempotency-Key",
+    in: "header",
+    required: true,
+    schema: { type: "string", minLength: 8, maxLength: 128 },
+  },
+];
+route("get", "/envelopes/{id}", "Read an envelope", obj);
+route(
+  "get",
+  "/envelopes/{id}/options",
+  "Find purchases that satisfy the envelope",
+  obj,
+);
+route(
+  "post",
+  "/envelopes/{id}/propose",
+  "Propose a catalog option against the envelope",
+  obj,
+  {
+    type: "object",
+    required: ["sku"],
+    properties: { sku: str, request: str },
+  },
+);
+route(
+  "post",
+  "/envelopes/{id}/redeem",
+  "Settle a proposed quote. Unrestricted transfers are rejected.",
+  obj,
+  {
+    type: "object",
+    required: ["quoteId"],
+    properties: { quoteId: { type: "string", format: "uuid" } },
+  },
+);
+route(
+  "get",
+  "/envelopes/{id}/redemptions",
+  "Read settlement and delivery status",
+  obj,
+);
 const create = route(
   "post",
   "/sessions",
@@ -576,9 +629,9 @@ writeFileSync(
       openapi: "3.1.0",
       info: {
         title: "Melt task wallet API",
-        version: "0.3.0",
+        version: "0.4.0",
         description:
-          "Owner-authorized wallets for one browser or swap task. Agent keys operate existing sessions and cannot create wallets or increase spending limits. Public receipts at /public/receipts/{token} omit the owner account. Webhooks are HMAC-SHA256 signed with Melt-Signature (t=,v1=). Financial writes require status and outcome inspection; HTTP success alone is not proof of execution. Download the dependency-free client at /api/client.mjs; no npm package is required.",
+          "Purpose-bound envelopes: send purchasing power for a promise, redeem later through MCP. Agent keys can find options, propose, and redeem. They cannot create envelopes or send unrestricted cash. Uniswap converts only the amount a qualifying purchase needs. Public receipts at /public/receipts/{token} omit the owner account. Webhooks are HMAC-SHA256 signed with Melt-Signature (t=,v1=).",
       },
       servers: [
         { url: "https://melt-woad.vercel.app/api", description: "Hosted app" },

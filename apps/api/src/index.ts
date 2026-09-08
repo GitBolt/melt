@@ -8,7 +8,11 @@ import { resolve } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
 import { toFunctionSelector, parseEther, formatEther } from "viem";
-import { createTask, type Task } from "../../../packages/shared/src/index.js";
+import {
+  createTask,
+  createEnvelope,
+  type Task,
+} from "../../../packages/shared/src/index.js";
 import { forbiddenSelectors } from "./policy.js";
 import {
   db,
@@ -60,6 +64,16 @@ import {
 import { parseSwapIntent } from "./intent.js";
 import { address } from "../../../packages/shared/src/index.js";
 import { publicReceipt } from "./receipt.js";
+import {
+  canAccessEnvelope,
+  createFundedEnvelope,
+  findEnvelopeOptions,
+  getEnvelope,
+  listEnvelopes,
+  proposePurchase,
+  redeemQuote,
+  redemptionStatus,
+} from "./envelopes.js";
 import {
   WEBHOOK_TYPES,
   createWebhook,
@@ -157,6 +171,7 @@ app.get("/api/config", async () => ({
     tokens: TOKENS,
   },
   publicRpcUrl: process.env.VITE_RPC_URL,
+  envelopes: { available: true },
   fixture: {
     available:
       local ||
@@ -223,6 +238,93 @@ async function owned(req: any) {
     throw Object.assign(Error("Session not found"), { statusCode: 404 });
   return { task, user };
 }
+async function accessibleEnvelope(req: any) {
+  const user = await authenticate(req);
+  const envelope = getEnvelope(req.params.id);
+  if (!canAccessEnvelope(envelope, user))
+    throw Object.assign(Error("Envelope not found"), { statusCode: 404 });
+  return { envelope, user };
+}
+app.get("/api/envelopes", async (req) => {
+  const user = await authenticate(req);
+  return listEnvelopes(user.id, user.owner);
+});
+app.post(
+  "/api/envelopes",
+  { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+  async (req, reply) => {
+    const user = await authenticate(req);
+    if (user.apiKey)
+      throw Object.assign(Error("Only the owner can fund a new envelope"), {
+        statusCode: 403,
+      });
+    const input = createEnvelope.parse(req.body);
+    const raw = req.headers["idempotency-key"];
+    if (typeof raw !== "string" || raw.length < 8 || raw.length > 128)
+      throw Error("Provide an Idempotency-Key header (8–128 characters)");
+    const key = user.id + ":envelope:" + raw;
+    return serial("create:" + user.id, async () => {
+      const previous = db
+        .prepare("SELECT task_id FROM idempotency WHERE key=?")
+        .get(key);
+      if (previous) return getEnvelope(previous.task_id as string);
+      if (list(user.id).filter((t) => t.status !== "closed").length >= 10)
+        throw Error("Close an existing envelope before creating another");
+      const envelope = await createFundedEnvelope(user, input);
+      db.prepare("INSERT INTO idempotency VALUES(?,?)").run(key, envelope.id);
+      reply.code(201);
+      return envelope;
+    });
+  },
+);
+app.get(
+  "/api/envelopes/:id",
+  async (req) => (await accessibleEnvelope(req)).envelope,
+);
+app.get("/api/envelopes/:id/options", async (req) => {
+  const { envelope } = await accessibleEnvelope(req);
+  const request = String((req.query as { q?: string }).q || "");
+  return findEnvelopeOptions(envelope, request);
+});
+app.post(
+  "/api/envelopes/:id/propose",
+  { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+  async (req) => {
+    const { envelope } = await accessibleEnvelope(req);
+    const body = z
+      .object({
+        sku: z.string().trim().min(1).max(80),
+        request: z.string().trim().max(500).optional().default(""),
+      })
+      .parse(req.body);
+    return proposePurchase(envelope, body.sku, body.request);
+  },
+);
+app.post(
+  "/api/envelopes/:id/redeem",
+  { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+  async (req) => {
+    const { envelope } = await accessibleEnvelope(req);
+    const body = req.body as Record<string, unknown> | undefined;
+    if (
+      body &&
+      (body.to || body.transfer || body.recipient || body.amount) &&
+      !body.quoteId
+    )
+      throw Object.assign(
+        Error(
+          "An envelope cannot send unrestricted cash. Propose a purchase, then redeem that quote.",
+        ),
+        { statusCode: 400 },
+      );
+    const parsed = z.object({ quoteId: z.string().uuid() }).parse(req.body);
+    return redeemQuote(envelope, parsed.quoteId);
+  },
+);
+app.get("/api/envelopes/:id/redemptions", async (req) => {
+  const { envelope } = await accessibleEnvelope(req);
+  return redemptionStatus(envelope);
+});
 app.get("/api/sessions", async (req) => {
   const user = await authenticate(req);
   return list(user.id);
@@ -447,6 +549,10 @@ app.post("/api/sessions/:id/funding", async (req) => {
     task.status = "ready";
     save(task);
     emit(task.userId, "session.funded", task);
+    if (task.envelopeId)
+      emit(task.userId, "envelope.funded", task, {
+        envelopeId: task.envelopeId,
+      });
   } else save(task);
   return task;
 });
@@ -459,6 +565,10 @@ app.post("/api/sessions/:id/refresh", async (req) => {
       task.status = "ready";
       save(task);
       emit(task.userId, "session.funded", task);
+      if (task.envelopeId)
+        emit(task.userId, "envelope.funded", task, {
+          envelopeId: task.envelopeId,
+        });
     }
     return task;
   });
@@ -566,7 +676,16 @@ app.post("/api/keys", async (req) => {
   db.prepare(
     "INSERT INTO tokens(hash,user_id,name,created) VALUES(?,?,?,?)",
   ).run(digest(token), user.id, name, new Date().toISOString());
-  return { token, scopes: ["sessions:read", "sessions:run", "sessions:close"] };
+  return {
+    token,
+    scopes: [
+      "sessions:read",
+      "sessions:run",
+      "sessions:close",
+      "envelopes:read",
+      "envelopes:redeem",
+    ],
+  };
 });
 app.delete("/api/keys/:id", async (req) => {
   const user = await authenticate(req);

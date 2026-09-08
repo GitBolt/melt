@@ -71,6 +71,129 @@ export const createTask = z
     });
   });
 export type CreateTask = z.infer<typeof createTask>;
+export const envelopeCategories = [
+  "esim",
+  "dinner",
+  "concert",
+  "flight",
+  "game",
+  "apartment",
+  "ai",
+  "other",
+] as const;
+export type EnvelopeCategory = (typeof envelopeCategories)[number];
+export const createEnvelope = z
+  .object({
+    recipientLabel: z.string().trim().min(1).max(120),
+    recipientAddress: z
+      .union([address, z.literal("")])
+      .optional()
+      .default(""),
+    purpose: z.string().trim().min(8).max(500),
+    budget: amount,
+    expiresAt: z.number().int(),
+    partialUse: z.boolean().default(true),
+    unusedTo: z.literal("sender").default("sender"),
+    category: z.enum(envelopeCategories).optional(),
+  })
+  .superRefine((data, ctx) => {
+    const now = Math.floor(Date.now() / 1000);
+    if (data.expiresAt < now + 60)
+      ctx.addIssue({
+        code: "custom",
+        message: "Pick an expiry at least a minute from now",
+        path: ["expiresAt"],
+      });
+    if (data.expiresAt > now + 86400 * 730)
+      ctx.addIssue({
+        code: "custom",
+        message: "Envelopes can last at most two years",
+        path: ["expiresAt"],
+      });
+  });
+export type CreateEnvelope = z.infer<typeof createEnvelope>;
+export type EnvelopeStatus =
+  "funding" | "open" | "redeeming" | "exhausted" | "expired" | "closed";
+export interface EnvelopePolicy {
+  purpose: string;
+  category: EnvelopeCategory;
+  allow: string[];
+  deny: string[];
+  maxUsd?: number;
+  partialUse: boolean;
+  unusedTo: "sender";
+}
+export interface EnvelopeQuote {
+  id: string;
+  envelopeId: string;
+  sku: string;
+  title: string;
+  merchant: string;
+  amountEth: string;
+  amountUsd?: number;
+  settlement: "uniswap" | "catalog";
+  tokenSymbol?: string;
+  source: string;
+  disclosure: string;
+  createdAt: string;
+  expiresAt: number;
+  status: "proposed" | "redeemed" | "rejected" | "expired";
+}
+export interface EnvelopeRedemption {
+  id: string;
+  quoteId: string;
+  sku: string;
+  title: string;
+  merchant: string;
+  amountEth: string;
+  amountOut?: string;
+  symbol?: string;
+  hash?: string;
+  status: "succeeded" | "failed";
+  delivery?: string;
+  createdAt: string;
+  disclosure?: string;
+}
+export interface Envelope {
+  object: "envelope";
+  id: string;
+  userId: string;
+  sessionId: string;
+  vault: string;
+  senderAddress: string;
+  recipientLabel: string;
+  recipientAddress: string;
+  purpose: string;
+  category: EnvelopeCategory;
+  budget: string;
+  remaining: string;
+  spent: string;
+  expiresAt: number;
+  partialUse: boolean;
+  unusedTo: "sender";
+  policy: EnvelopePolicy;
+  policyHash: string;
+  status: EnvelopeStatus;
+  createdAt: string;
+  receiptToken?: string;
+  quotes: EnvelopeQuote[];
+  redemptions: EnvelopeRedemption[];
+}
+export interface CatalogOption {
+  sku: string;
+  title: string;
+  merchant: string;
+  category: EnvelopeCategory;
+  description: string;
+  priceUsd: number;
+  priceEth?: string;
+  keywords: string[];
+  tags: string[];
+  settlement: "uniswap" | "catalog";
+  tokenSymbol?: string;
+  source: "melt" | "cryptorefills";
+  disclosure: string;
+}
 export type TaskStatus =
   | "funding"
   | "ready"
@@ -120,6 +243,7 @@ export interface Task extends CreateTask {
   outcomeReason?: string;
   error?: string;
   receiptToken?: string;
+  envelopeId?: string;
 }
 export interface Config {
   mode: "local" | "configured";
@@ -139,6 +263,7 @@ export interface Config {
     }[];
   };
   publicRpcUrl?: string;
+  envelopes?: { available: boolean };
   fixture: {
     available: boolean;
     url: string;
@@ -181,6 +306,175 @@ export function publicReceiptStatus(task: Task): PublicReceiptStatus {
   return "succeeded";
 }
 
+const CATEGORY_HINTS: Record<EnvelopeCategory, string[]> = {
+  esim: [
+    "esim",
+    "e-sim",
+    "e sim",
+    "mobile data",
+    "data plan",
+    "roaming",
+    "prepaid data",
+    "japan trip",
+  ],
+  dinner: [
+    "dinner",
+    "restaurant",
+    "italian",
+    "meal",
+    "food",
+    "lunch",
+    "brunch",
+    "for two",
+  ],
+  concert: ["concert", "gig", "festival", "tickets", "show", "live music"],
+  flight: ["flight", "airfare", "fly home", "thanksgiving", "plane", "airport"],
+  game: ["game", "indie", "steam", "nintendo"],
+  apartment: ["apartment", "flat", "furniture", "new place", "housewarming"],
+  ai: [
+    "ai product",
+    "chatgpt",
+    "claude",
+    "grok",
+    "codex",
+    "cursor",
+    "subscription",
+  ],
+  other: [],
+};
+
+export function inferEnvelopePolicy(
+  purpose: string,
+  extras: Partial<EnvelopePolicy> = {},
+): EnvelopePolicy {
+  const text = purpose.toLowerCase();
+  let category: EnvelopeCategory = extras.category || "other";
+  if (!extras.category) {
+    for (const key of envelopeCategories) {
+      if (key === "other") continue;
+      if (CATEGORY_HINTS[key].some((hint) => text.includes(hint))) {
+        category = key;
+        break;
+      }
+    }
+  }
+  const deny = [...(extras.deny || [])];
+  const except = purpose.match(/except\s+([^.,;]+)/i);
+  if (except) {
+    const raw = except[1].toLowerCase();
+    deny.push(
+      ...raw
+        .split(/,| and /)
+        .map((part) => part.trim())
+        .filter(Boolean),
+    );
+    if (raw.includes("electronic"))
+      deny.push(
+        "tv",
+        "television",
+        "laptop",
+        "phone",
+        "console",
+        "headphones",
+        "tablet",
+        "camera",
+        "electronics",
+      );
+  }
+  const usd = purpose.match(/\$(\d+(?:\.\d+)?)/);
+  return {
+    purpose: purpose.trim(),
+    category,
+    allow: extras.allow || [],
+    deny: [...new Set(deny)],
+    maxUsd: extras.maxUsd ?? (usd ? Number(usd[1]) : undefined),
+    partialUse: extras.partialUse ?? true,
+    unusedTo: "sender",
+  };
+}
+
+export function optionFitsPolicy(
+  policy: EnvelopePolicy,
+  option: CatalogOption,
+  remainingEth: number,
+  request = "",
+): { ok: boolean; reason?: string; score: number } {
+  const hay = [
+    option.title,
+    option.merchant,
+    option.description,
+    ...(option.keywords || []),
+    ...(option.tags || []),
+  ]
+    .join(" ")
+    .toLowerCase();
+  for (const word of policy.deny) {
+    if (!word) continue;
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(hay))
+      return {
+        ok: false,
+        reason: `Blocked by the gift: not ${word}`,
+        score: 0,
+      };
+  }
+  if (
+    policy.category !== "other" &&
+    option.category !== policy.category &&
+    option.category !== "other"
+  ) {
+    const purposeHit = policy.purpose
+      .toLowerCase()
+      .split(/\W+/)
+      .filter((word) => word.length > 3 && hay.includes(word)).length;
+    if (purposeHit < 2)
+      return {
+        ok: false,
+        reason: `This is ${option.category}, not ${policy.category}`,
+        score: 0,
+      };
+  }
+  const priceEth = Number(option.priceEth || 0);
+  if (priceEth > remainingEth + 1e-9)
+    return { ok: false, reason: "Over the remaining amount", score: 0 };
+  if (policy.maxUsd != null && option.priceUsd > policy.maxUsd + 0.01)
+    return {
+      ok: false,
+      reason: `Over the $${policy.maxUsd} cap`,
+      score: 0,
+    };
+  if (policy.allow.length) {
+    const allowHit = policy.allow.some(
+      (item) =>
+        hay.includes(item.toLowerCase()) ||
+        policy.purpose.toLowerCase().includes(item.toLowerCase()),
+    );
+    if (!allowHit)
+      return { ok: false, reason: "Not in the allowed set", score: 0 };
+  }
+  const query = `${policy.purpose} ${request}`.toLowerCase();
+  let score = option.category === policy.category ? 5 : 1;
+  for (const keyword of option.keywords)
+    if (query.includes(keyword.toLowerCase())) score += 2;
+  if (request.trim()) {
+    const terms = request
+      .toLowerCase()
+      .split(/\W+/)
+      .filter((term) => term.length > 2);
+    const hits = terms.filter((term) => hay.includes(term));
+    if (terms.length && hits.length === 0)
+      return { ok: false, reason: "Does not match the request", score: 0 };
+    score += hits.length;
+  }
+  return { ok: true, score };
+}
+
+export function looksLikeCashOut(request: string) {
+  return /transfer|withdraw|send (me )?(the )?(money|eth|usdc|funds)|cash out|unrestricted/i.test(
+    request,
+  );
+}
+
 export function mandateText(task: Task, nativeSymbol = "ETH"): string {
   const until =
     new Date(task.expiresAt * 1000)
@@ -190,6 +484,9 @@ export function mandateText(task: Task, nativeSymbol = "ETH"): string {
   const dest = task.recovery
     ? `${task.recovery.slice(0, 6)}…${task.recovery.slice(-4)}`
     : "the owner wallet";
+  if (task.envelopeId) {
+    return `This vault holds a Melt envelope: “${task.instruction}”. Spend at most ${task.budget} ${nativeSymbol} on a purchase that matches that promise. Spending access ends ${until}. Unused funds return to ${dest}.`;
+  }
   if (task.kind === "swap" && task.swap) {
     const dca =
       (task.swap.buys || 1) > 1 ? ` across ${task.swap.buys} buys` : "";
