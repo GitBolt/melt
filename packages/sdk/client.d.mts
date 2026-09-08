@@ -122,6 +122,7 @@ export interface SwapQuote {
   minOut: string;
   slippageBps: number;
   rate: string;
+  priceImpactBps?: number;
 }
 export interface MeltConfig {
   baseUrl?: string;

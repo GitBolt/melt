@@ -1,7 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { decodeFunctionData, parseEther } from "viem";
-import { buildSwapCall, SWAP_SELECTOR, TOKENS, UNISWAP } from "./swap.js";
+import {
+  buildSwapCall,
+  SWAP_SELECTOR,
+  TOKENS,
+  UNISWAP,
+  priceImpactBps,
+} from "./swap.js";
 
 const routerAbi = [
   {
@@ -34,6 +40,13 @@ test("token registry includes USDC with correct decimals", () => {
   const usdc = TOKENS.find((t) => t.symbol === "USDC");
   assert.ok(usdc);
   assert.equal(usdc!.decimals, 6);
+});
+
+test("measures Uniswap price impact from a spot probe versus the executed size", () => {
+  assert.equal(priceImpactBps(100n, 1n, 100n, 1n), 0);
+  assert.equal(priceImpactBps(100n, 1n, 99n, 1n), 100);
+  assert.equal(priceImpactBps(100n, 1n, 101n, 1n), 0);
+  assert.equal(priceImpactBps(0n, 1n, 50n, 1n), 0);
 });
 
 test("builds a native-value swap call the vault can execute", () => {
