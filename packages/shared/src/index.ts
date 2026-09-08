@@ -32,6 +32,13 @@ const selector = z
   .union([z.string().regex(/^0x[0-9a-fA-F]{8}$/), z.literal("")])
   .optional()
   .default("");
+export const swapRequest = z.object({
+  tokenOut: address,
+  symbol: z.string().trim().min(1).max(20),
+  amountIn: amount,
+  slippageBps: z.number().int().min(1).max(5000).default(50),
+});
+export type SwapRequest = z.infer<typeof swapRequest>;
 export const createTask = z
   .object({
     title: z.string().trim().min(3).max(100),
@@ -42,8 +49,16 @@ export const createTask = z
     target: lock,
     selector,
     recovery: address,
+    kind: z.enum(["browse", "swap"]).default("browse"),
+    swap: swapRequest.optional(),
   })
   .superRefine((data, ctx) => {
+    if (data.kind === "swap" && !data.swap)
+      ctx.addIssue({
+        code: "custom",
+        message: "A swap task needs swap details",
+        path: ["swap"],
+      });
     if (Boolean(data.target) === Boolean(data.selector)) return;
     ctx.addIssue({
       code: "custom",
@@ -106,6 +121,11 @@ export interface Config {
   modelConfigured: boolean;
   browserAvailable?: boolean;
   swapsConfigured?: boolean;
+  swap?: {
+    available: boolean;
+    router: string;
+    tokens: { symbol: string; name: string; address: string; decimals: number }[];
+  };
   publicRpcUrl?: string;
   fixture: {
     available: boolean;

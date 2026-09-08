@@ -39,6 +39,15 @@ import {
 } from "./browser.js";
 import { startFixtures, registerFixtures } from "./fixtures.js";
 import { uniswapQuote, prepareSwap, checkApproval } from "./uniswap.js";
+import {
+  swapAvailable,
+  quoteSwap,
+  resolveToken,
+  UNISWAP,
+  TOKENS,
+  SWAP_SELECTOR,
+} from "./swap.js";
+import { address } from "../../../packages/shared/src/index.js";
 let browserAvailable = false;
 let lastBrowserCheck = 0;
 let browserCheck: Promise<void> | undefined;
@@ -116,6 +125,11 @@ app.get("/api/config", async () => ({
   browserAvailable,
   modelConfigured: !!(process.env.AI_API_KEY && process.env.AI_MODEL),
   swapsConfigured: !!process.env.UNISWAP_API_KEY,
+  swap: {
+    available: await swapAvailable(),
+    router: UNISWAP.router,
+    tokens: TOKENS,
+  },
   publicRpcUrl: process.env.VITE_RPC_URL,
   fixture: {
     available:
@@ -197,6 +211,28 @@ app.post(
     const input = createTask.parse(req.body);
     if (input.recovery.toLowerCase() !== user.owner.toLowerCase())
       throw Error("Recovery must be your authenticated wallet");
+    if (input.kind === "swap") {
+      if (!input.swap) throw Error("A swap task needs swap details");
+      if (!(await swapAvailable()))
+        throw Error(
+          "Onchain swaps need a Uniswap-enabled network. Run with MELT_FORK=1 or use a Uniswap-supported chain.",
+        );
+      const token = await resolveToken(input.swap.tokenOut);
+      // Validate that a route exists now so the user does not fund a dead pair.
+      await quoteSwap({
+        tokenOut: token.address,
+        amountIn: input.swap.amountIn,
+        slippageBps: input.swap.slippageBps,
+      });
+      input.swap.tokenOut = token.address;
+      input.swap.symbol = token.symbol;
+      // Lock the vault to only the Uniswap router + swap function, and hold
+      // exactly the swap input so nothing else can be spent.
+      input.target = UNISWAP.router;
+      input.selector = SWAP_SELECTOR;
+      input.budget = input.swap.amountIn;
+      input.url = "";
+    }
     if (
       input.selector &&
       forbiddenSelectors.includes(input.selector.toLowerCase())
@@ -221,7 +257,7 @@ app.post(
           );
         return prior;
       }
-      await requireBrowser();
+      if (input.kind !== "swap") await requireBrowser();
       if (list(user.id).filter((t) => t.status !== "closed").length >= 10)
         throw Error("Close an existing session before creating another");
       const task: Task = {
@@ -274,7 +310,7 @@ app.post("/api/sessions/:id/start", async (req) => {
   const { manual } = z
     .object({ manual: z.boolean().default(false) })
     .parse(req.body || {});
-  await requireBrowser();
+  if (task.kind !== "swap") await requireBrowser();
   await start(task.id, manual);
   return task;
 });
@@ -422,6 +458,29 @@ app.delete("/api/keys/:id", async (req) => {
   );
   return { ok: true };
 });
+app.get("/api/swap/tokens", async () => ({
+  available: await swapAvailable(),
+  router: UNISWAP.router,
+  tokens: TOKENS,
+}));
+app.post(
+  "/api/swap/quote",
+  { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+  async (req) => {
+    await authenticate(req);
+    const body = z
+      .object({
+        tokenOut: z.union([address, z.string().trim().min(1).max(20)]),
+        amountIn: z
+          .string()
+          .regex(/^\d+(\.\d{1,18})?$/)
+          .refine((v) => Number(v) > 0 && Number(v) <= 10, "Use 0–10"),
+        slippageBps: z.number().int().min(1).max(5000).optional(),
+      })
+      .parse(req.body);
+    return quoteSwap(body);
+  },
+);
 app.post("/api/uniswap/quote", async (req) => {
   const user = await authenticate(req);
   if (user.apiKey) throw Error("Owner sign-in required");
