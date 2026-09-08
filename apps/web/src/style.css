@@ -1247,3 +1247,114 @@ a.quiet-button {
     width: 130px;
   }
 }
+.swap-lead {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #626b7b;
+  margin: 0 0 18px;
+}
+.swap-pair {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  gap: 12px;
+}
+.swap-field {
+  margin: 0;
+}
+.swap-field .amount-input {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fdfdfe;
+  margin-top: 8px;
+}
+.swap-field .amount-input input {
+  font-size: 24px;
+  max-width: 100%;
+}
+.swap-field select {
+  margin-top: 8px;
+  min-height: 51px;
+  font-size: 15px;
+}
+.swap-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 51px;
+  color: #9aa0b4;
+}
+.swap-quote {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(165deg, #fbfcff, #f4f6fd);
+  padding: 16px 18px;
+  min-height: 58px;
+  font-size: 13px;
+}
+.swap-quote-error {
+  background: #fdf5f4;
+  border-color: #f0d3cf;
+  color: #b4453a;
+  display: flex;
+  align-items: center;
+}
+.swap-quote-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eceef5;
+}
+.swap-quote-main span {
+  color: #6f7584;
+}
+.swap-quote-main strong {
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.5px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.swap-quote dl {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+.swap-quote dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.swap-quote dt {
+  color: #858a99;
+}
+.swap-quote dd {
+  margin: 0;
+  color: #3d4250;
+  font-variant-numeric: tabular-nums;
+}
+.swap-slippage {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  margin-top: 22px;
+}
+.swap-slippage select {
+  width: auto;
+  min-width: 92px;
+  padding: 8px 12px;
+}
+@media (max-width: 600px) {
+  .swap-pair {
+    grid-template-columns: 1fr;
+  }
+  .swap-arrow {
+    height: auto;
+    transform: rotate(90deg);
+    margin: 2px 0;
+  }
+}

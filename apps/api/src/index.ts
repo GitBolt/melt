@@ -47,6 +47,7 @@ import {
   TOKENS,
   SWAP_SELECTOR,
 } from "./swap.js";
+import { parseSwapIntent } from "./intent.js";
 import { address } from "../../../packages/shared/src/index.js";
 let browserAvailable = false;
 let lastBrowserCheck = 0;
@@ -69,6 +70,10 @@ async function checkBrowserRuntime() {
   }
   await browserCheck;
 }
+// A slow mainnet-fork RPC read should never take the whole process down.
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection (ignored to stay up):", reason);
+});
 await checkBrowserRuntime();
 await initialize();
 const fixtureServer = local ? await startFixtures() : undefined;
@@ -211,6 +216,30 @@ app.post(
     const input = createTask.parse(req.body);
     if (input.recovery.toLowerCase() !== user.owner.toLowerCase())
       throw Error("Recovery must be your authenticated wallet");
+    // Reliable natural-language swaps: a plain instruction like "swap 0.05 ETH
+    // for USDC" becomes a deterministic onchain swap when Uniswap is available.
+    if (
+      input.kind === "browse" &&
+      !input.url &&
+      !input.target &&
+      (await swapAvailable())
+    ) {
+      const intent = parseSwapIntent(input.instruction);
+      if (intent) {
+        try {
+          const token = await resolveToken(intent.tokenOut);
+          input.kind = "swap";
+          input.swap = {
+            tokenOut: token.address,
+            symbol: token.symbol,
+            amountIn: intent.amountIn,
+            slippageBps: 50,
+          };
+        } catch {
+          /* Unknown token symbol; keep this as a browser task. */
+        }
+      }
+    }
     if (input.kind === "swap") {
       if (!input.swap) throw Error("A swap task needs swap details");
       if (!(await swapAvailable()))

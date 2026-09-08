@@ -32,7 +32,12 @@ export function parseSwapIntent(instruction: string): SwapIntent | null {
   );
   const candidate = phrase?.[1]?.toUpperCase();
   const symbols = TOKENS.map((t) => t.symbol.toUpperCase());
-  if (candidate && symbols.includes(candidate) && candidate !== "ETH")
+  if (
+    candidate &&
+    symbols.includes(candidate) &&
+    candidate !== "ETH" &&
+    candidate !== "WETH"
+  )
     return { amountIn, tokenOut: candidate };
 
   for (const token of TOKENS) {

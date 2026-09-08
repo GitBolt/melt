@@ -211,9 +211,10 @@ export interface SwapQuote {
 }
 
 async function bestQuote(tokenOut: Address, amountInWei: bigint) {
-  let best: { fee: number; amountOut: bigint } | undefined;
-  for (const fee of FEE_TIERS) {
-    try {
+  // Probe every fee tier in parallel so a cold mainnet-fork RPC does not add up
+  // latency tier by tier.
+  const results = await Promise.allSettled(
+    FEE_TIERS.map(async (fee) => {
       const result = (await client.readContract({
         address: UNISWAP.quoter,
         abi: quoterAbi,
@@ -228,15 +229,23 @@ async function bestQuote(tokenOut: Address, amountInWei: bigint) {
           },
         ],
       })) as readonly [bigint, bigint, number, bigint];
-      const amountOut = result[0];
-      if (amountOut > 0n && (!best || amountOut > best.amountOut))
-        best = { fee, amountOut };
-    } catch {
-      /* No pool at this fee tier; try the next one. */
-    }
-  }
+      return { fee, amountOut: result[0] };
+    }),
+  );
+  let best: { fee: number; amountOut: bigint } | undefined;
+  for (const r of results)
+    if (
+      r.status === "fulfilled" &&
+      r.value.amountOut > 0n &&
+      (!best || r.value.amountOut > best.amountOut)
+    )
+      best = r.value;
   return best;
 }
+
+// Short-lived quote cache so create-time validation, execution, and rapid UI
+// requests reuse one round trip instead of re-pricing every fee tier.
+const quoteCache = new Map<string, { expires: number; quote: SwapQuote }>();
 
 export async function quoteSwap(params: {
   tokenOut: string;
@@ -254,11 +263,14 @@ export async function quoteSwap(params: {
   const amountInWei = parseEther(params.amountIn as `${number}`);
   if (amountInWei <= 0n) throw Error("Enter an amount greater than zero");
   const token = await resolveToken(params.tokenOut);
+  const cacheKey = `${token.address.toLowerCase()}:${amountInWei}:${slippageBps}`;
+  const cached = quoteCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) return cached.quote;
   const best = await bestQuote(token.address, amountInWei);
   if (!best) throw Error("No Uniswap pool found for this pair");
   const minOutWei = (best.amountOut * BigInt(10000 - slippageBps)) / 10000n;
   const amountOut = formatUnits(best.amountOut, token.decimals);
-  return {
+  const quote: SwapQuote = {
     tokenOut: token.address,
     symbol: token.symbol,
     decimals: token.decimals,
@@ -275,7 +287,10 @@ export async function quoteSwap(params: {
       token.decimals,
     ),
   };
+  quoteCache.set(cacheKey, { expires: Date.now() + 12000, quote });
+  return quote;
 }
+
 
 // Build the native-value router call the vault executes. Because ETH is sent
 // as msg.value and tokenIn is WETH, SwapRouter02 wraps it internally: no
