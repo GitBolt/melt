@@ -1680,7 +1680,9 @@ function Developers({
           <div className="api-endpoints">
             {[
               ["GET", "/api/sessions", "List your sessions"],
-              ["POST", "/api/sessions/:id/start", "Start the browser agent"],
+              ["POST", "/api/swap/quote", "Quote an ETH→token Uniswap swap"],
+              ["GET", "/api/swap/tokens", "List swappable tokens"],
+              ["POST", "/api/sessions/:id/start", "Run a session or swap"],
               ["POST", "/api/sessions/:id/pause", "Pause the agent"],
               [
                 "GET",
@@ -1777,7 +1779,8 @@ function Developers({
             <h2>Connect with MCP</h2>
             <p>
               Use Melt from an MCP-compatible agent. The included server
-              provides the same session and browser controls.
+              provides Uniswap quotes plus session and browser controls, all
+              bounded by limits the agent cannot raise.
             </p>
             <pre>
               <code>npm run agent:mcp</code>
