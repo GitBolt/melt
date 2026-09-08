@@ -75,6 +75,25 @@ test("model adapter retries rate limits then continues", async (t) => {
   assert.equal(calls, 3);
 });
 
+test("model adapter fails immediately when the provider has no credits", async (t) => {
+  modelEnvironment(t);
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls += 1;
+    return new Response(
+      JSON.stringify({
+        error: {
+          code: "insufficient_quota",
+          message: "You have no credits remaining.",
+        },
+      }),
+      { status: 429 },
+    );
+  });
+  await assert.rejects(decide({}), /no credits remaining/);
+  assert.equal(calls, 1);
+});
+
 test("missing model configuration never invokes a scripted or remote fallback", async (t) => {
   modelEnvironment(t);
   delete process.env.AI_API_KEY;

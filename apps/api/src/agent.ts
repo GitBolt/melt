@@ -115,6 +115,22 @@ export function actionSummary(
                   : "Finish the task";
   return action.reason ? `${summary} · ${action.reason}` : summary;
 }
+export function quotaError(body: string): string | undefined {
+  let parsed: { error?: { code?: string; type?: string; message?: string } };
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    parsed = {};
+  }
+  const code = `${parsed.error?.code || ""} ${parsed.error?.type || ""}`.trim();
+  const text = `${code} ${parsed.error?.message || body}`.toLowerCase();
+  if (
+    /insufficient_quota|billing_not_active|credit_balance_exhausted|no credits remaining|billing hard limit/.test(
+      text,
+    )
+  )
+    return "The model provider has no credits remaining. Add billing, then retry.";
+}
 export async function decide(observation: unknown): Promise<BrowserAction> {
   const config = modelConfig();
   if (!config)
@@ -146,7 +162,10 @@ export async function decide(observation: unknown): Promise<BrowserAction> {
       body,
     });
     status = response.status;
+    const text = await response.text();
     if ([429, 502, 503].includes(status)) {
+      const exhausted = status === 429 ? quotaError(text) : undefined;
+      if (exhausted) throw Error(exhausted);
       const retryAfter = Number(response.headers.get("retry-after"));
       const wait =
         Number.isFinite(retryAfter) && retryAfter > 0
@@ -156,7 +175,7 @@ export async function decide(observation: unknown): Promise<BrowserAction> {
       continue;
     }
     if (!response.ok) throw Error(`Model request failed (${status})`);
-    const data = (await response.json()) as any;
+    const data = JSON.parse(text) as any;
     const content = data.choices?.[0]?.message?.content;
     if (typeof content !== "string")
       throw Error("Model returned no browser action");
