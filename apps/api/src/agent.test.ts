@@ -54,8 +54,25 @@ test("model adapter rejects arbitrary tools, missing output and service errors",
   await assert.rejects(decide({}));
   fake.mock.mockImplementation(async () => Response.json({ choices: [] }));
   await assert.rejects(decide({}), /no browser action/);
-  fake.mock.mockImplementation(async () => new Response("", { status: 429 }));
-  await assert.rejects(decide({}), /429/);
+  fake.mock.mockImplementation(async () => new Response("", { status: 400 }));
+  await assert.rejects(decide({}), /400/);
+});
+test("model adapter retries rate limits then continues", async (t) => {
+  modelEnvironment(t);
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls += 1;
+    if (calls < 3)
+      return new Response("", {
+        status: 429,
+        headers: { "retry-after": "0.05" },
+      });
+    return Response.json({
+      choices: [{ message: { content: '{"type":"wait"}' } }],
+    });
+  });
+  assert.deepEqual(await decide({}), { type: "wait" });
+  assert.equal(calls, 3);
 });
 
 test("missing model configuration never invokes a scripted or remote fallback", async (t) => {

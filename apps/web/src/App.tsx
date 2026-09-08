@@ -964,7 +964,11 @@ function SessionDetail({
                 </button>
               )}
               {t.status === "paused" && config.modelConfigured && (
-                <button disabled={!!busy} onClick={() => command("start")}>
+                <button
+                  className="secondary"
+                  disabled={!!busy}
+                  onClick={() => command("start")}
+                >
                   <Play size={14} />
                   Resume agent
                 </button>

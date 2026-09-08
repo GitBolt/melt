@@ -545,11 +545,21 @@ export async function start(id: string, manual = false) {
   }
   void runAgent(id, generation).catch((e) => {
     if (task.status === "running" && generations.get(id) === generation) {
+      const message = errorMessage(e);
+      const busy = /\(429\)|\(502\)|\(503\)/.test(message);
       task.status = "paused";
-      task.error = errorMessage(e);
-      task.outcome = "failed";
-      task.outcomeReason = `The agent stopped: ${task.error}`;
-      event(task, "error", `Agent paused: ${task.error}`);
+      task.error = message;
+      if (!busy) {
+        task.outcome = "failed";
+        task.outcomeReason = `The agent stopped: ${message}`;
+      }
+      event(
+        task,
+        "error",
+        busy
+          ? "Agent paused: the model is busy. Wait a moment, then resume."
+          : `Agent paused: ${message}`,
+      );
     }
   });
 }
