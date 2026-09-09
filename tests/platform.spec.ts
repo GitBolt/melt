@@ -739,6 +739,75 @@ test("envelope create, discover matching options, and reject cash-out", async ({
   expect(settled.redemption.status).toBe("succeeded");
   expect(settled.redemption.symbol).toBe("USDC");
   expect(settled.redemption.hash).toMatch(/^0x[0-9a-fA-F]{64}$/);
+
+  // An agent can propose an item it found on the open web; the policy gate
+  // still decides. Without a configured model the item must plainly relate
+  // to the promise.
+  const external = await page.request.post(
+    `${base}/api/envelopes/${envelope.id}/propose`,
+    {
+      headers: { Origin: base },
+      data: {
+        item: {
+          title: "Japan travel eSIM · 3 GB mobile data",
+          merchant: "Airalo",
+          priceUsd: 9,
+          url: "https://www.airalo.com/japan-esim",
+        },
+      },
+    },
+  );
+  expect(external.ok(), await external.text()).toBeTruthy();
+  const externalQuote = await external.json();
+  expect(externalQuote.option.source).toBe("agent");
+  const externalRedeem = await page.request.post(
+    `${base}/api/envelopes/${envelope.id}/redeem`,
+    { headers: { Origin: base }, data: { quoteId: externalQuote.quote.id } },
+  );
+  expect(externalRedeem.ok(), await externalRedeem.text()).toBeTruthy();
+  const offTopic = await page.request.post(
+    `${base}/api/envelopes/${envelope.id}/propose`,
+    {
+      headers: { Origin: base },
+      data: {
+        item: {
+          title: "PlayStation 5 console",
+          merchant: "GameStop",
+          priceUsd: 15,
+        },
+      },
+    },
+  );
+  expect(offTopic.status()).toBe(409);
+  const overCap = await page.request.post(
+    `${base}/api/envelopes/${envelope.id}/propose`,
+    {
+      headers: { Origin: base },
+      data: {
+        item: {
+          title: "Unlimited mobile data plan for a year",
+          merchant: "Airalo",
+          priceUsd: 500,
+        },
+      },
+    },
+  );
+  expect(overCap.status()).toBe(409);
+  const badUrl = await page.request.post(
+    `${base}/api/envelopes/${envelope.id}/propose`,
+    {
+      headers: { Origin: base },
+      data: {
+        item: {
+          title: "Japan mobile data eSIM",
+          merchant: "Airalo",
+          priceUsd: 9,
+          url: "http://airalo.com/japan",
+        },
+      },
+    },
+  );
+  expect(badUrl.status()).toBe(400);
 });
 
 test("developer console creates and revokes a key, clears revealed secret on logout, and serves OpenAPI", async ({

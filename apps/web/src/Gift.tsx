@@ -1,7 +1,7 @@
 import { MeltLoader, MeltWordmark } from "./components/MeltMotion";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ArrowRight, Copy, Check } from "lucide-react";
+import { ArrowRight, Copy, Check, Printer } from "lucide-react";
 import "./gift.css";
 
 type PublicGift = {
@@ -30,7 +30,17 @@ export function Gift({ token }: { token: string }) {
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [qr, setQr] = useState("");
   const reduced = useReducedMotion();
+  useEffect(() => {
+    if (!gift) return;
+    import("qrcode")
+      .then((QRCode) =>
+        QRCode.toDataURL(gift.url || location.href, { margin: 1, width: 260 }),
+      )
+      .then(setQr)
+      .catch(() => {});
+  }, [gift]);
   useEffect(() => {
     fetch(`/api/public/gifts/${token}`)
       .then(async (response) => {
@@ -196,6 +206,17 @@ export function Gift({ token }: { token: string }) {
                   {copied ? <Check size={16} /> : <Copy size={16} />}
                   {copied ? "Copied" : "Copy link"}
                 </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    window.print();
+                  }}
+                >
+                  <Printer size={16} />
+                  Print it
+                </button>
               </div>
             </motion.section>
           ) : (
@@ -205,6 +226,25 @@ export function Gift({ token }: { token: string }) {
           )}
         </AnimatePresence>
       </main>
+      <section className="gift-print" aria-hidden="true">
+        <div className="gift-print-card">
+          <b className="gift-print-brand">melt</b>
+          <p className="gift-print-from">
+            From {gift.senderName} · for {gift.recipientLabel}
+          </p>
+          <p className="gift-print-amount">{gift.amount}</p>
+          <h2>{gift.purpose}</h2>
+          {gift.note ? (
+            <p className="gift-print-note">“{gift.note}”</p>
+          ) : null}
+          {qr ? <img src={qr} alt="QR code for this gift" /> : null}
+          <p className="gift-print-url">{gift.url || location.href}</p>
+          <p className="gift-print-small">
+            Scan to open the gift. Use by {until}. The amount is locked on
+            Ethereum for this purpose; unused funds return to the sender.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

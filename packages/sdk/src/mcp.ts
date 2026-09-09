@@ -83,6 +83,30 @@ server.registerTool(
     ),
 );
 server.registerTool(
+  "propose_item",
+  {
+    description:
+      "Propose a purchase you found anywhere on the web — a product page, a booking, an eSIM plan — against an envelope. Melt audits it against the gift's purpose, price caps, and deny list before quoting. Cash, crypto, and transfers are always rejected. This does not move funds until redeem.",
+    inputSchema: envelopeId.extend({
+      title: z.string().min(3).max(160),
+      merchant: z.string().min(2).max(80),
+      price_usd: z.number().positive().max(100000),
+      url: z.string().max(400).optional(),
+      description: z.string().max(500).optional(),
+    }),
+  },
+  ({ envelope_id, title, merchant, price_usd, url, description }) =>
+    result(() =>
+      client.proposeItem(envelope_id, {
+        title,
+        merchant,
+        priceUsd: price_usd,
+        url,
+        description,
+      }),
+    ),
+);
+server.registerTool(
   "redeem",
   {
     description:

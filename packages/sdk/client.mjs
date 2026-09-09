@@ -394,6 +394,42 @@ export class Melt {
       validate: (value) => record(value) && record(value.quote),
     });
   }
+  proposeItem(id, item, options = {}) {
+    if (
+      !record(item) ||
+      typeof item.title !== "string" ||
+      item.title.trim().length < 3 ||
+      typeof item.merchant !== "string" ||
+      !item.merchant.trim() ||
+      typeof item.priceUsd !== "number" ||
+      !(item.priceUsd > 0)
+    )
+      throw new TypeError(
+        "proposeItem needs { title, merchant, priceUsd, url?, description? }",
+      );
+    const body = {
+      item: {
+        title: item.title,
+        merchant: item.merchant,
+        priceUsd: item.priceUsd,
+      },
+    };
+    if (item.url !== undefined) {
+      if (typeof item.url !== "string" || item.url.length > 400)
+        throw new TypeError("url must be a short https URL");
+      body.item.url = item.url;
+    }
+    if (item.description !== undefined) {
+      if (typeof item.description !== "string" || item.description.length > 500)
+        throw new TypeError("description must be a short string");
+      body.item.description = item.description;
+    }
+    return this.#request(`${envelopePath(id)}/propose`, {
+      ...options,
+      body,
+      validate: (value) => record(value) && record(value.quote),
+    });
+  }
   redeem(id, quoteId, options = {}) {
     if (typeof quoteId !== "string" || !quoteId)
       throw new TypeError("redeem needs the quote ID from proposePurchase");

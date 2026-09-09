@@ -134,7 +134,7 @@ Point ChatGPT, Claude, Cursor, or Grok at Streamable HTTP:
 https://melt-woad.vercel.app/api/mcp
 ```
 
-Send `Authorization: Bearer melt_…`. Hosted tools are envelope-only: `list_envelopes`, `get_envelope`, `find_options`, `propose_purchase`, `redeem`, `get_redemption_status`. Browser session tools stay on the stdio server below.
+Send `Authorization: Bearer melt_…`. Hosted tools are envelope-only: `list_envelopes`, `get_envelope`, `find_options`, `propose_purchase`, `propose_item`, `redeem`, `get_redemption_status`. `propose_item` accepts anything the assistant found on the open web (title, merchant, price, optional https URL); Melt audits it against the gift's purpose, caps, and deny list before quoting, and always rejects cash, crypto, and transfers. Browser session tools stay on the stdio server below.
 
 ```json
 {

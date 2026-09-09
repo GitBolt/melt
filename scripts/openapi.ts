@@ -383,13 +383,32 @@ route(
 route(
   "post",
   "/envelopes/{id}/propose",
-  "Propose a catalog option against the envelope",
+  "Propose a purchase: either a catalog sku, or an item the agent found on the open web (title, merchant, priceUsd, optional https url). Melt audits open-web items against the gift's purpose, caps, and deny list before quoting.",
   obj,
   {
     type: "object",
-    required: ["sku"],
-    properties: { sku: str, request: str },
+    properties: {
+      sku: str,
+      request: str,
+      item: {
+        type: "object",
+        required: ["title", "merchant", "priceUsd"],
+        properties: {
+          title: str,
+          merchant: str,
+          priceUsd: { type: "number" },
+          url: str,
+          description: str,
+        },
+      },
+    },
   },
+);
+route(
+  "post",
+  "/envelopes/{id}/retry",
+  "Retry envelope address setup after a failed deployment (sender only)",
+  obj,
 );
 route(
   "post",

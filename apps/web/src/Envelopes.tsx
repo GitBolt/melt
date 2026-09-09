@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  RotateCcw,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { parseEther, toHex } from "viem";
@@ -693,6 +694,26 @@ export function EnvelopeDetail({
                   Send {config.chain.symbol} on {config.chain.name} here. Melt
                   notices a deposit without a signature.
                 </p>
+              </div>
+            ) : envelope.setupError ? (
+              <div className="fund-address">
+                <p className="helper">{envelope.setupError}</p>
+                <button
+                  className="secondary wide"
+                  disabled={!!busy}
+                  onClick={() =>
+                    act("retry-setup", () =>
+                      request(`/envelopes/${envelope.id}/retry`, {}, "POST"),
+                    )
+                  }
+                >
+                  {busy === "retry-setup" ? (
+                    <MeltLoader size={14} />
+                  ) : (
+                    <RotateCcw size={13} />
+                  )}
+                  Retry setup
+                </button>
               </div>
             ) : (
               <p className="helper">Creating the envelope address…</p>

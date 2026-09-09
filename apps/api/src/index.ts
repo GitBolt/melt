@@ -75,11 +75,13 @@ import {
   listEnvelopes,
   markGiftOpened,
   notifyEnvelopeSession,
+  proposeExternalPurchase,
   proposePurchase,
   publicGiftByToken,
   redeemQuote,
   redemptionStatus,
   resendGiftEmail,
+  retryEnvelopeSetup,
 } from "./envelopes.js";
 import { mailConfigured } from "./mail.js";
 import {
@@ -401,17 +403,42 @@ app.get("/api/envelopes/:id/options", async (req) => {
   return findEnvelopeOptions(envelope, request);
 });
 app.post(
+  "/api/envelopes/:id/retry",
+  { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+  async (req) => {
+    const { envelope, user } = await accessibleEnvelope(req);
+    if (envelope.userId !== user.id)
+      throw Object.assign(Error("Only the sender can retry setup"), {
+        statusCode: 403,
+      });
+    return retryEnvelopeSetup(envelope);
+  },
+);
+app.post(
   "/api/envelopes/:id/propose",
   { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
   async (req) => {
     const { envelope } = await accessibleEnvelope(req);
     const body = z
       .object({
-        sku: z.string().trim().min(1).max(80),
+        sku: z.string().trim().min(1).max(80).optional(),
+        item: z
+          .object({
+            title: z.string().trim().min(3).max(160),
+            merchant: z.string().trim().min(2).max(80),
+            priceUsd: z.number().positive().max(100000),
+            url: z.string().trim().max(400).optional(),
+            description: z.string().trim().max(500).optional(),
+          })
+          .optional(),
         request: z.string().trim().max(500).optional().default(""),
       })
+      .refine((data) => !!data.sku !== !!data.item, {
+        message: "Provide either a catalog sku or an item, not both",
+      })
       .parse(req.body);
-    return proposePurchase(envelope, body.sku, body.request);
+    if (body.item) return proposeExternalPurchase(envelope, body.item);
+    return proposePurchase(envelope, body.sku!, body.request);
   },
 );
 app.post(

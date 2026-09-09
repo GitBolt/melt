@@ -1096,7 +1096,7 @@
     },
     "/envelopes/{id}/propose": {
       "post": {
-        "summary": "Propose a catalog option against the envelope",
+        "summary": "Propose a purchase: either a catalog sku, or an item the agent found on the open web (title, merchant, priceUsd, optional https url). Melt audits open-web items against the gift's purpose, caps, and deny list before quoting.",
         "operationId": "post__envelopes_id_propose",
         "responses": {
           "200": {
@@ -1187,16 +1187,137 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "sku"
-                ],
                 "properties": {
                   "sku": {
                     "type": "string"
                   },
                   "request": {
                     "type": "string"
+                  },
+                  "item": {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "merchant",
+                      "priceUsd"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "merchant": {
+                        "type": "string"
+                      },
+                      "priceUsd": {
+                        "type": "number"
+                      },
+                      "url": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    }
                   }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/envelopes/{id}/retry": {
+      "post": {
+        "summary": "Retry envelope address setup after a failed deployment (sender only)",
+        "operationId": "post__envelopes_id_retry",
+        "responses": {
+          "200": {
+            "description": "Successful response. Inspect status, outcome and transaction hashes; closed does not imply task success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; respect Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }

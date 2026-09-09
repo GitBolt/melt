@@ -188,6 +188,7 @@ export interface Envelope {
   status: EnvelopeStatus;
   createdAt: string;
   receiptToken?: string;
+  setupError?: string;
   quotes: EnvelopeQuote[];
   redemptions: EnvelopeRedemption[];
 }
@@ -203,7 +204,7 @@ export interface CatalogOption {
   tags: string[];
   settlement: "uniswap" | "catalog";
   tokenSymbol?: string;
-  source: "melt" | "cryptorefills";
+  source: "melt" | "cryptorefills" | "agent";
   disclosure: string;
 }
 export type TaskStatus =

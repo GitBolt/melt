@@ -48,12 +48,14 @@ const quote = await melt.proposePurchase(sent[0].id, {
 await melt.redeem(sent[0].id, quote.quote.id);
 ```
 
-MCP tools: `list_envelopes`, `get_envelope`, `find_options`, `propose_purchase`, `redeem`, `get_redemption_status`. An external agent cannot create envelopes, raise the amount, or send unrestricted cash. [Runnable examples](examples/README.md) also show direct HTTP.
+MCP tools: `list_envelopes`, `get_envelope`, `find_options`, `propose_purchase`, `propose_item`, `redeem`, `get_redemption_status`. `propose_item` lets an assistant propose anything it found on the open web — Melt audits it against the gift's purpose, caps, and deny list before quoting. An external agent cannot create envelopes, raise the amount, or send unrestricted cash. [Runnable examples](examples/README.md) also show direct HTTP.
 
 ## What's implemented
 
 - **Purpose-bound envelopes.** A sender locks ETH against a semantic promise. Policy (category, dollar cap, deny list, partial use, unused-to-sender) is hashed and cannot be rewritten after funding.
 - **AI discovery over a real catalog.** A recipient asks in plain language — “an eSIM for Japan”, “fps games” — and a model ranks candidates from roughly 900 live gift-card brands (Cryptorefills public API) plus the built-in catalog. The model only orders candidates that already passed the deterministic policy gate; it cannot add items, change prices, or bypass caps. A stemmed keyword matcher answers when no model is configured.
+- **Open proposals, not a walled catalog.** An assistant can propose anything it found on the open web (`propose_item`: title, merchant, price, URL). Melt audits the item against the gift’s purpose with the model, then enforces the deny list, caps, and remaining funds deterministically before quoting. The catalog is a convenience, not a boundary.
+- **A gift you can hand over.** Every gift page prints as a physical certificate with a QR claim link, and can be shared by email or link. The recipient never needs a Melt account to receive it.
 - **Discover and redeem.** Matching catalog options only. Uniswap V3 converts the required ETH to USDC from the envelope vault (`exactInputSingle`, native value, no ERC-20 approval). Leftover funds stay until expiry, then return to the sender.
 - **MCP as distribution.** ChatGPT, Claude, Codex or Grok redeem an existing gift. They cannot invent a transfer. Hosted MCP lives at `/api/mcp`; a stdio server ships in the SDK.
 - **Developer platform.** `/developers` is a standalone portal with API keys, per-key usage metering, webhooks, quickstarts, and generated OpenAPI docs.

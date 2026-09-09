@@ -4,6 +4,8 @@ import {
   createEnvelope,
   inferEnvelopePolicy,
   optionFitsPolicy,
+  requestTerms,
+  stemWord,
   type CatalogOption,
   type CreateEnvelope,
   type Envelope,
@@ -18,13 +20,19 @@ import {
   client,
   demoOwner,
   deployTask,
+  local,
   refreshBalance,
   reconcile,
   vaultCall,
 } from "./chain.js";
 import { hasModelConfiguration } from "./agent.js";
 import { quoteSwap, buildSwapCall, swapAvailable, TOKENS } from "./swap.js";
-import { catalogBySku, findCatalogOptions } from "./catalog.js";
+import {
+  aiPurposeCheck,
+  catalogBySku,
+  findCatalogOptions,
+  type ExternalItem,
+} from "./catalog.js";
 import { emit } from "./webhooks.js";
 import { errorMessage } from "./errors.js";
 
@@ -116,6 +124,10 @@ export function presentEnvelope(envelope: Envelope, task?: Task): Envelope {
   envelope.spent = session.spent;
   envelope.receiptToken = session.receiptToken;
   envelope.status = envelopeStatus(envelope, session);
+  envelope.setupError =
+    !session.vault && session.status === "attention"
+      ? session.error || "Envelope setup failed"
+      : undefined;
   saveEnvelope(envelope);
   return envelope;
 }
@@ -377,7 +389,7 @@ export async function createFundedEnvelope(
     await deployTask(task);
   } catch (error) {
     task.status = "attention";
-    task.error = errorMessage(error);
+    task.error = setupErrorMessage(error);
     event(task, "error", task.error);
     save(task);
   }
@@ -400,6 +412,36 @@ export async function createFundedEnvelope(
       envelope.status === "funding" ? "sent" : "ready",
     );
   return presentEnvelope(envelope, task);
+}
+
+/* Public fork RPCs stop serving state for old blocks, so a long-running local
+   fork starts failing vault deploys with an opaque "internal error". Translate
+   it into something a person can act on. */
+function setupErrorMessage(error: unknown) {
+  const message = errorMessage(error);
+  if (local && /internal error/i.test(message))
+    return "The local fork lost access to upstream chain state (free fork RPCs only serve recent blocks). Restart `npm run dev` for a fresh fork, then press Retry setup.";
+  return message;
+}
+
+export async function retryEnvelopeSetup(envelope: Envelope) {
+  return serial(`envelope:${envelope.id}`, async () => {
+    const task = get(envelope.sessionId);
+    if (task.vault) return presentEnvelope(readEnvelope(envelope.id), task);
+    task.status = "funding";
+    task.error = undefined;
+    save(task);
+    try {
+      await deployTask(task);
+      event(task, "success", "Envelope address created after retry.");
+    } catch (error) {
+      task.status = "attention";
+      task.error = setupErrorMessage(error);
+      event(task, "error", task.error);
+      save(task);
+    }
+    return presentEnvelope(readEnvelope(envelope.id), get(envelope.sessionId));
+  });
 }
 
 export async function findEnvelopeOptions(envelope: Envelope, request = "") {
@@ -434,15 +476,7 @@ export async function findEnvelopeOptions(envelope: Envelope, request = "") {
   };
 }
 
-export async function proposePurchase(
-  envelope: Envelope,
-  sku: string,
-  request = "",
-) {
-  if (!sku)
-    throw Object.assign(Error("Choose a catalog option"), { statusCode: 400 });
-  const task = get(envelope.sessionId);
-  const live = presentEnvelope(envelope, task);
+function assertProposable(live: Envelope) {
   if (live.status === "expired")
     throw Object.assign(Error("This envelope has expired"), {
       statusCode: 409,
@@ -460,6 +494,37 @@ export async function proposePurchase(
     throw Object.assign(Error("This envelope has no remaining funds"), {
       statusCode: 409,
     });
+}
+
+function makeQuote(live: Envelope, option: CatalogOption): EnvelopeQuote {
+  return {
+    id: randomUUID(),
+    envelopeId: live.id,
+    sku: option.sku,
+    title: option.title,
+    merchant: option.merchant,
+    amountEth: option.priceEth || "0",
+    amountUsd: option.priceUsd,
+    settlement: option.settlement,
+    tokenSymbol: option.tokenSymbol,
+    source: option.source,
+    disclosure: option.disclosure,
+    createdAt: new Date().toISOString(),
+    expiresAt: Math.floor(Date.now() / 1000) + 15 * 60,
+    status: "proposed",
+  };
+}
+
+export async function proposePurchase(
+  envelope: Envelope,
+  sku: string,
+  request = "",
+) {
+  if (!sku)
+    throw Object.assign(Error("Choose a catalog option"), { statusCode: 400 });
+  const task = get(envelope.sessionId);
+  const live = presentEnvelope(envelope, task);
+  assertProposable(live);
   const ethUsd = await ethUsdRate();
   let option: CatalogOption | undefined = catalogBySku(sku, ethUsd);
   if (!option) {
@@ -489,22 +554,93 @@ export async function proposePurchase(
         statusCode: 409,
       },
     );
-  const quote: EnvelopeQuote = {
-    id: randomUUID(),
-    envelopeId: live.id,
-    sku: option.sku,
-    title: option.title,
-    merchant: option.merchant,
-    amountEth: option.priceEth || "0",
-    amountUsd: option.priceUsd,
-    settlement: option.settlement,
-    tokenSymbol: option.tokenSymbol,
-    source: option.source,
-    disclosure: option.disclosure,
-    createdAt: new Date().toISOString(),
-    expiresAt: Math.floor(Date.now() / 1000) + 15 * 60,
-    status: "proposed",
+  const quote = makeQuote(live, option);
+  live.quotes.push(quote);
+  saveEnvelope(live);
+  return { quote, option, policyHash: live.policyHash };
+}
+
+function assertPublicMerchantUrl(raw: string) {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw Object.assign(Error("Item url must be a valid https URL"), {
+      statusCode: 400,
+    });
+  }
+  const host = url.hostname.toLowerCase();
+  if (
+    url.protocol !== "https:" ||
+    host === "localhost" ||
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(host) ||
+    host.includes(":") ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal") ||
+    !host.includes(".")
+  )
+    throw Object.assign(Error("Item url must be a public https URL"), {
+      statusCode: 400,
+    });
+}
+
+/* An external agent proposes something it found anywhere on the web. The
+   model audits purpose fit and classifies the category; the deterministic
+   gate then enforces the deny list, caps, and remaining funds exactly as it
+   does for catalog options. Without a configured model the item text must
+   share a stem with the gift's promise. */
+export async function proposeExternalPurchase(
+  envelope: Envelope,
+  item: ExternalItem,
+) {
+  const task = get(envelope.sessionId);
+  const live = presentEnvelope(envelope, task);
+  assertProposable(live);
+  if (item.url) assertPublicMerchantUrl(item.url);
+  const verdict = await aiPurposeCheck(live.policy, item);
+  if (verdict && !verdict.fits)
+    throw Object.assign(
+      Error(verdict.reason || "That item does not serve this gift's purpose"),
+      { statusCode: 409 },
+    );
+  if (!verdict) {
+    const hay =
+      `${item.title} ${item.merchant} ${item.description || ""}`.toLowerCase();
+    const stems = requestTerms(live.policy.purpose).map(stemWord);
+    if (!stems.some((stem) => hay.includes(stem)))
+      throw Object.assign(
+        Error(
+          "Melt could not verify this item against the gift's purpose. Describe the item so it clearly relates to the promise.",
+        ),
+        { statusCode: 409 },
+      );
+  }
+  const ethUsd = await ethUsdRate();
+  const option: CatalogOption = {
+    sku: `agent-${randomUUID().slice(0, 12)}`,
+    title: item.title,
+    merchant: item.merchant,
+    category: verdict?.category || live.policy.category,
+    description:
+      item.description ||
+      (item.url ? `Proposed by an agent: ${item.url}` : "Proposed by an agent"),
+    priceUsd: item.priceUsd,
+    priceEth: (item.priceUsd / ethUsd).toFixed(8),
+    keywords: [],
+    tags: item.url ? [item.url] : [],
+    settlement: "uniswap",
+    tokenSymbol: "USDC",
+    source: "agent",
+    disclosure:
+      "Proposed by the recipient's agent, not the Melt catalog. Melt verified the price against the gift's policy; merchant fulfillment happens outside this quote.",
   };
+  const fit = optionFitsPolicy(live.policy, option, remainingEth(task), "");
+  if (!fit.ok)
+    throw Object.assign(
+      Error(fit.reason || "That purchase does not match the gift"),
+      { statusCode: 409 },
+    );
+  const quote = makeQuote(live, option);
   live.quotes.push(quote);
   saveEnvelope(live);
   return { quote, option, policyHash: live.policyHash };

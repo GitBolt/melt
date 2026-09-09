@@ -177,6 +177,17 @@ export class Melt {
     params: { sku: string; request?: string },
     options?: RequestOptions,
   ): Promise<{ quote: { id: string } }>;
+  proposeItem(
+    id: string,
+    item: {
+      title: string;
+      merchant: string;
+      priceUsd: number;
+      url?: string;
+      description?: string;
+    },
+    options?: RequestOptions,
+  ): Promise<{ quote: { id: string } }>;
   redeem(
     id: string,
     quoteId: string,
