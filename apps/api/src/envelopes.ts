@@ -130,6 +130,9 @@ export function presentEnvelope(envelope: Envelope, task?: Task): Envelope {
       ? session.error || "Envelope setup failed"
       : undefined;
   saveEnvelope(envelope);
+  /* The timeline is derived from the vault session on every read, so it is
+     attached after save instead of being persisted twice. */
+  envelope.timeline = session.events.slice(-40);
   return envelope;
 }
 
@@ -247,12 +250,30 @@ export function publicGift(envelope: Envelope, rate?: number) {
     lastEmailedAt: envelope.lastEmailedAt,
     funded: envelope.status !== "funding",
     lastPurchase: envelope.redemptions.at(-1)?.title || "",
+    thankYou: envelope.thankYou,
     url: giftUrl(envelope.receiptToken),
   };
 }
 
 export async function publicGiftByToken(token: string) {
   return publicGift(giftByToken(token), await ethUsdRate({ wait: false }));
+}
+
+export async function thankGiftSender(token: string, message: string) {
+  const envelope = giftByToken(token);
+  envelope.thankYou = { message, at: new Date().toISOString() };
+  saveEnvelope(envelope);
+  try {
+    const task = get(envelope.sessionId);
+    event(task, "info", `Thank-you note from the recipient: “${message}”`);
+    emit(envelope.userId, "envelope.thanked", task, {
+      envelopeId: envelope.id,
+      message,
+    });
+  } catch {
+    /* The note is saved even if the session record is unavailable. */
+  }
+  return publicGift(envelope, await ethUsdRate({ wait: false }));
 }
 
 export async function markGiftOpened(token: string) {

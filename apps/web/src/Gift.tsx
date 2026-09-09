@@ -16,6 +16,7 @@ type PublicGift = {
   giftOpenedAt?: string;
   funded: boolean;
   lastPurchase: string;
+  thankYou?: { message: string; at: string };
   url: string;
 };
 
@@ -31,6 +32,9 @@ export function Gift({ token }: { token: string }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [qr, setQr] = useState("");
+  const [thanks, setThanks] = useState("");
+  const [thanking, setThanking] = useState(false);
+  const [thanksError, setThanksError] = useState("");
   const reduced = useReducedMotion();
   useEffect(() => {
     if (!gift) return;
@@ -141,6 +145,22 @@ export function Gift({ token }: { token: string }) {
             <div className="gift-pocket">
               <span>{open ? "For you" : "Tap to open"}</span>
             </div>
+            {open && !reduced
+              ? [0, 1, 2].map((i) => (
+                  <motion.i
+                    key={`drip-${i}`}
+                    className="gift-drip"
+                    style={{ left: `${44 + i * 6}%` }}
+                    initial={{ scaleY: 0, opacity: 0.9 }}
+                    animate={{ scaleY: [0, 1, 1], opacity: [0.9, 0.75, 0] }}
+                    transition={{
+                      duration: 1.1,
+                      delay: 0.1 + i * 0.14,
+                      ease: "easeIn",
+                    }}
+                  />
+                ))
+              : null}
             {!open && !reduced
               ? [0, 1, 2, 3, 4].map((i) => (
                   <motion.i
@@ -218,6 +238,56 @@ export function Gift({ token }: { token: string }) {
                   Print it
                 </button>
               </div>
+              {gift.thankYou ? (
+                <p className="gift-thanked">
+                  You said thanks: “{gift.thankYou.message}”
+                </p>
+              ) : (
+                <form
+                  className="gift-thanks"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const message = thanks.trim();
+                    if (message.length < 2 || thanking) return;
+                    setThanking(true);
+                    setThanksError("");
+                    fetch(`/api/public/gifts/${token}/thanks`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ message }),
+                    })
+                      .then(async (response) => {
+                        const body = await response.json();
+                        if (!response.ok)
+                          throw Error(body.error || "The note did not send");
+                        setGift(body);
+                      })
+                      .catch((err) => setThanksError(err.message))
+                      .finally(() => setThanking(false));
+                  }}
+                >
+                  <input
+                    value={thanks}
+                    onChange={(e) => setThanks(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder={`Say thanks to ${gift.senderName}…`}
+                    maxLength={400}
+                    aria-label="Thank-you note"
+                  />
+                  <button
+                    type="submit"
+                    className="secondary"
+                    disabled={thanks.trim().length < 2 || thanking}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {thanking ? <MeltLoader size={14} /> : null}
+                    Send
+                  </button>
+                  {thanksError ? (
+                    <p className="gift-thanks-error">{thanksError}</p>
+                  ) : null}
+                </form>
+              )}
             </motion.section>
           ) : (
             <p className="helper gift-hint">
@@ -234,9 +304,7 @@ export function Gift({ token }: { token: string }) {
           </p>
           <p className="gift-print-amount">{gift.amount}</p>
           <h2>{gift.purpose}</h2>
-          {gift.note ? (
-            <p className="gift-print-note">“{gift.note}”</p>
-          ) : null}
+          {gift.note ? <p className="gift-print-note">“{gift.note}”</p> : null}
           {qr ? <img src={qr} alt="QR code for this gift" /> : null}
           <p className="gift-print-url">{gift.url || location.href}</p>
           <p className="gift-print-small">

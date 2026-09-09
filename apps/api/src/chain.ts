@@ -61,7 +61,11 @@ export const demoOwner = mnemonicToAccount(
 // A generous timeout and retries keep the app stable when a mainnet-fork RPC
 // is slow to serve cold state, instead of crashing on a transient timeout.
 const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
-const transport = http(rpcUrl, { timeout: 45000, retryCount: 3, retryDelay: 400 });
+const transport = http(rpcUrl, {
+  timeout: 45000,
+  retryCount: 3,
+  retryDelay: 400,
+});
 export const client = createPublicClient({ chain, transport });
 const devWallet = createWalletClient({ account, chain, transport });
 export let operator: Address;
@@ -189,7 +193,8 @@ export async function initialize() {
         .getCode({ address: prevTip as Address })
         .catch(() => undefined)
     : undefined;
-  if (prevTip && prevTipCode && prevTipCode !== "0x") tipJar = prevTip as Address;
+  if (prevTip && prevTipCode && prevTipCode !== "0x")
+    tipJar = prevTip as Address;
   else if (local) {
     const hash = await send({
       data: encodeDeployData({

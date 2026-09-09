@@ -33,11 +33,12 @@ Paths below are relative to the base URL.
 | GET        | `/me`                                                  | Owner or agent | Identity; agent keys do not expose an owner signing credential      |
 | GET        | `/envelopes`                                           | Owner or agent | List sent and received envelopes                                    |
 | POST       | `/envelopes`                                           | Owner          | Create a purpose-bound envelope and its vault                       |
-| GET        | `/envelopes/{id}`                                      | Owner or agent | Read purpose, remaining funds, policy hash and redemptions          |
+| GET        | `/envelopes/{id}`                                      | Owner or agent | Purpose, remaining funds, policy hash, redemptions and timeline     |
 | GET        | `/envelopes/{id}/options`                              | Owner or agent | Find purchases that satisfy the gift                                |
 | POST       | `/envelopes/{id}/propose`                              | Owner or agent | Propose a catalog option; does not move funds                       |
 | POST       | `/envelopes/{id}/redeem`                               | Owner or agent | Settle a quote after policy check; rejects generic transfers        |
 | GET        | `/envelopes/{id}/redemptions`                          | Owner or agent | Settlement and delivery status                                      |
+| POST       | `/public/gifts/{token}/thanks`                         | Public         | Leave a thank-you note for the sender, by gift link token           |
 | GET        | `/sessions`                                            | Owner or agent | List backing vault sessions                                         |
 | POST       | `/sessions`                                            | Owner          | Create a wallet with a spending limit and an optional contract lock |
 | GET        | `/sessions/{id}`                                       | Owner or agent | Status, events, transactions and assets                             |
@@ -184,7 +185,7 @@ const receipt = await publicReceipt(token, {
 
 Register an HTTPS endpoint at [Developers](https://melt-woad.vercel.app/developers). Melt POSTs JSON event objects and signs the **raw body** with HMAC-SHA256. The `Melt-Signature` header is Stripe-shaped: `t=<unix>,v1=<hex>`. Signing secrets start with `whsec_` and are shown once.
 
-Event types: `session.created`, `session.funded`, `session.started`, `swap.executed`, `session.closed`, `session.recovered`, `webhook.test`. `data.object` is the public receipt. Local development may use `http://127.0.0.1` or `http://localhost`.
+Event types: `envelope.created`, `envelope.funded`, `envelope.redeemed`, `envelope.thanked`, `session.created`, `session.funded`, `session.started`, `swap.executed`, `session.closed`, `session.recovered`, `webhook.test`. `data.object` is the public receipt. Local development may use `http://127.0.0.1` or `http://localhost`.
 
 ```js
 import { constructEvent } from "./melt-client.mjs";

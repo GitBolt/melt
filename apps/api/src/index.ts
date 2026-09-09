@@ -82,6 +82,7 @@ import {
   redemptionStatus,
   resendGiftEmail,
   retryEnvelopeSetup,
+  thankGiftSender,
 } from "./envelopes.js";
 import { mailConfigured } from "./mail.js";
 import {
@@ -769,6 +770,17 @@ app.post(
   async (req) => {
     const token = String((req.params as { token: string }).token || "");
     return markGiftOpened(token);
+  },
+);
+app.post(
+  "/api/public/gifts/:token/thanks",
+  { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+  async (req) => {
+    const token = String((req.params as { token: string }).token || "");
+    const { message } = z
+      .object({ message: z.string().trim().min(2).max(400) })
+      .parse(req.body);
+    return thankGiftSender(token, message);
   },
 );
 app.get("/api/events", async (req) => {

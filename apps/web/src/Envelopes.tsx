@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Copy,
   RotateCcw,
+  Heart,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { parseEther, toHex } from "viem";
@@ -816,6 +817,18 @@ export function EnvelopeDetail({
         </aside>
         <section className="workspace panel envelope-activity">
           <h2>Activity</h2>
+          {envelope.thankYou && (
+            <blockquote className="thanks-note">
+              <Heart size={14} />
+              <div>
+                <p>“{envelope.thankYou.message}”</p>
+                <span className="quiet">
+                  {envelope.recipientLabel} ·{" "}
+                  {new Date(envelope.thankYou.at).toLocaleDateString()}
+                </span>
+              </div>
+            </blockquote>
+          )}
           {envelope.redemptions.length === 0 && (
             <p className="helper">
               No purchase yet. The recipient can open Melt or ask an assistant
@@ -837,6 +850,28 @@ export function EnvelopeDetail({
               <time>{new Date(item.createdAt).toLocaleString()}</time>
             </article>
           ))}
+          {(envelope.timeline?.length || 0) > 0 && (
+            <details className="envelope-timeline">
+              <summary>
+                Every step, onchain and off
+                <span className="quiet"> · {envelope.timeline!.length}</span>
+              </summary>
+              <ol>
+                {envelope.timeline!.map((entry) => (
+                  <li key={entry.id} className={`timeline-${entry.kind}`}>
+                    <i />
+                    <div>
+                      <p>{entry.text}</p>
+                      <span className="quiet">
+                        {new Date(entry.at).toLocaleString()}
+                        {entry.hash ? ` · ${short(entry.hash)}` : ""}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
         </section>
       </div>
     </>

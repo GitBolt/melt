@@ -259,6 +259,43 @@
   font-size: 13px;
   color: #6f7584;
 }
+.gift-drip {
+  position: absolute;
+  top: 168px;
+  z-index: 5;
+  width: 6px;
+  height: 34px;
+  border-radius: 0 0 6px 6px;
+  background: linear-gradient(#5463c4, #8b97e0);
+  transform-origin: top center;
+  pointer-events: none;
+}
+.gift-thanks {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+.gift-thanks input {
+  flex: 1 1 220px;
+}
+.gift-thanks button {
+  flex: 0 0 auto;
+}
+.gift-thanks-error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 13px;
+  color: #a8543f;
+}
+.gift-thanked {
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #eef1fb;
+  color: #4c5670;
+  font-size: 14px;
+}
 .gift-actions {
   display: flex;
   flex-wrap: wrap;

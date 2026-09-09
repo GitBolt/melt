@@ -25,7 +25,7 @@ npx playwright install chromium
 MELT_FORK=1 npm run dev
 ```
 
-`MELT_FORK=1` forks Ethereum so Uniswap V3 settlement is real. The chain id stays 31337. Set `FORK_RPC_URL` to use your own RPC.
+`MELT_FORK=1` forks Ethereum so Uniswap V3 settlement is real. The chain id stays 31337. The dev script probes a list of public RPCs and picks one that actually serves forked state (free providers rotate between working and demanding archive tokens). Set `FORK_RPC_URL` to pin your own endpoint.
 
 Open [the local site](http://127.0.0.1:5173), choose **Open Melt**, then **Open local workspace**. Create an envelope — the demo path is “mobile data for your trip, up to $20”. Open **Discover**, search for an eSIM, and **Use this**. Melt swaps only the required ETH to USDC on Uniswap. Cash-out wording returns nothing.
 
@@ -59,6 +59,8 @@ MCP tools: `list_envelopes`, `get_envelope`, `find_options`, `propose_purchase`,
 - **AI discovery over a real catalog.** A recipient asks in plain language — “an eSIM for Japan”, “fps games” — and a model ranks candidates from roughly 900 live gift-card brands (Cryptorefills public API) plus the built-in catalog. The model only orders candidates that already passed the deterministic policy gate; it cannot add items, change prices, or bypass caps. A stemmed keyword matcher answers when no model is configured.
 - **Open proposals, not a walled catalog.** An assistant can propose anything it found on the open web (`propose_item`: title, merchant, price, URL). Melt audits the item against the gift’s purpose with the model, then enforces the deny list, caps, and remaining funds deterministically before quoting. The catalog is a convenience, not a boundary.
 - **A gift you can hand over.** Every gift page prints as a physical certificate with a QR claim link, and can be shared by email or link. The recipient never needs a Melt account to receive it.
+- **A note back.** The recipient can leave a thank-you on the gift page — no account needed. It lands on the sender's envelope and fires an `envelope.thanked` webhook.
+- **A visible spine.** Every envelope exposes its full event timeline — created, funded, quoted, settled — so both sides can see exactly what the vault did and when.
 - **Discover and redeem.** Matching catalog options only. Uniswap V3 converts the required ETH to USDC from the envelope vault (`exactInputSingle`, native value, no ERC-20 approval). Leftover funds stay until expiry, then return to the sender.
 - **MCP as distribution.** ChatGPT, Claude, Codex or Grok redeem an existing gift. They cannot invent a transfer. Hosted MCP lives at `/api/mcp`; a stdio server ships in the SDK.
 - **Developer platform.** `/developers` is a standalone portal with API keys, per-key usage metering, webhooks, quickstarts, and generated OpenAPI docs.

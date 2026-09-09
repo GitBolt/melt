@@ -333,6 +333,10 @@ function route(
     operation.parameters = [
       { name: "id", in: "path", required: true, schema: { type: "string" } },
     ];
+  if (path.includes("{token}"))
+    operation.parameters = [
+      { name: "token", in: "path", required: true, schema: { type: "string" } },
+    ];
   (paths[path] ||= {})[method] = operation;
   return operation;
 }
@@ -426,6 +430,18 @@ route(
   "/envelopes/{id}/redemptions",
   "Read settlement and delivery status",
   obj,
+);
+route(
+  "post",
+  "/public/gifts/{token}/thanks",
+  "Leave a thank-you note for the sender (public, by gift token)",
+  obj,
+  {
+    type: "object",
+    required: ["message"],
+    properties: { message: { type: "string", minLength: 2, maxLength: 400 } },
+  },
+  { public: true },
 );
 const create = route(
   "post",

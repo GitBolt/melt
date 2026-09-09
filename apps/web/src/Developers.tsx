@@ -29,6 +29,7 @@ const HOOK_EVENTS = [
   "envelope.created",
   "envelope.funded",
   "envelope.redeemed",
+  "envelope.thanked",
   "swap.executed",
   "session.created",
   "session.funded",

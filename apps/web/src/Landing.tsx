@@ -382,31 +382,82 @@ await melt.redeem(received[0].id, quote.quote.id);`}</pre>
       </motion.section>
 
       <motion.section className="landing-block" {...reveal}>
-        <div className="landing-wrap agents-grid">
-          <div>
-            <p className="landing-kicker">One primitive, two hands</p>
-            <h2>The gift wallet is also an agent wallet.</h2>
-            <p>
-              Every envelope is a purpose-bound task vault onchain. The same
-              vault powers agent jobs: hand your own browser agent a budget and
-              a deadline, watch it work live, take over anytime, and recover
-              whatever it does not spend.
-            </p>
+        <div className="landing-wrap">
+          <p className="landing-kicker">Where Melt started</p>
+          <h2>
+            First we gave a browser agent a wallet. Then we asked who else
+            deserves one.
+          </h2>
+          <p className="evolution-lead">
+            Melt began as a spending-limit wallet for browser agents: a budget,
+            a deadline, one job, everything recoverable onchain. The gift is the
+            same vault handed across the table. The purpose is the instruction.
+            The recipient&apos;s assistant is the agent. Nothing was thrown away
+            — the wallet just learned to be generous.
+          </p>
+          <div className="evolution-strip" aria-hidden="true">
+            <motion.article
+              className="panel evolution-card"
+              initial={reduced ? false : { opacity: 0, x: -24 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: "-60px" }}
+              transition={{ duration: 0.45 }}
+            >
+              <span className="evolution-tag">The original idea</span>
+              <strong>An agent job</strong>
+              <p>“Mint the demo NFT.”</p>
+              <dl>
+                <div>
+                  <dt>Budget</dt>
+                  <dd>0.005 ETH</dd>
+                </div>
+                <div>
+                  <dt>Deadline</dt>
+                  <dd>15 minutes</dd>
+                </div>
+                <div>
+                  <dt>Spent by</dt>
+                  <dd>your browser agent</dd>
+                </div>
+              </dl>
+            </motion.article>
+            <div className="evolution-melt">
+              <i />
+              <i />
+              <i />
+              <span>same vault</span>
+            </div>
+            <motion.article
+              className="panel evolution-card"
+              initial={reduced ? false : { opacity: 0, x: 24 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: "-60px" }}
+              transition={{ duration: 0.45, delay: 0.15 }}
+            >
+              <span className="evolution-tag">What it became</span>
+              <strong>An envelope</strong>
+              <p>“Dinner for two, anywhere you like.”</p>
+              <dl>
+                <div>
+                  <dt>Budget</dt>
+                  <dd>$120</dd>
+                </div>
+                <div>
+                  <dt>Deadline</dt>
+                  <dd>New Year</dd>
+                </div>
+                <div>
+                  <dt>Spent by</dt>
+                  <dd>their assistant</dd>
+                </div>
+              </dl>
+            </motion.article>
+          </div>
+          <div className="evolution-actions">
             <a className="secondary" href={`${app}#activity`}>
               Put an agent to work
               <ArrowUpRight size={16} />
             </a>
-          </div>
-          <div className="panel story-card">
-            <div className="story-meta">
-              <strong>Same vault, different hands</strong>
-            </div>
-            <blockquote>
-              An envelope is funded by you and spent by their assistant. An
-              agent job is funded by you and spent by your own browser agent.
-              Either way: a budget, a purpose, a deadline, and onchain recovery
-              that works even if Melt disappears.
-            </blockquote>
           </div>
         </div>
       </motion.section>

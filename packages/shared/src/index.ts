@@ -189,6 +189,8 @@ export interface Envelope {
   createdAt: string;
   receiptToken?: string;
   setupError?: string;
+  thankYou?: { message: string; at: string };
+  timeline?: TaskEvent[];
   quotes: EnvelopeQuote[];
   redemptions: EnvelopeRedemption[];
 }

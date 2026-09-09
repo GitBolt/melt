@@ -19,6 +19,7 @@ export const WEBHOOK_TYPES = [
   "envelope.created",
   "envelope.funded",
   "envelope.redeemed",
+  "envelope.thanked",
   "webhook.test",
 ] as const;
 export type WebhookType = (typeof WEBHOOK_TYPES)[number];

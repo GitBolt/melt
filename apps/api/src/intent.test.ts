@@ -26,10 +26,7 @@ test("accepts a raw token address", () => {
     "swap 0.1 eth for 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   );
   assert.equal(intent?.amountIn, "0.1");
-  assert.equal(
-    intent?.tokenOut,
-    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-  );
+  assert.equal(intent?.tokenOut, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
 });
 
 test("returns null when the text is not clearly a swap", () => {

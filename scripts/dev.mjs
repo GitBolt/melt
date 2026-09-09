@@ -16,20 +16,70 @@ function stop(code = 0) {
 }
 process.on("SIGINT", () => stop());
 process.on("SIGTERM", () => stop());
+// Free public RPCs rotate between working, rate-limiting, and demanding
+// tokens for archive reads. Probe until one serves recent state so a fork
+// start never depends on a single provider's mood.
+const FORK_CANDIDATES = [
+  "https://eth.drpc.org",
+  "https://eth.merkle.io",
+  "https://1rpc.io/eth",
+  "https://eth.llamarpc.com",
+  "https://ethereum-rpc.publicnode.com",
+];
+async function rpc(url, method, params) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    signal: AbortSignal.timeout(5000),
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  if (!response.ok) throw Error(`HTTP ${response.status}`);
+  const body = await response.json();
+  if (!body.result) throw Error(JSON.stringify(body.error || body));
+  return body.result;
+}
+async function pickForkRpc() {
+  for (const url of FORK_CANDIDATES) {
+    try {
+      const block = await rpc(url, "eth_blockNumber", []);
+      // Anvil reads forked state at an explicit block number, not "latest".
+      // Some free providers call that an archive request and 403 it, so the
+      // probe must do exactly what anvil will do.
+      await rpc(url, "eth_getProof", [
+        "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
+        [],
+        block,
+      ]);
+      return url;
+    } catch {
+      /* Try the next provider. */
+    }
+  }
+  return "";
+}
 if (!process.env.RPC_URL) {
   // Optional mainnet fork so real Uniswap contracts are available locally for
   // onchain swaps. The chain id stays 31337 so every other local flow is
   // unchanged. Set MELT_FORK=1 for a default public RPC, or FORK_RPC_URL=... .
-  const forkRpc =
-    process.env.FORK_RPC_URL ||
-    (process.env.MELT_FORK ? "https://ethereum-rpc.publicnode.com" : "");
+  let forkRpc = process.env.FORK_RPC_URL || "";
+  if (!forkRpc && process.env.MELT_FORK) {
+    forkRpc = await pickForkRpc();
+    if (!forkRpc) {
+      console.error(
+        "No public Ethereum RPC is answering right now. Set FORK_RPC_URL to your own endpoint, or unset MELT_FORK to run without the fork.",
+      );
+      process.exit(1);
+    }
+  }
   const forkArgs = forkRpc
     ? [
         "--fork-url",
         forkRpc,
         "--chain-id",
         "31337",
-        ...(process.env.FORK_BLOCK ? ["--fork-block-number", process.env.FORK_BLOCK] : []),
+        ...(process.env.FORK_BLOCK
+          ? ["--fork-block-number", process.env.FORK_BLOCK]
+          : []),
       ]
     : ["--state", "data/anvil-state.json", "--state-interval", "10"];
   if (forkRpc) console.log(`Forking ${forkRpc} on chain id 31337 for Uniswap.`);

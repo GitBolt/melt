@@ -808,6 +808,29 @@ test("envelope create, discover matching options, and reject cash-out", async ({
     },
   );
   expect(badUrl.status()).toBe(400);
+  const withToken = await (
+    await page.request.get(`${base}/api/envelopes/${envelope.id}`, {
+      headers: { Origin: base },
+    })
+  ).json();
+  expect(withToken.timeline?.length).toBeGreaterThan(0);
+  const thanked = await page.request.post(
+    `${base}/api/public/gifts/${withToken.receiptToken}/thanks`,
+    { headers: { Origin: base }, data: { message: "Thank you so much!" } },
+  );
+  expect(thanked.ok(), await thanked.text()).toBeTruthy();
+  expect((await thanked.json()).thankYou.message).toBe("Thank you so much!");
+  const afterThanks = await (
+    await page.request.get(`${base}/api/envelopes/${envelope.id}`, {
+      headers: { Origin: base },
+    })
+  ).json();
+  expect(afterThanks.thankYou.message).toBe("Thank you so much!");
+  expect(
+    afterThanks.timeline.some((entry: { text: string }) =>
+      /thank-you note/i.test(entry.text),
+    ),
+  ).toBeTruthy();
 });
 
 test("developer console creates and revokes a key, clears revealed secret on logout, and serves OpenAPI", async ({
