@@ -10,7 +10,7 @@ Create and fund a purpose-bound envelope in [Melt](https://melt-woad.vercel.app)
 
 ## First request
 
-Create a key under **Developers** in Melt. Keep it in your agent's environment:
+Create a key at [Developers](https://melt-woad.vercel.app/developers). Keep it in your agent's environment:
 
 ```sh
 curl --fail-with-body \
@@ -52,7 +52,10 @@ Paths below are relative to the base URL.
 | POST       | `/sessions/{id}/recover`                               | Owner          | Register a late ERC-20/ERC-721 asset and retry recovery             |
 | GET        | `/sessions/{id}/receipt`                               | Owner or agent | Download a JSON receipt including chain and outcome                 |
 | GET        | `/public/receipts/{token}`                             | Public         | Shareable receipt page data; omits the owner account id             |
+| GET        | `/platform`                                            | Public         | Docs URL, hosted MCP, and agent can/cannot list                     |
+| GET / POST | `/mcp`                                                 | Agent          | Hosted MCP Streamable HTTP. Bearer melt_ key required               |
 | GET        | `/events`                                              | Owner          | Recent session and swap events                                      |
+| GET        | `/usage`                                               | Owner          | API key request counts, routes, and recent calls                    |
 | GET / POST | `/webhooks`                                            | Owner          | List endpoints / create an HMAC-signed webhook, secret shown once   |
 | POST       | `/webhooks/{id}/ping`                                  | Owner          | Send a signed `webhook.test` event                                  |
 | DELETE     | `/webhooks/{id}`                                       | Owner          | Delete a webhook endpoint                                           |
@@ -179,7 +182,7 @@ const receipt = await publicReceipt(token, {
 
 ## Webhooks
 
-Register an HTTPS endpoint under **Developers**. Melt POSTs JSON event objects and signs the **raw body** with HMAC-SHA256. The `Melt-Signature` header is Stripe-shaped: `t=<unix>,v1=<hex>`. Signing secrets start with `whsec_` and are shown once.
+Register an HTTPS endpoint at [Developers](https://melt-woad.vercel.app/developers). Melt POSTs JSON event objects and signs the **raw body** with HMAC-SHA256. The `Melt-Signature` header is Stripe-shaped: `t=<unix>,v1=<hex>`. Signing secrets start with `whsec_` and are shown once.
 
 Event types: `session.created`, `session.funded`, `session.started`, `swap.executed`, `session.closed`, `session.recovered`, `webhook.test`. `data.object` is the public receipt. Local development may use `http://127.0.0.1` or `http://localhost`.
 

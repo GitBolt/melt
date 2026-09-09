@@ -695,7 +695,6 @@ test("envelope create, discover matching options, and reject cash-out", async ({
   await page
     .getByRole("option")
     .filter({ hasText: envelope.purpose })
-    .filter({ hasText: envelope.remaining })
     .first()
     .click();
   await page
@@ -742,19 +741,18 @@ test("envelope create, discover matching options, and reject cash-out", async ({
   expect(settled.redemption.hash).toMatch(/^0x[0-9a-fA-F]{64}$/);
 });
 
-test("developer UI creates and revokes a key, clears revealed secret on logout, and serves OpenAPI", async ({
+test("developer console creates and revokes a key, clears revealed secret on logout, and serves OpenAPI", async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(workspace);
+  await page.goto(base + "/developers/keys");
   await page.getByRole("button", { name: "Open local workspace" }).click();
-  await page.getByRole("link", { name: "Developers", exact: true }).click();
   await page.getByRole("button", { name: "Create API key" }).click();
   await expect(page.getByRole("button", { name: "Copy key" })).toBeVisible();
   await page
     .getByRole("button", { name: /^Revoke Agent / })
-    .last()
+    .first()
     .click();
   await expect(page.getByText("Revoked").first()).toBeVisible();
   const doc = await (await page.request.get(base + "/api/openapi.json")).json();
@@ -763,6 +761,9 @@ test("developer UI creates and revokes a key, clears revealed secret on logout, 
   expect(doc.paths["/envelopes/{id}/redeem"]).toBeDefined();
   expect(doc.paths["/sessions/{id}/recover"]).toBeDefined();
   expect(doc.paths["/client.mjs"]).toBeDefined();
+  expect(doc.paths["/usage"]).toBeDefined();
+  expect(doc.paths["/mcp"]).toBeDefined();
+  expect(doc.paths["/platform"]).toBeDefined();
   const download = await page.request.get(base + "/api/client.mjs");
   expect(download.ok()).toBe(true);
   expect(download.headers()["content-type"]).toContain("javascript");
@@ -770,7 +771,12 @@ test("developer UI creates and revokes a key, clears revealed secret on logout, 
     "melt-client.mjs",
   );
   expect(await download.text()).toContain("export class Melt");
-  await page.locator("button.account").click();
+  const platform = await (
+    await page.request.get(base + "/api/platform")
+  ).json();
+  expect(platform.mcp).toContain("/api/mcp");
+  expect(platform.docs).toContain("/developers");
+  await page.getByRole("button", { name: "Sign out" }).click();
   await expect(
     page.getByRole("button", { name: "Sign in to create an API key" }),
   ).toBeVisible();

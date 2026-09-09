@@ -11,16 +11,19 @@ import Landing from "./Landing";
 import { DirectRecovery } from "./DirectRecovery";
 import { PublicReceipt } from "./PublicReceipt";
 import { Gift } from "./Gift";
+import DevelopersPortal from "./Developers";
 import "./style.css";
 const PrivyApp = React.lazy(() => import("./PrivyApp"));
 const recovery = location.pathname === "/recover";
 const product = location.pathname === "/app";
+const developers =
+  location.pathname === "/developers" ||
+  location.pathname.startsWith("/developers/") ||
+  location.pathname === "/docs";
 const publicReceiptToken = location.pathname.match(
   /^\/r\/([0-9a-f]{48})$/i,
 )?.[1];
-const publicGiftToken = location.pathname.match(
-  /^\/g\/([0-9a-f]{48})$/i,
-)?.[1];
+const publicGiftToken = location.pathname.match(/^\/g\/([0-9a-f]{48})$/i)?.[1];
 const recoveryChainId = Number(import.meta.env.VITE_CHAIN_ID || 11155111);
 const recoveryConfig: Config = {
   mode: "configured",
@@ -54,7 +57,7 @@ function Root() {
     ),
     [error, setError] = useState("");
   useEffect(() => {
-    if (recovery || !product) return;
+    if (recovery || (!product && !developers)) return;
     fetch("/api/config")
       .then((r) => {
         if (!r.ok) throw Error("Could not connect to Melt");
@@ -65,7 +68,7 @@ function Root() {
   }, []);
   if (publicGiftToken) return <Gift token={publicGiftToken} />;
   if (publicReceiptToken) return <PublicReceipt token={publicReceiptToken} />;
-  if (!product && !recovery) return <Landing />;
+  if (!product && !recovery && !developers) return <Landing />;
   if (!config && !error) return <MeltLoading />;
   if (!config)
     return (
@@ -77,10 +80,12 @@ function Root() {
     );
   return config.privyAppId ? (
     <Suspense fallback={<MeltLoading label="Preparing your wallet…" />}>
-      <PrivyApp config={config} recovery={recovery} />
+      <PrivyApp config={config} recovery={recovery} developers={developers} />
     </Suspense>
   ) : recovery ? (
     <DirectRecovery config={config} publicRpcUrl={config.publicRpcUrl} />
+  ) : developers ? (
+    <DevelopersPortal config={config} />
   ) : (
     <App config={config} />
   );

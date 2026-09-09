@@ -1,6 +1,6 @@
 # Use Melt without an npm package
 
-Node.js 24+ is enough. Sign in at [Melt](https://melt-woad.vercel.app), create and fund a session, then create an API key under **Developers**. Keep that key in your local `.env` or secret store.
+Node.js 24+ is enough. Sign in at [Melt](https://melt-woad.vercel.app), create and fund a session, then create an API key at [Developers](https://melt-woad.vercel.app/developers). Keep that key in your local `.env` or secret store.
 
 ```dotenv
 MELT_API_URL=https://melt-woad.vercel.app

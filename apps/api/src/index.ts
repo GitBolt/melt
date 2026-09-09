@@ -92,6 +92,8 @@ import {
   pingWebhook,
   type WebhookType,
 } from "./webhooks.js";
+import { handleMcpHttp } from "./mcp-http.js";
+import { listKeys, recordUsage, usageSummary } from "./usage.js";
 let browserAvailable = false;
 let lastBrowserCheck = 0;
 let browserCheck: Promise<void> | undefined;
@@ -148,6 +150,22 @@ app.addHook("onRequest", async (req, reply) => {
       throw Object.assign(Error("Origin not allowed"), { statusCode: 403 });
   }
 });
+app.addHook("onResponse", async (req, reply) => {
+  const bearer = req.headers.authorization?.replace(/^Bearer /, "");
+  if (!bearer?.startsWith("melt_")) return;
+  const path = req.url.split("?")[0] || "";
+  if (!path.startsWith("/api/") || path === "/api/mcp") return;
+  try {
+    recordUsage({
+      tokenHash: digest(bearer),
+      method: req.method,
+      path,
+      status: reply.statusCode,
+    });
+  } catch {
+    /* Usage is observational; never fail the request. */
+  }
+});
 app.setErrorHandler((error: any, _req, reply) => {
   const code = error instanceof z.ZodError ? 400 : error.statusCode || 400;
   reply
@@ -187,6 +205,12 @@ app.get("/api/config", async () => ({
   envelopes: { available: true },
   ethUsd: await ethUsdRate({ wait: false }),
   mailConfigured: mailConfigured(),
+  platform: {
+    docs: `${origin}/developers`,
+    mcp: `${origin}/api/mcp`,
+    openapi: `${origin}/api/openapi.json`,
+    client: `${origin}/api/client.mjs`,
+  },
   fixture: {
     available:
       local ||
@@ -209,6 +233,29 @@ app.get("/api/config", async () => ({
     },
   },
   operator,
+}));
+app.get("/api/platform", async () => ({
+  name: "Melt",
+  product: "Purpose-bound envelopes",
+  docs: `${origin}/developers`,
+  mcp: `${origin}/api/mcp`,
+  openapi: `${origin}/api/openapi.json`,
+  client: `${origin}/api/client.mjs`,
+  auth: "Authorization: Bearer melt_…",
+  agent: {
+    can: [
+      "list envelopes",
+      "find matching purchases",
+      "propose a quote",
+      "redeem a quote",
+    ],
+    cannot: [
+      "create envelopes",
+      "raise the amount",
+      "change the return wallet",
+      "send unrestricted cash",
+    ],
+  },
 }));
 app.post(
   "/api/auth/local",
@@ -741,11 +788,37 @@ app.delete("/api/webhooks/:id", async (req) => {
 app.get("/api/keys", async (req) => {
   const user = await authenticate(req);
   if (user.apiKey) throw Error("Owner sign-in required");
-  return db
-    .prepare(
-      "SELECT rowid AS id,name,created,revoked FROM tokens WHERE user_id=?",
-    )
-    .all(user.id);
+  return listKeys(user.id);
+});
+app.get("/api/usage", async (req) => {
+  const user = await authenticate(req);
+  if (user.apiKey) throw Error("Owner sign-in required");
+  const days = Number((req.query as { days?: string }).days || 30);
+  return usageSummary(
+    user.id,
+    Number.isFinite(days) ? Math.min(90, Math.max(1, days)) : 30,
+  );
+});
+app.route({
+  method: ["GET", "POST", "DELETE", "OPTIONS"],
+  url: "/api/mcp",
+  config: { rateLimit: { max: local ? 400 : 240, timeWindow: "1 minute" } },
+  handler: async (req, reply) => {
+    reply
+      .header("Access-Control-Allow-Origin", "*")
+      .header(
+        "Access-Control-Allow-Headers",
+        "Authorization, Content-Type, mcp-session-id, MCP-Protocol-Version",
+      )
+      .header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    if (req.method === "OPTIONS") return reply.code(204).send();
+    const user = await authenticate(req);
+    if (!user.apiKey)
+      throw Object.assign(Error("Connect MCP with a Melt API key"), {
+        statusCode: 401,
+      });
+    return handleMcpHttp(req, reply, user, user.tokenHash);
+  },
 });
 app.post("/api/keys", async (req) => {
   const user = await authenticate(req);

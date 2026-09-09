@@ -30,7 +30,7 @@ Local development starts Anvil on 8545, the API on 8787, test dapps on 8788, and
 
 ## Connect your own agent
 
-Create and fund an envelope in Melt, then create an API key under **Developers**. Use HTTP, download the dependency-free JavaScript client, or run the MCP server. There is no generic transfer tool.
+Create and fund an envelope in Melt, then create an API key at `/developers`. Use HTTP, download the dependency-free JavaScript client, or connect hosted MCP. There is no generic transfer tool.
 
 ```sh
 curl --fail --show-error https://melt-woad.vercel.app/api/client.mjs -o melt-client.mjs
@@ -78,7 +78,7 @@ Testnet ETH has no monetary value. Mainnet gas, hosted models and infrastructure
 
 | Location          | Responsibility                                                                    |
 | ----------------- | --------------------------------------------------------------------------------- |
-| `apps/web`        | Product page, envelope composer, Discover, Activity, Developers                   |
+| `apps/web`        | Product page, envelope composer, Discover, Activity, and `/developers` platform |
 | `apps/api`        | HTTP API, catalog, envelope settlement, persistence and chain execution           |
 | `packages/shared` | Shared validation, envelope policy and domain types                               |
 | `packages/sdk`    | Standalone JavaScript client, types and stdio MCP server                          |

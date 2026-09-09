@@ -258,7 +258,7 @@ export class Melt {
     fetch: transport = globalThis.fetch,
   } = {}) {
     if (typeof apiKey !== "string" || !apiKey.trim() || /\s/.test(apiKey))
-      throw new TypeError("Provide an API key created in Melt → Developers");
+      throw new TypeError("Provide an API key created at /developers");
     if (typeof transport !== "function")
       throw new TypeError("This client requires native fetch (Node.js 24+)");
     this.#url = apiRoot(baseUrl);

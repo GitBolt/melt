@@ -165,7 +165,7 @@ export default function Landing() {
           <nav>
             <a href="#examples">Examples</a>
             <a href="#how">How it works</a>
-            <a href={`${app}#developers`}>Developers</a>
+            <a href="/developers">Developers</a>
           </nav>
           <a className="primary" href={app}>
             Create an envelope
@@ -368,7 +368,7 @@ export default function Landing() {
               ChatGPT, Claude, Cursor, or Grok. It cannot create envelopes or
               raise the amount.
             </p>
-            <a className="secondary" href={`${app}#developers`}>
+            <a className="secondary" href="/developers">
               Agent docs
               <ArrowUpRight size={16} />
             </a>
@@ -404,7 +404,7 @@ await melt.redeem(received[0].id, quote.quote.id);`}</pre>
             <a href={app}>App</a>
             <a href="/recover">Recover</a>
             <a href="https://github.com/GitBolt/melt">Source</a>
-            <a href={`${app}#developers`}>API</a>
+            <a href="/developers">API</a>
           </div>
         </div>
       </footer>

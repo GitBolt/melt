@@ -22,6 +22,18 @@
       "destination": "/index.html"
     },
     {
+      "source": "/developers",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/developers/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/docs",
+      "destination": "/index.html"
+    },
+    {
       "source": "/r/:token",
       "destination": "/index.html"
     },

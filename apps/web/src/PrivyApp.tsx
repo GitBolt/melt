@@ -3,12 +3,15 @@ import { defineChain, createWalletClient, custom } from "viem";
 import type { Config } from "../../../packages/shared/src/index";
 import App, { type Auth } from "./App";
 import { DirectRecovery } from "./DirectRecovery";
+import DevelopersPortal from "./Developers";
 function Connected({
   config,
   recovery = false,
+  developers = false,
 }: {
   config: Config;
   recovery?: boolean;
+  developers?: boolean;
 }) {
   const { login, logout, getAccessToken, authenticated, ready } = usePrivy();
   const { wallets } = useWallets();
@@ -81,6 +84,8 @@ function Connected({
       publicRpcUrl={config.publicRpcUrl || import.meta.env.VITE_RPC_URL}
       onSignIn={login}
     />
+  ) : developers ? (
+    <DevelopersPortal config={config} auth={auth} />
   ) : (
     <App config={config} auth={auth} />
   );
@@ -88,9 +93,11 @@ function Connected({
 export default function PrivyApp({
   config,
   recovery = false,
+  developers = false,
 }: {
   config: Config;
   recovery?: boolean;
+  developers?: boolean;
 }) {
   const rpc = config.publicRpcUrl || import.meta.env.VITE_RPC_URL;
   if (!rpc)
@@ -137,7 +144,7 @@ export default function PrivyApp({
         defaultChain: network,
       }}
     >
-      <Connected config={config} recovery={recovery} />
+      <Connected config={config} recovery={recovery} developers={developers} />
     </PrivyProvider>
   );
 }

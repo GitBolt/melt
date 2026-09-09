@@ -13,7 +13,6 @@ import {
   Copy,
   Check,
   Download,
-  Code2,
   Wallet,
   Globe,
   Play,
@@ -21,8 +20,6 @@ import {
   RotateCcw,
   ArrowLeft,
   ExternalLink,
-  KeyRound,
-  Trash2,
   X,
   ShieldCheck,
   MousePointer2,
@@ -86,7 +83,7 @@ const statusLabel: Record<TaskStatus, string> = {
   closed: "Session closed",
   attention: "Review needed",
 };
-const PAGES = ["Envelopes", "Discover", "Activity", "Developers"] as const;
+const PAGES = ["Envelopes", "Discover", "Activity"] as const;
 type Page = (typeof PAGES)[number];
 const LAUNCH_GIFTS = [
   {
@@ -110,7 +107,6 @@ const LAUNCH_GIFTS = [
 ];
 const pageFromHash = (): Page => {
   const hash = window.location.hash.toLowerCase();
-  if (hash === "#developers") return "Developers";
   if (hash === "#discover") return "Discover";
   if (hash === "#activity" || hash === "#receipts") return "Activity";
   return "Envelopes";
@@ -194,7 +190,15 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     );
   }, []);
   useEffect(() => {
+    if (window.location.hash.toLowerCase() === "#developers") {
+      window.location.replace("/developers");
+      return;
+    }
     const onHashChange = () => {
+      if (window.location.hash.toLowerCase() === "#developers") {
+        window.location.replace("/developers");
+        return;
+      }
       setPage(pageFromHash());
       setSelected(undefined);
     };
@@ -448,16 +452,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
         }
       />
       <main>
-        {page === "Developers" ? (
-          <Developers
-            request={request}
-            user={user?.id || ""}
-            signIn={signIn}
-            act={act}
-            busy={busy}
-            notify={setNotice}
-          />
-        ) : page === "Activity" && task ? (
+        {page === "Activity" && task ? (
           <>
             <button className="back" onClick={() => setSelected(undefined)}>
               <ArrowLeft size={14} />
@@ -799,14 +794,9 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
       </main>
       <footer>
         <a href="/">Melt · Gift cards without stores</a>
-        <button
-          onClick={() => {
-            setSelected(undefined);
-            setPage("Developers");
-          }}
-        >
-          Developer docs <ArrowUpRight size={12} />
-        </button>
+        <a href="/developers">
+          Developers <ArrowUpRight size={12} />
+        </a>
       </footer>
     </div>
   );
@@ -1510,398 +1500,6 @@ function SessionDetail({
     </>
   );
 }
-function Developers({
-  request,
-  user,
-  signIn,
-  act,
-  busy,
-  notify,
-}: {
-  request: any;
-  user: string;
-  signIn: () => void;
-  act: any;
-  busy: string;
-  notify: (s: string) => void;
-}) {
-  const hookEvents = [
-      "session.created",
-      "session.funded",
-      "envelope.created",
-      "envelope.funded",
-      "envelope.redeemed",
-      "swap.executed",
-      "session.closed",
-      "session.recovered",
-    ],
-    [keys, setKeys] = useState<any[]>([]),
-    [token, setToken] = useState(""),
-    [keyError, setKeyError] = useState(""),
-    [hooks, setHooks] = useState<any[]>([]),
-    [events, setEvents] = useState<any[]>([]),
-    [hookUrl, setHookUrl] = useState(""),
-    [hookSecret, setHookSecret] = useState(""),
-    [selectedEvents, setSelectedEvents] = useState<string[]>(hookEvents);
-  async function refresh() {
-    if (!user) return;
-    const [nextKeys, nextHooks, nextEvents] = await Promise.all([
-      request("/keys"),
-      request("/webhooks"),
-      request("/events"),
-    ]);
-    setKeys(nextKeys);
-    setHooks(nextHooks);
-    setEvents(nextEvents);
-  }
-  useEffect(() => {
-    let alive = true;
-    setToken("");
-    setHookSecret("");
-    setKeys([]);
-    setHooks([]);
-    setEvents([]);
-    setKeyError("");
-    if (user)
-      void Promise.all([
-        request("/keys"),
-        request("/webhooks"),
-        request("/events"),
-      ])
-        .then(([nextKeys, nextHooks, nextEvents]) => {
-          if (!alive) return;
-          setKeys(nextKeys);
-          setHooks(nextHooks);
-          setEvents(nextEvents);
-        })
-        .catch((e: Error) => {
-          if (alive) setKeyError(e.message);
-        });
-    return () => {
-      alive = false;
-    };
-  }, [user]);
-  return (
-    <>
-      <section className="intro">
-        <div>
-          <h1>Connect ChatGPT, Claude, Cursor, or Grok</h1>
-          <p>
-            Their assistant can find options, propose a purchase, and redeem an
-            existing envelope. It cannot create one, raise the amount, or send
-            cash.
-          </p>
-        </div>
-        <a
-          className="secondary"
-          href="/api/openapi.json"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <Code2 size={15} />
-          OpenAPI
-          <ArrowUpRight size={15} />
-        </a>
-      </section>
-      <div className="developer-grid">
-        <section className="panel dev-panel">
-          <h2>Let their assistant spend the gift</h2>
-          <p>
-            Create and fund an envelope in Melt. Any MCP client can redeem it,
-            e.g. ChatGPT, Claude, Cursor, or Grok. Keys cannot create envelopes
-            or increase the gift.
-          </p>
-          <pre>
-            <code>{`import { Melt } from './melt-client.mjs';\n\nconst melt = new Melt({\n  baseUrl: '${location.origin}',\n  apiKey: process.env.MELT_API_KEY\n});\n\nconst { sent } = await melt.envelopes();\nconst found = await melt.findOptions(sent[0].id, 'an eSIM for Japan');\nconst quote = await melt.proposePurchase(sent[0].id, { sku: found.options[0].sku });\nawait melt.redeem(sent[0].id, quote.quote.id);`}</code>
-          </pre>
-          <a className="secondary" href="/api/client.mjs">
-            <Download size={14} /> Download JavaScript client
-          </a>
-          <p className="helper">
-            One file, no dependencies. Keep your API key on the server.
-          </p>
-          <div className="api-endpoints">
-            {[
-              ["GET", "/api/envelopes", "List sent and received envelopes"],
-              [
-                "GET",
-                "/api/envelopes/:id/options",
-                "Find purchases that match the gift",
-              ],
-              [
-                "POST",
-                "/api/envelopes/:id/propose",
-                "Propose a catalog option",
-              ],
-              [
-                "POST",
-                "/api/envelopes/:id/redeem",
-                "Settle a quote; no generic transfer",
-              ],
-              ["GET", "/api/envelopes/:id/redemptions", "Settlement status"],
-              ["POST", "/api/swap/quote", "Quote ETH→USDC for settlement"],
-              [
-                "GET",
-                "/api/public/receipts/:token",
-                "Open the shareable public receipt",
-              ],
-              ["POST", "/api/webhooks", "Register a signed webhook endpoint"],
-            ].map(([method, path, label]) => (
-              <div key={path}>
-                <span>{method}</span>
-                <code>{path}</code>
-                <p>{label}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-        <aside className="panel dev-panel">
-          <KeyRound size={22} />
-          <h2>API keys</h2>
-          {keyError && <p role="alert">{keyError}</p>}
-          <p>Each key is shown once. You can revoke access at any time.</p>
-          {user ? (
-            <>
-              <button
-                className="primary wide"
-                disabled={!!busy}
-                onClick={() =>
-                  act("key", async () => {
-                    const data = await request("/keys", {
-                      name: `Agent ${keys.length + 1}`,
-                    });
-                    setToken(data.token);
-                    await refresh();
-                  })
-                }
-              >
-                <Plus size={15} />
-                Create API key
-              </button>
-              {token && (
-                <div className="key-reveal">
-                  <code>{token}</code>
-                  <button
-                    className="secondary wide"
-                    onClick={() =>
-                      act("copy", async () => {
-                        await navigator.clipboard.writeText(token);
-                        notify("Key copied");
-                      })
-                    }
-                  >
-                    <Copy size={13} />
-                    Copy key
-                  </button>
-                </div>
-              )}
-              {keys.map((k) => (
-                <div className="key-row" key={k.id}>
-                  <span>
-                    {k.name}
-                    <small>{k.revoked ? "Revoked" : "Active"}</small>
-                  </span>
-                  <button
-                    aria-label={`Revoke ${k.name}`}
-                    disabled={!!k.revoked || !!busy}
-                    onClick={() =>
-                      act("revoke", async () => {
-                        await request(`/keys/${k.id}`, undefined, "DELETE");
-                        await refresh();
-                      })
-                    }
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              ))}
-            </>
-          ) : (
-            <button className="secondary" onClick={signIn}>
-              Sign in to create an API key
-            </button>
-          )}
-          <div className="mcp-note">
-            <h2>Connect with MCP</h2>
-            <p>
-              Use Melt from any MCP client, e.g. ChatGPT, Claude, Cursor, or
-              Grok. The server can list gifts, find options, propose, and
-              redeem. It cannot send cash.
-            </p>
-            <pre>
-              <code>npm run agent:mcp</code>
-            </pre>
-          </div>
-        </aside>
-      </div>
-      <div className="receipt-grid developers-webhooks">
-        <section className="panel webhook-log">
-          <h2>Events</h2>
-          <p className="helper">
-            The same event objects Melt posts to your webhook. Agent keys cannot
-            read this log.
-          </p>
-          {user ? (
-            events.length ? (
-              events.map((item) => (
-                <div className="event-row" key={item.id}>
-                  <div>
-                    <code>{item.type}</code>
-                    {item.taskId && (
-                      <p className="quiet">{item.taskId.slice(0, 8)}</p>
-                    )}
-                  </div>
-                  <time>
-                    {new Date(item.created).toLocaleTimeString(undefined, {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                    })}
-                  </time>
-                </div>
-              ))
-            ) : (
-              <p className="helper">
-                No events yet. Create a session to see one.
-              </p>
-            )
-          ) : (
-            <button className="secondary" onClick={signIn}>
-              Sign in to see events
-            </button>
-          )}
-        </section>
-        <section className="panel webhook-log">
-          <h2>Webhooks</h2>
-          <p className="helper">
-            Melt signs the raw JSON with HMAC-SHA256 and sends a Melt-Signature
-            header in Stripe’s t=,v1= form. HTTPS is required in production.
-          </p>
-          {user ? (
-            <>
-              <label className="hook-url">
-                Endpoint URL
-                <input
-                  value={hookUrl}
-                  onChange={(e) => setHookUrl(e.target.value)}
-                  placeholder="https://example.com/melt-webhooks"
-                />
-              </label>
-              <div className="hook-events">
-                {hookEvents.map((type) => (
-                  <label key={type}>
-                    <input
-                      type="checkbox"
-                      checked={selectedEvents.includes(type)}
-                      onChange={() =>
-                        setSelectedEvents((current) =>
-                          current.includes(type)
-                            ? current.filter((item) => item !== type)
-                            : [...current, type],
-                        )
-                      }
-                    />
-                    {type}
-                  </label>
-                ))}
-              </div>
-              <button
-                className="primary wide"
-                disabled={!!busy || !hookUrl.trim() || !selectedEvents.length}
-                onClick={() =>
-                  act("webhook", async () => {
-                    const created = await request("/webhooks", {
-                      url: hookUrl.trim(),
-                      events: selectedEvents,
-                    });
-                    setHookSecret(created.secret);
-                    setHookUrl("");
-                    await refresh();
-                  })
-                }
-              >
-                <Plus size={15} />
-                Add endpoint
-              </button>
-              {hookSecret && (
-                <div className="key-reveal">
-                  <code>{hookSecret}</code>
-                  <button
-                    className="secondary wide"
-                    onClick={() =>
-                      act("copy-secret", async () => {
-                        await navigator.clipboard.writeText(hookSecret);
-                        notify("Signing secret copied");
-                      })
-                    }
-                  >
-                    <Copy size={13} />
-                    Copy signing secret
-                  </button>
-                  <p className="helper">Shown once. Store it on your server.</p>
-                </div>
-              )}
-              <pre>
-                <code>{`import { constructEvent } from './melt-client.mjs';\n\nconst event = await constructEvent(\n  rawBody,\n  request.headers['melt-signature'],\n  process.env.MELT_WEBHOOK_SECRET\n);`}</code>
-              </pre>
-              {hooks.map((hook) => (
-                <div className="hook-row" key={hook.id}>
-                  <div>
-                    <code>{hook.url}</code>
-                    <p className="quiet">{hook.events.join(", ")}</p>
-                  </div>
-                  <div className="hook-actions">
-                    <button
-                      className="secondary"
-                      disabled={!!busy}
-                      onClick={() =>
-                        act("ping", async () => {
-                          const result = await request(
-                            `/webhooks/${hook.id}/ping`,
-                            {},
-                          );
-                          notify(
-                            result.delivered
-                              ? "Test event delivered"
-                              : "Endpoint did not accept the test event",
-                          );
-                          await refresh();
-                        })
-                      }
-                    >
-                      Send test
-                    </button>
-                    <button
-                      aria-label={`Delete webhook ${hook.url}`}
-                      disabled={!!busy}
-                      onClick={() =>
-                        act("delete-hook", async () => {
-                          await request(
-                            `/webhooks/${hook.id}`,
-                            undefined,
-                            "DELETE",
-                          );
-                          await refresh();
-                        })
-                      }
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </>
-          ) : (
-            <button className="secondary" onClick={signIn}>
-              Sign in to add a webhook
-            </button>
-          )}
-        </section>
-      </div>
-    </>
-  );
-}
-
 function AssetRecovery({
   task,
   request,

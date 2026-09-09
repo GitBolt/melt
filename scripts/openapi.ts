@@ -559,8 +559,37 @@ route("delete", "/webhooks/{id}", "Delete a webhook endpoint", obj, undefined, {
 });
 route(
   "get",
+  "/platform",
+  "Public discovery document for docs, MCP, and agent limits",
+  obj,
+  undefined,
+  { public: true },
+);
+route(
+  "get",
+  "/usage",
+  "API key usage for this account: request counts, routes, and recent calls",
+  obj,
+  undefined,
+  { owner: true },
+);
+route(
+  "post",
+  "/mcp",
+  "Hosted MCP Streamable HTTP endpoint. Authenticate with a Melt API key.",
+  obj,
+  obj,
+);
+route(
+  "get",
+  "/mcp",
+  "MCP Streamable HTTP GET for session/SSE clients. Authenticate with a Melt API key.",
+  obj,
+);
+route(
+  "get",
   "/keys",
-  "List account API keys",
+  "List account API keys, including last used and request counts",
   { type: "array", items: obj },
   undefined,
   { owner: true },
@@ -628,10 +657,10 @@ writeFileSync(
     {
       openapi: "3.1.0",
       info: {
-        title: "Melt task wallet API",
-        version: "0.4.0",
+        title: "Melt platform API",
+        version: "0.5.0",
         description:
-          "Purpose-bound envelopes: send purchasing power for a promise, redeem later through MCP. Agent keys can find options, propose, and redeem. They cannot create envelopes or send unrestricted cash. Uniswap converts only the amount a qualifying purchase needs. Public receipts at /public/receipts/{token} omit the owner account. Webhooks are HMAC-SHA256 signed with Melt-Signature (t=,v1=).",
+          "Purpose-bound envelopes: send purchasing power for a promise, redeem later through HTTP or hosted MCP. Agent keys can find options, propose, and redeem. They cannot create envelopes or send unrestricted cash. Uniswap converts only the amount a qualifying purchase needs. Public receipts at /public/receipts/{token} omit the owner account. Webhooks are HMAC-SHA256 signed with Melt-Signature (t=,v1=). Owner console lives at /developers.",
       },
       servers: [
         { url: "https://melt-woad.vercel.app/api", description: "Hosted app" },

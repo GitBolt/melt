@@ -291,6 +291,12 @@ export interface Config {
   envelopes?: { available: boolean };
   ethUsd?: number;
   mailConfigured?: boolean;
+  platform?: {
+    docs: string;
+    mcp: string;
+    openapi: string;
+    client: string;
+  };
   fixture: {
     available: boolean;
     url: string;

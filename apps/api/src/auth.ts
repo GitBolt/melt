@@ -14,14 +14,22 @@ export interface Identity {
   id: string;
   owner: string;
   apiKey: boolean;
+  tokenHash?: string;
 }
 export async function authenticate(req: FastifyRequest): Promise<Identity> {
   const bearer = req.headers.authorization?.replace(/^Bearer /, "");
   if (bearer?.startsWith("melt_")) {
+    const tokenHash = digest(bearer);
     const row = db
       .prepare("SELECT user_id FROM tokens WHERE hash=? AND revoked=0")
-      .get(digest(bearer));
-    if (row) return { id: row.user_id as string, owner: "", apiKey: true };
+      .get(tokenHash);
+    if (row)
+      return {
+        id: row.user_id as string,
+        owner: "",
+        apiKey: true,
+        tokenHash,
+      };
     throw Object.assign(Error("API key is invalid or revoked"), {
       statusCode: 401,
     });

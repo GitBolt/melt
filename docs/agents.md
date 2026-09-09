@@ -1,6 +1,6 @@
 # Connect your agent
 
-Use Melt through HTTP, a downloaded JavaScript client, or the MCP server in this repository. Nothing needs to be published to npm.
+Use Melt through HTTP, the hosted MCP endpoint, a downloaded JavaScript client, or the stdio MCP server in this repository. Create keys and read usage at [Developers](https://melt-woad.vercel.app/developers).
 
 Melt envelopes are purpose-bound purchasing power. The owner creates and funds a gift on Melt. An existing assistant — ChatGPT, Claude, Codex or Grok — later lists envelopes, finds matching purchases, proposes a quote and redeems it. The key can operate that account’s envelopes; it cannot create envelopes, raise the amount, change the return wallet or send unrestricted cash.
 
@@ -125,6 +125,31 @@ try {
 ```
 
 Codes include `API_ERROR`, `RATE_LIMITED`, `NETWORK_ERROR`, `INVALID_RESPONSE`, `TIMEOUT`, `ABORTED` and `WAIT_TIMEOUT`. `retryAfterMs` is available when the server supplies it. No mutation is retried automatically, including after an HTTP error or timeout.
+
+## Hosted MCP
+
+Point ChatGPT, Claude, Cursor, or Grok at Streamable HTTP:
+
+```
+https://melt-woad.vercel.app/api/mcp
+```
+
+Send `Authorization: Bearer melt_…`. Hosted tools are envelope-only: `list_envelopes`, `get_envelope`, `find_options`, `propose_purchase`, `redeem`, `get_redemption_status`. Browser session tools stay on the stdio server below.
+
+```json
+{
+  "mcpServers": {
+    "melt": {
+      "url": "https://melt-woad.vercel.app/api/mcp",
+      "headers": {
+        "Authorization": "Bearer melt_…"
+      }
+    }
+  }
+}
+```
+
+Create the key and watch usage at `/developers`.
 
 ## MCP from the repository
 
