@@ -976,6 +976,10 @@ export function DiscoverPanel({
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<any>(null);
   const [settled, setSettled] = useState<any>(null);
+  const [redeeming, setRedeeming] = useState<{
+    sku: string;
+    step: string;
+  } | null>(null);
   const envelope = envelopes.find((item) => item.id === selectedId);
   const lastRedemption = envelope?.redemptions?.at(-1);
   const needsFunds = envelope?.status === "funding";
@@ -1075,6 +1079,11 @@ export function DiscoverPanel({
         )}
       </section>
       <section className="session-list">
+        {busy === "search" && (
+          <p className="helper" role="status">
+            Matching your request against the catalog…
+          </p>
+        )}
         {(result?.options || []).map((option: any) => (
           <article key={option.sku} className="option-card panel">
             <div>
@@ -1091,29 +1100,43 @@ export function DiscoverPanel({
               disabled={!!busy || envelope?.status !== "open"}
               onClick={() =>
                 act("redeem", async () => {
-                  const proposed = await request(
-                    `/envelopes/${selectedId}/propose`,
-                    { sku: option.sku, request: query },
-                  );
-                  const done = await request(
-                    `/envelopes/${selectedId}/redeem`,
-                    {
-                      quoteId: proposed.quote.id,
-                    },
-                  );
-                  setSettled(done.redemption);
-                  if (done.redemption?.hash)
-                    onTx?.(done.redemption.hash, "Settled onchain");
-                  await search(query);
+                  setRedeeming({ sku: option.sku, step: "Reserving…" });
+                  try {
+                    const proposed = await request(
+                      `/envelopes/${selectedId}/propose`,
+                      { sku: option.sku, request: query },
+                    );
+                    setRedeeming({
+                      sku: option.sku,
+                      step: "Settling onchain…",
+                    });
+                    const done = await request(
+                      `/envelopes/${selectedId}/redeem`,
+                      {
+                        quoteId: proposed.quote.id,
+                      },
+                    );
+                    setSettled(done.redemption);
+                    if (done.redemption?.hash)
+                      onTx?.(done.redemption.hash, "Settled onchain");
+                    await search(query);
+                  } finally {
+                    setRedeeming(null);
+                  }
                 })
               }
             >
-              {busy === "redeem" ? (
-                <MeltLoader size={16} />
+              {redeeming && redeeming.sku === option.sku ? (
+                <>
+                  <MeltLoader size={16} />
+                  {redeeming.step}
+                </>
               ) : (
-                <Check size={15} />
+                <>
+                  <Check size={15} />
+                  Use this
+                </>
               )}
-              Use this
             </button>
           </article>
         ))}
