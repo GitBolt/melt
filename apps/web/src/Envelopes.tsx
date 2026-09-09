@@ -8,6 +8,7 @@ import {
   Wallet,
   Search,
   ShieldCheck,
+  ExternalLink,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -509,9 +510,26 @@ export function EnvelopeList({
             {statusCopy[envelope.status]}
           </span>
           <span className="row-amount">
-            {formatUsd(envelope.remaining, ethUsd) || envelope.remaining}{" "}
+            {formatUsd(
+              envelope.status === "funding"
+                ? envelope.budget
+                : envelope.remaining,
+              ethUsd,
+            ) ||
+              (envelope.status === "funding"
+                ? envelope.budget
+                : envelope.remaining)}{" "}
             <small>
-              {formatUsd(envelope.remaining, ethUsd) ? "left" : symbol}
+              {formatUsd(
+                envelope.status === "funding"
+                  ? envelope.budget
+                  : envelope.remaining,
+                ethUsd,
+              )
+                ? envelope.status === "funding"
+                  ? "to fund"
+                  : "left"
+                : symbol}
             </small>
           </span>
           <ArrowUpRight size={16} />
@@ -558,6 +576,12 @@ export function EnvelopeDetail({
   onShare: () => void;
 }) {
   const [fundHash, setFundHash] = useState("");
+  const [copiedVault, setCopiedVault] = useState(false);
+  const unfunded = envelope.status === "funding";
+  const shownUsd = formatUsd(
+    unfunded ? envelope.budget : envelope.remaining,
+    config.ethUsd,
+  );
   return (
     <>
       <section className="detail-heading">
@@ -578,13 +602,11 @@ export function EnvelopeDetail({
         </span>
       </section>
       <p className="session-mandate">
-        Locked onchain for{" "}
-        {envelope.category === "other" ? "this purpose" : envelope.category}.
-        Policy {envelope.policyHash.slice(0, 10)}… · unused funds return to you
+        Locked for{" "}
+        {envelope.category === "other" ? "this purpose" : envelope.category}
         {envelope.partialUse
-          ? " · partial use allowed"
-          : " · one purchase only"}
-        .
+          ? ". Partial use allowed."
+          : ". One purchase only."}
       </p>
       <div className="work-grid">
         <aside className="wallet-panel panel">
@@ -600,14 +622,11 @@ export function EnvelopeDetail({
             }
           />
           <div className="balance-heading">
-            <span>Remaining</span>
+            <span>{unfunded ? "To fund" : "Remaining"}</span>
             <h2>
-              {formatUsd(envelope.remaining, config.ethUsd) ||
-                envelope.remaining}
+              {shownUsd || (unfunded ? envelope.budget : envelope.remaining)}
               <small>
-                {formatUsd(envelope.remaining, config.ethUsd)
-                  ? "left"
-                  : config.chain.symbol}
+                {shownUsd ? (unfunded ? "USD" : "left") : config.chain.symbol}
               </small>
             </h2>
           </div>
@@ -639,85 +658,140 @@ export function EnvelopeDetail({
               <dd>{envelope.redemptions.length}</dd>
             </div>
           </dl>
-          {envelope.status === "funding" && envelope.vault && (
-            <button
-              className="primary wide"
-              disabled={!auth || !!busy || !!fundHash}
-              onClick={() =>
-                act("fund", async () => {
-                  const hash = await auth!.send({
-                    from: owner,
-                    to: envelope.vault,
-                    value: toHex(parseEther(envelope.budget)),
-                  });
-                  setFundHash(hash);
-                  try {
-                    await auth!.wait?.(hash);
-                  } catch (error) {
-                    if ((error as Error).message === "Transaction reverted")
-                      setFundHash("");
-                    throw error;
+          <div className="wallet-actions">
+            {envelope.vault ? (
+              <div className="fund-address">
+                <span>Envelope address</span>
+                <p className="identifier vault-line">
+                  {envelope.vault}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void navigator.clipboard
+                        .writeText(envelope.vault)
+                        .then(() => {
+                          setCopiedVault(true);
+                          window.setTimeout(() => setCopiedVault(false), 1600);
+                        })
+                    }
+                  >
+                    <Copy size={13} />
+                    {copiedVault ? "Copied" : "Copy"}
+                  </button>
+                </p>
+                {config.chain.explorer ? (
+                  <a
+                    href={`${config.chain.explorer.replace(/\/$/, "")}/address/${envelope.vault}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    View on explorer
+                    <ExternalLink size={12} />
+                  </a>
+                ) : null}
+                <p className="helper">
+                  Send {config.chain.symbol} on {config.chain.name} here. Melt
+                  notices a deposit without a signature.
+                </p>
+              </div>
+            ) : (
+              <p className="helper">Creating the envelope address…</p>
+            )}
+            {unfunded && envelope.vault && (
+              <>
+                <button
+                  className="primary wide"
+                  disabled={!auth || !!busy || !!fundHash}
+                  onClick={() =>
+                    act("fund", async () => {
+                      const hash = await auth!.send({
+                        from: owner,
+                        to: envelope.vault,
+                        value: toHex(parseEther(envelope.budget)),
+                      });
+                      setFundHash(hash);
+                      try {
+                        await auth!.wait?.(hash);
+                      } catch (error) {
+                        if ((error as Error).message === "Transaction reverted")
+                          setFundHash("");
+                        throw error;
+                      }
+                      await request(`/sessions/${envelope.sessionId}/funding`, {
+                        hash,
+                      });
+                    })
                   }
-                  await request(`/sessions/${envelope.sessionId}/funding`, {
-                    hash,
-                  });
-                })
-              }
-            >
-              <Wallet size={15} />
-              Fund{" "}
-              {formatUsd(envelope.budget, config.ethUsd) ||
-                `${envelope.budget} ${config.chain.symbol}`}
-            </button>
-          )}
-          {envelope.status === "open" && (
-            <button className="primary wide" onClick={onDiscover}>
-              <Search size={15} />
-              Find ways to use this
-            </button>
-          )}
-          {envelope.receiptToken && (
-            <button className="primary wide" onClick={onShare}>
-              <Copy size={15} />
-              Copy gift link
-            </button>
-          )}
-          {config.mailConfigured && envelope.recipientEmail && (
-            <button
-              className="secondary wide"
-              disabled={!!busy}
-              onClick={() =>
-                act("notify", () =>
-                  request(`/envelopes/${envelope.id}/notify`, {}, "POST"),
-                )
-              }
-            >
-              Email {envelope.recipientEmail}
-            </button>
-          )}
-          {envelope.giftOpenedAt && (
-            <p className="helper">
-              Opened {new Date(envelope.giftOpenedAt).toLocaleString()}
-            </p>
-          )}
-          {envelope.receiptToken && (
-            <a
-              className="quiet-button wide"
-              href={`/r/${envelope.receiptToken}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open receipt
-            </a>
-          )}
-          {envelope.vault && (
-            <a
-              className="quiet-button wide"
-              href={`/recover?vault=${envelope.vault}`}
-            >
-              <ShieldCheck size={14} /> Recover without Melt
-            </a>
-          )}
+                >
+                  <Wallet size={15} />
+                  Fund from Melt
+                </button>
+                <button
+                  className="secondary wide"
+                  disabled={!!busy}
+                  onClick={() =>
+                    act("refresh", () =>
+                      request(
+                        `/sessions/${envelope.sessionId}/refresh`,
+                        {},
+                        "POST",
+                      ),
+                    )
+                  }
+                >
+                  Check for funds
+                </button>
+              </>
+            )}
+            {envelope.status === "open" && (
+              <button className="primary wide" onClick={onDiscover}>
+                <Search size={15} />
+                Find ways to use this
+              </button>
+            )}
+            {envelope.receiptToken && (
+              <button className="secondary wide" onClick={onShare}>
+                <Copy size={15} />
+                Copy gift link
+              </button>
+            )}
+            {config.mailConfigured && envelope.recipientEmail && (
+              <button
+                className="secondary wide"
+                disabled={!!busy}
+                onClick={() =>
+                  act("notify", () =>
+                    request(`/envelopes/${envelope.id}/notify`, {}, "POST"),
+                  )
+                }
+              >
+                Email {envelope.recipientEmail}
+              </button>
+            )}
+            {envelope.giftOpenedAt && (
+              <p className="helper">
+                Opened {new Date(envelope.giftOpenedAt).toLocaleString()}
+              </p>
+            )}
+            {envelope.receiptToken && (
+              <a
+                className="quiet-button wide"
+                href={`/r/${envelope.receiptToken}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open receipt
+              </a>
+            )}
+            {envelope.vault && (
+              <a
+                className="quiet-button wide"
+                href={`/recover?vault=${envelope.vault}`}
+              >
+                <ShieldCheck size={14} /> Recover without Melt
+              </a>
+            )}
+          </div>
         </aside>
         <section className="workspace panel envelope-activity">
           <h2>Activity</h2>
@@ -753,11 +827,13 @@ function EnvelopePicker({
   selectedId,
   onSelect,
   symbol,
+  ethUsd,
 }: {
   envelopes: Envelope[];
   selectedId?: string;
   onSelect: (id: string) => void;
   symbol: string;
+  ethUsd?: number;
 }) {
   const [open, setOpen] = useState(false);
   const reduced = useReducedMotion();
@@ -805,7 +881,9 @@ function EnvelopePicker({
           <strong>{selected ? selected.purpose : "Choose a gift"}</strong>
           <span>
             {selected
-              ? `${selected.remaining} ${symbol} remaining · ${selected.policy.category}`
+              ? selected.status === "funding"
+                ? `${formatUsd(selected.budget, ethUsd) || selected.budget} to fund · ${selected.policy.category}`
+                : `${formatUsd(selected.remaining, ethUsd) || `${selected.remaining} ${symbol}`} left · ${selected.policy.category}`
               : "Pick an envelope to redeem"}
           </span>
         </div>
@@ -851,7 +929,11 @@ function EnvelopePicker({
                   <div className="row-name">
                     <strong>{item.purpose}</strong>
                     <span>
-                      {item.remaining} {symbol} · {item.policy.category}
+                      {item.status === "funding"
+                        ? `${formatUsd(item.budget, ethUsd) || item.budget} to fund`
+                        : formatUsd(item.remaining, ethUsd) ||
+                          `${item.remaining} ${symbol}`}{" "}
+                      · {item.policy.category}
                       {item.partialUse ? " · partial use" : ""}
                     </span>
                   </div>
@@ -873,6 +955,7 @@ export function DiscoverPanel({
   act,
   busy,
   symbol,
+  ethUsd,
   onTx,
 }: {
   envelopes: Envelope[];
@@ -887,6 +970,7 @@ export function DiscoverPanel({
   act: (name: string, fn: () => Promise<unknown>) => Promise<void>;
   busy: string;
   symbol: string;
+  ethUsd?: number;
   onTx?: (hash: string, label?: string) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -894,8 +978,9 @@ export function DiscoverPanel({
   const [settled, setSettled] = useState<any>(null);
   const envelope = envelopes.find((item) => item.id === selectedId);
   const lastRedemption = envelope?.redemptions?.at(-1);
+  const needsFunds = envelope?.status === "funding";
   async function search(next = query) {
-    if (!selectedId) return;
+    if (!selectedId || needsFunds) return;
     const found = await request(
       `/envelopes/${selectedId}/options${next ? `?q=${encodeURIComponent(next)}` : ""}`,
     );
@@ -904,8 +989,8 @@ export function DiscoverPanel({
   useEffect(() => {
     setResult(null);
     setSettled(null);
-    if (selectedId) void search("");
-  }, [selectedId]);
+    if (selectedId && envelope?.status !== "funding") void search("");
+  }, [selectedId, envelope?.status]);
   if (!envelopes.length)
     return (
       <p className="helper">
@@ -925,29 +1010,37 @@ export function DiscoverPanel({
           selectedId={selectedId}
           onSelect={onSelect}
           symbol={symbol}
+          ethUsd={ethUsd}
         />
-        <form
-          className="discover-search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void act("search", () => search(query));
-          }}
-        >
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Italian near me, an eSIM for Japan, an indie game…"
-            aria-label="What do you want this gift to become"
-          />
-          <button className="primary" disabled={!selectedId || !!busy}>
-            {busy === "search" ? (
-              <MeltLoader size={16} />
-            ) : (
-              <Search size={16} />
-            )}
-            Find options
-          </button>
-        </form>
+        {needsFunds ? (
+          <p className="helper">
+            This gift has no funds yet. Open it and send {symbol} to the
+            envelope address, then come back here.
+          </p>
+        ) : (
+          <form
+            className="discover-search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void act("search", () => search(query));
+            }}
+          >
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Italian near me, an eSIM for Japan, an indie game…"
+              aria-label="What do you want this gift to become"
+            />
+            <button className="primary" disabled={!selectedId || !!busy}>
+              {busy === "search" ? (
+                <MeltLoader size={16} />
+              ) : (
+                <Search size={16} />
+              )}
+              Find options
+            </button>
+          </form>
+        )}
         {result?.note && <p className="helper">{result.note}</p>}
         {result?.settlement && (
           <p className="helper">

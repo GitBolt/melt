@@ -127,6 +127,18 @@ header.app-top {
 header.app-top .account {
   margin-left: 0;
 }
+.account-cluster {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: end;
+}
+.account-signout {
+  font-size: 13px;
+  color: #6c7486;
+  min-height: 36px;
+  padding: 0 4px;
+}
 header.app-top [data-slot="gooey-nav"],
 .app-nav {
   justify-self: center;

@@ -19,6 +19,12 @@ type PublicGift = {
   url: string;
 };
 
+function statusLabel(gift: PublicGift) {
+  if (gift.lastPurchase) return "Already used";
+  if (gift.funded) return "Ready to spend";
+  return "Waiting on funds";
+}
+
 export function Gift({ token }: { token: string }) {
   const [gift, setGift] = useState<PublicGift>();
   const [error, setError] = useState("");
@@ -63,6 +69,7 @@ export function Gift({ token }: { token: string }) {
   const paper = reduced
     ? { duration: 0 }
     : { type: "spring" as const, stiffness: 160, damping: 18 };
+  const status = statusLabel(gift);
   return (
     <div className="gift-page">
       <header>
@@ -80,39 +87,40 @@ export function Gift({ token }: { token: string }) {
           <div className="gift-shadow" />
           <motion.div
             className="gift-flap"
-            animate={{ rotateX: open ? -160 : 0 }}
+            animate={{ rotateX: open ? -158 : 0 }}
             transition={paper}
           />
           <motion.div
             className="gift-sheet"
-            animate={{ y: open ? -72 : 18, rotate: open ? -2 : 0 }}
+            animate={{ y: open ? -64 : 22, rotate: open ? -3 : 0 }}
             transition={paper}
           >
-            <span>Melt</span>
-            <strong>{gift.purpose.split(",")[0]}</strong>
+            <span>Envelope</span>
+            <strong>{gift.purpose}</strong>
             <em>from {gift.senderName}</em>
           </motion.div>
-          <div className="gift-pocket">
-            {open ? "For you" : "Tap to open"}
-          </div>
+          <div className="gift-pocket">{open ? "Opened" : "Tap to open"}</div>
         </button>
         {open ? (
-          <section className="gift-card">
-            <p className="landing-kicker">A gift with a purpose</p>
+          <section className="gift-voucher">
+            <div className="gift-voucher-top">
+              <span>From {gift.senderName}</span>
+              <span
+                className={`gift-chip${gift.lastPurchase ? "" : gift.funded ? " ready" : " wait"}`}
+              >
+                {status}
+              </span>
+            </div>
+            <p className="gift-amount">{gift.amount}</p>
             <h1>{gift.purpose}</h1>
-            <p>
-              {gift.senderName} set aside {gift.amount}
-              {gift.recipientLabel ? ` for ${gift.recipientLabel}` : ""}.
-            </p>
             {gift.note ? <blockquote>“{gift.note}”</blockquote> : null}
-            <p className="helper">
-              Up to {gift.amount} · use by {until}
-              {gift.funded ? "" : " · waiting to be funded"}
-              {gift.lastPurchase ? ` · already bought ${gift.lastPurchase}` : ""}
-            </p>
+            <p className="gift-until">Use by {until}</p>
+            {gift.lastPurchase ? (
+              <p className="gift-until">Bought {gift.lastPurchase}</p>
+            ) : null}
             <div className="gift-actions">
               <a className="primary" href="/app#discover">
-                Spend it in Melt
+                {gift.funded ? "Spend it in Melt" : "Open in Melt"}
                 <ArrowRight size={16} />
               </a>
               <button
@@ -131,14 +139,10 @@ export function Gift({ token }: { token: string }) {
                 {copied ? "Copied" : "Copy link"}
               </button>
             </div>
-            <p className="helper">
-              They cannot cash this out. Leftover money returns to{" "}
-              {gift.senderName} after {until}.
-            </p>
           </section>
         ) : (
           <p className="helper gift-hint">
-            {gift.senderName} sent you something you can actually use.
+            {gift.senderName} sent you {gift.amount} for {gift.purpose}.
           </p>
         )}
       </main>

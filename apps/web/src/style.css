@@ -125,12 +125,6 @@ label > textarea {
 .environment {
   font-size: 13px;
 }
-.account-exit {
-  display: none;
-}
-.account:hover .account-exit {
-  display: inline;
-}
 .account:hover {
   border-color: #bbc1db;
 }
@@ -686,6 +680,39 @@ details label {
   margin: 0;
   color: #5a6173;
   font-variant-numeric: tabular-nums;
+}
+.wallet-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+.wallet-actions .wide,
+.wallet-actions .quiet-button {
+  margin: 0;
+}
+.fund-address {
+  display: grid;
+  gap: 8px;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8f9fc;
+  text-align: left;
+}
+.fund-address > span {
+  font-size: 13px;
+  color: #626b7b;
+}
+.fund-address .helper {
+  margin: 0;
+}
+.fund-address > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #414f9e;
+  width: max-content;
 }
 .identifier {
   font-family: ui-monospace, monospace;
@@ -1295,7 +1322,7 @@ details label {
   .wallet-panel {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0 22px;
+    gap: 16px 22px;
   }
   .wallet-panel > .session-seal {
     display: none;
@@ -1314,12 +1341,16 @@ details label {
     grid-column: 1/-1;
     margin: 5px 0;
   }
+  .wallet-actions,
+  .wallet-panel > .helper {
+    grid-column: 1 / -1;
+  }
   .wallet-panel details {
     margin: 0;
   }
   .wallet-panel .quiet-button,
   .wallet-panel .wide {
-    font-size: 12px;
+    font-size: 13px;
     margin: 0;
   }
   .detail-heading h1 {
@@ -1575,6 +1606,7 @@ a.quiet-button {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .vault-line button {
   min-height: 32px;

@@ -21,7 +21,7 @@ function escapeHtml(value: string) {
 }
 
 function dollars(envelope: Envelope, rate?: number) {
-  const n = Number(envelope.remaining || envelope.budget) * (rate || 0);
+  const n = Number(envelope.budget) * (rate || 0);
   if (rate && Number.isFinite(n) && n > 0)
     return n.toLocaleString(undefined, {
       style: "currency",
@@ -53,7 +53,11 @@ function wrap(inner: string) {
 </body></html>`;
 }
 
-export function giftEmail(kind: "sent" | "ready" | "spent", envelope: Envelope, rate?: number) {
+export function giftEmail(
+  kind: "sent" | "ready" | "spent",
+  envelope: Envelope,
+  rate?: number,
+) {
   const from = envelope.senderName || "Someone";
   const amount = dollars(envelope, rate);
   const link = giftUrl(envelope.receiptToken);
@@ -83,7 +87,6 @@ export function giftEmail(kind: "sent" | "ready" | "spent", envelope: Envelope, 
     <tr><td style="padding:0 32px 8px;font-size:13px;color:#8c90a0;">Up to ${escapeHtml(amount)} · use by ${escapeHtml(until(envelope))}</td></tr>
     <tr><td style="padding:18px 32px 32px;">
       <a href="${escapeHtml(link)}" style="display:inline-block;background:#5867c8;color:#fff;text-decoration:none;border-radius:10px;padding:12px 18px;font-size:14px;">Open the envelope</a>
-      <p style="margin:16px 0 0;font-size:12px;color:#8c90a0;line-height:1.5;">They cannot cash this out. Leftover money returns to ${escapeHtml(from)} after ${escapeHtml(until(envelope))}.</p>
     </td></tr>
   `);
   return {
@@ -103,8 +106,12 @@ async function postJson(url: string, payload: unknown) {
   });
 }
 
-export async function sendMail(to: string, message: { subject: string; text: string; html: string; fromName?: string }) {
-  if (!mailConfigured()) return { sent: false, reason: "Mail is not configured" };
+export async function sendMail(
+  to: string,
+  message: { subject: string; text: string; html: string; fromName?: string },
+) {
+  if (!mailConfigured())
+    return { sent: false, reason: "Mail is not configured" };
   const webhook = process.env.MAIL_WEBHOOK!;
   const payload = {
     secret: process.env.MAIL_SECRET,

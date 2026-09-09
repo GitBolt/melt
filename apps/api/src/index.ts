@@ -264,8 +264,52 @@ async function accessibleEnvelope(req: any) {
     throw Object.assign(Error("Envelope not found"), { statusCode: 404 });
   return { envelope, user };
 }
+async function recognizeIncomingFunds(task: Task) {
+  await refreshBalance(task);
+  if (task.status === "funding" && Number(task.balance) > 0) {
+    task.status = "ready";
+    save(task);
+    emit(task.userId, "session.funded", task);
+    if (task.envelopeId) {
+      emit(task.userId, "envelope.funded", task, {
+        envelopeId: task.envelopeId,
+      });
+      await notifyEnvelopeSession(task.id, "ready");
+    }
+  }
+  return task;
+}
+
+async function syncFunding(task: Task) {
+  if (task.status !== "funding" || !task.vault) return task;
+  try {
+    return await serial(task.id, async () => {
+      const current = get(task.id);
+      if (current.status !== "funding" || !current.vault) return current;
+      return recognizeIncomingFunds(current);
+    });
+  } catch {
+    return task;
+  }
+}
+
+async function syncFundingById(id: string) {
+  try {
+    return await syncFunding(get(id));
+  } catch {
+    return;
+  }
+}
+
 app.get("/api/envelopes", async (req) => {
   const user = await authenticate(req);
+  const listed = listEnvelopes(user.id, user.owner);
+  const ids = new Set(
+    [...listed.sent, ...listed.received]
+      .filter((item) => item.status === "funding" && item.sessionId)
+      .map((item) => item.sessionId),
+  );
+  await Promise.all([...ids].map((id) => syncFundingById(id)));
   return listEnvelopes(user.id, user.owner);
 });
 app.post(
@@ -299,10 +343,11 @@ app.post(
     });
   },
 );
-app.get(
-  "/api/envelopes/:id",
-  async (req) => (await accessibleEnvelope(req)).envelope,
-);
+app.get("/api/envelopes/:id", async (req) => {
+  const { envelope } = await accessibleEnvelope(req);
+  await syncFunding(get(envelope.sessionId));
+  return getEnvelope(envelope.id);
+});
 app.get("/api/envelopes/:id/options", async (req) => {
   const { envelope } = await accessibleEnvelope(req);
   const request = String((req.query as { q?: string }).q || "");
@@ -361,6 +406,8 @@ app.post(
 );
 app.get("/api/sessions", async (req) => {
   const user = await authenticate(req);
+  const tasks = list(user.id);
+  await Promise.all(tasks.map((task) => syncFunding(task)));
   return list(user.id);
 });
 app.post(
@@ -563,11 +610,10 @@ app.post("/api/sessions/:id/funding", async (req) => {
     hash: hash as `0x${string}`,
   });
   if (
-    transaction.from.toLowerCase() !== user.owner.toLowerCase() ||
     transaction.to?.toLowerCase() !== task.vault.toLowerCase() ||
     transaction.value <= 0n
   )
-    throw Error("Transaction is not owner funding for this task");
+    throw Error("Transaction is not a deposit to this envelope");
   const receipt = await client.getTransactionReceipt({
     hash: hash as `0x${string}`,
   });
@@ -581,37 +627,15 @@ app.post("/api/sessions/:id/funding", async (req) => {
     });
     event(task, "success", "Funds added to your task wallet", hash);
   }
-  await refreshBalance(task);
-  if (task.status === "funding" && Number(task.balance) > 0) {
-    task.status = "ready";
-    save(task);
-    emit(task.userId, "session.funded", task);
-    if (task.envelopeId) {
-      emit(task.userId, "envelope.funded", task, {
-        envelopeId: task.envelopeId,
-      });
-      await notifyEnvelopeSession(task.id, "ready");
-    }
-  } else save(task);
-  return task;
+  save(task);
+  return recognizeIncomingFunds(get(task.id));
 });
 app.post("/api/sessions/:id/refresh", async (req) => {
   const { task } = await owned(req);
   return serial(task.id, async () => {
-    await reconcile(task);
-    await refreshBalance(task);
-    if (task.status === "funding" && Number(task.balance) > 0) {
-      task.status = "ready";
-      save(task);
-      emit(task.userId, "session.funded", task);
-      if (task.envelopeId) {
-        emit(task.userId, "envelope.funded", task, {
-          envelopeId: task.envelopeId,
-        });
-        await notifyEnvelopeSession(task.id, "ready");
-      }
-    }
-    return task;
+    const current = get(task.id);
+    await reconcile(current);
+    return recognizeIncomingFunds(current);
   });
 });
 app.get("/api/sessions/:id/browser", async (req) => {

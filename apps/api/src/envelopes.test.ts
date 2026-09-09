@@ -7,9 +7,10 @@ import {
   mandateText,
   type CatalogOption,
   type Task,
+  type Envelope,
 } from "../../../packages/shared/src/index.js";
 import { findCatalogOptions, catalogBySku } from "./catalog.js";
-import { policyHash } from "./envelopes.js";
+import { policyHash, publicGift } from "./envelopes.js";
 
 const lamp = catalogBySku("apt-lamp", 2500)!;
 const tv = catalogBySku("apt-tv", 2500)!;
@@ -141,4 +142,25 @@ test("envelope mandate names the promise, not a browser job", () => {
   assert.match(text, /envelope/i);
   assert.match(text, /mobile data/);
   assert.doesNotMatch(text, /browser job/i);
+});
+
+test("public gift quotes the budget in dollars, not leftover remaining", () => {
+  const gift = publicGift(
+    {
+      budget: "0.0004",
+      remaining: "0",
+      status: "funding",
+      purpose: "Any indie game under $40",
+      senderName: "Maya",
+      recipientLabel: "Alex",
+      note: "",
+      expiresAt: 1_900_000_000,
+      redemptions: [],
+      receiptToken: "ab".repeat(24),
+    } as unknown as Envelope,
+    2500,
+  );
+  assert.equal(gift.funded, false);
+  assert.match(gift.amount, /\$1/);
+  assert.doesNotMatch(gift.amount, /ETH/);
 });

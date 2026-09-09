@@ -366,25 +366,46 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
             if (PAGES[i] !== "Envelopes") setSelectedEnvelope(undefined);
           }}
         />
-        <button
-          className="account"
-          title={user ? `Wallet: ${user.owner}` : undefined}
-          onClick={
-            user
-              ? () =>
-                  act("logout", async () => {
-                    await request("/auth/logout", {});
-                    await auth?.logout();
-                    setSelected(undefined);
-                  })
-              : signIn
-          }
-          disabled={!!busy || auth?.ready === false}
-        >
-          <Wallet size={14} />
-          {user ? short(user.owner) : "Sign in"}
-          {user && <span className="account-exit">Sign out</span>}
-        </button>
+        {user ? (
+          <div className="account-cluster">
+            <button
+              className="account"
+              title={user.owner}
+              onClick={() =>
+                void navigator.clipboard
+                  .writeText(user.owner)
+                  .then(() => setNotice("Wallet address copied"))
+                  .catch(() => setError("Could not copy the address"))
+              }
+            >
+              <Wallet size={14} />
+              {short(user.owner)}
+              <Copy size={13} />
+            </button>
+            <button
+              className="account-signout"
+              disabled={!!busy}
+              onClick={() =>
+                act("logout", async () => {
+                  await request("/auth/logout", {});
+                  await auth?.logout();
+                  setSelected(undefined);
+                })
+              }
+            >
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <button
+            className="account"
+            onClick={signIn}
+            disabled={!!busy || auth?.ready === false}
+          >
+            <Wallet size={14} />
+            Sign in
+          </button>
+        )}
       </header>
       <div className="environment">
         <NetworkStrip
@@ -526,6 +547,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                 act={act}
                 busy={busy}
                 symbol={config.chain.symbol}
+                ethUsd={config.ethUsd}
                 onTx={noteTx}
               />
             ) : (
@@ -1262,9 +1284,30 @@ function SessionDetail({
                   </>
                 )}
                 {t.status === "funding" && (
-                  <>
+                  <div className="wallet-actions">
+                    <div className="fund-address">
+                      <span>Envelope address</span>
+                      <p className="identifier vault-line">
+                        {t.vault}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void navigator.clipboard
+                              .writeText(t.vault)
+                              .then(() => notify("Envelope address copied"))
+                          }
+                        >
+                          <Copy size={13} />
+                          Copy
+                        </button>
+                      </p>
+                      <p className="helper">
+                        Send {config.chain.symbol} on {config.chain.name} here.
+                        Melt notices a deposit without a signature.
+                      </p>
+                    </div>
                     <button
-                      className="primary"
+                      className="primary wide"
                       disabled={!auth || !!busy || !!fundHash}
                       onClick={() =>
                         act("fund", async () => {
@@ -1291,21 +1334,18 @@ function SessionDetail({
                       }
                     >
                       <Wallet size={15} />
-                      Add {t.budget} {config.chain.symbol}
+                      Fund from Melt
                     </button>
                     <button
-                      className="secondary"
+                      className="secondary wide"
+                      disabled={!!busy}
                       onClick={() =>
-                        fundHash
-                          ? act("refresh", () =>
-                              request(`/sessions/${t.id}/funding`, {
-                                hash: fundHash,
-                              }),
-                            )
-                          : command("refresh")
+                        act("refresh", () =>
+                          request(`/sessions/${t.id}/refresh`, {}, "POST"),
+                        )
                       }
                     >
-                      Check balance
+                      Check for funds
                     </button>
                     {fundHash && (
                       <p className="helper">
@@ -1315,11 +1355,11 @@ function SessionDetail({
                     )}
                     <details className="funding-help">
                       <summary>
-                        Need {config.chain.symbol} in your wallet?
+                        Need {config.chain.symbol} in your Melt wallet first?
                       </summary>
                       <p>
-                        Send {config.chain.symbol} on {config.chain.name} to
-                        your return wallet, then fund this task.
+                        That is your signed-in wallet, not the envelope. Faucet
+                        into it only if you want Melt to send the deposit.
                       </p>
                       <code>{owner}</code>
                       <button
@@ -1331,7 +1371,7 @@ function SessionDetail({
                           })
                         }
                       >
-                        <Copy size={14} /> Copy wallet address
+                        <Copy size={14} /> Copy Melt wallet
                       </button>
                       {config.chain.id === 11155111 && (
                         <a
@@ -1343,8 +1383,7 @@ function SessionDetail({
                         </a>
                       )}
                     </details>
-                    <p className="identifier">Task wallet: {t.vault}</p>
-                  </>
+                  </div>
                 )}
               </div>
             )}

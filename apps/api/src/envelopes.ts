@@ -212,7 +212,7 @@ export function giftByToken(token: string) {
 }
 
 export function publicGift(envelope: Envelope, rate?: number) {
-  const usd = Number(envelope.remaining || envelope.budget) * (rate || 0);
+  const usd = Number(envelope.budget) * (rate || 0);
   const amount =
     rate && Number.isFinite(usd) && usd > 0
       ? usd.toLocaleString(undefined, {
@@ -406,6 +406,18 @@ export async function findEnvelopeOptions(envelope: Envelope, request = "") {
   const task = get(envelope.sessionId);
   const live = presentEnvelope(envelope, task);
   const ethUsd = await ethUsdRate();
+  if (live.status === "funding") {
+    return {
+      envelopeId: live.id,
+      purpose: live.purpose,
+      remaining: live.remaining,
+      ethUsd,
+      settlement: "Uniswap V3 ETH → USDC",
+      options: [],
+      rejected: [],
+      note: "This gift has no funds yet. Send ETH to the envelope address first.",
+    };
+  }
   const found = await findCatalogOptions(
     live.policy,
     remainingEth(task),
