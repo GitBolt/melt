@@ -1117,7 +1117,7 @@ export function DiscoverPanel({
             </button>
           </article>
         ))}
-        {result && !result.options?.length && (
+        {result && !result.options?.length && !result.note && (
           <p className="helper">
             Nothing in the catalog matches this promise
             {query ? ` for “${query}”` : ""}.

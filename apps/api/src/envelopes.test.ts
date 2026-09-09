@@ -84,6 +84,21 @@ test("indie game envelope stays under $40 and ignores a flight", async () => {
   );
 });
 
+test("plural and filler words in the request still find matching options", async () => {
+  const policy = inferEnvelopePolicy("Any indie game under $40");
+  const found = await findCatalogOptions(policy, 1, "find fps games", 2500);
+  assert.ok(found.options.some((item) => item.sku === game.sku));
+  const tickets = await findCatalogOptions(
+    inferEnvelopePolicy("A concert ticket, up to $100"),
+    1,
+    "get me some concert tickets",
+    2500,
+  );
+  assert.ok(tickets.options.some((item) => item.sku === "concert-any"));
+  const miss = await findCatalogOptions(policy, 1, "skydiving lessons", 2500);
+  assert.equal(miss.options.length, 0);
+});
+
 test("refuses cash-out wording instead of returning a transfer", async () => {
   const policy = inferEnvelopePolicy(
     "Dinner for two, anywhere you like, up to $120",

@@ -478,12 +478,10 @@ export async function proposePurchase(
         statusCode: 404,
       },
     );
-  const fit = optionFitsPolicy(
-    live.policy,
-    option,
-    remainingEth(task),
-    request,
-  );
+  /* Enforce only the deterministic policy here (deny list, caps, category,
+     remaining funds). The free-text request already shaped the option list;
+     re-running keyword matching against it would reject semantic matches. */
+  const fit = optionFitsPolicy(live.policy, option, remainingEth(task), "");
   if (!fit.ok)
     throw Object.assign(
       Error(fit.reason || "That purchase does not match the gift"),

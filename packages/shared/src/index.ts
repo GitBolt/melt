@@ -490,16 +490,62 @@ export function optionFitsPolicy(
   for (const keyword of option.keywords)
     if (query.includes(keyword.toLowerCase())) score += 2;
   if (request.trim()) {
-    const terms = request
-      .toLowerCase()
-      .split(/\W+/)
-      .filter((term) => term.length > 2);
-    const hits = terms.filter((term) => hay.includes(term));
+    const terms = requestTerms(request);
+    const hayStems = new Set(hay.split(/\W+/).filter(Boolean).map(stemWord));
+    const hits = terms.filter(
+      (term) => hay.includes(term) || hayStems.has(stemWord(term)),
+    );
     if (terms.length && hits.length === 0)
       return { ok: false, reason: "Does not match the request", score: 0 };
     score += hits.length;
   }
   return { ok: true, score };
+}
+
+/* Words that describe the act of searching, not the thing wanted. They must
+   never cause an option to be rejected. */
+const REQUEST_FILLER = new Set([
+  "find",
+  "get",
+  "buy",
+  "want",
+  "need",
+  "give",
+  "show",
+  "search",
+  "looking",
+  "look",
+  "please",
+  "some",
+  "something",
+  "anything",
+  "options",
+  "option",
+  "nice",
+  "good",
+  "great",
+  "best",
+  "cool",
+  "the",
+  "for",
+  "and",
+  "with",
+  "like",
+  "them",
+  "that",
+  "this",
+]);
+
+export function stemWord(word: string) {
+  if (word.length <= 3) return word;
+  return word.replace(/ies$/, "y").replace(/([^s])s$/, "$1");
+}
+
+export function requestTerms(request: string) {
+  return request
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((term) => term.length > 2 && !REQUEST_FILLER.has(term));
 }
 
 export function looksLikeCashOut(request: string) {
