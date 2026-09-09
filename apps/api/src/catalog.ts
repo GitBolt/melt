@@ -11,10 +11,8 @@ import {
 } from "../../../packages/shared/src/index.js";
 import { modelConfig } from "./agent.js";
 
-const MELT =
-  "Melt catalog. Settlement converts only the required ETH to USDC on Uniswap. This is not a store gift card.";
-const CRYPTOREFILLS =
-  "Powered by Cryptorefills. Cryptorefills is the merchant of record for this product.";
+const MELT = "Settled from the envelope on Uniswap. Not a store gift card.";
+const CRYPTOREFILLS = "Cryptorefills is the merchant of record.";
 
 const LOCAL: CatalogOption[] = [
   {
@@ -244,7 +242,41 @@ interface CrBrand {
   brand_tags?: string[];
 }
 
+/* Every source is a plug-in: a name, an enable check, and a fetch that
+   returns policy-mappable options. Adding a provider (Reloadly, Bitrefill,
+   a travel API) is one entry here; nothing downstream changes. Agents can
+   also bypass catalogs entirely through propose_item. */
+interface CatalogSource {
+  name: string;
+  enabled: () => boolean;
+  fetch: () => Promise<CatalogOption[]>;
+}
+
 let crCache: { at: number; options: CatalogOption[] } | null = null;
+
+const cryptorefillsSource: CatalogSource = {
+  name: "cryptorefills",
+  enabled: () =>
+    Boolean(process.env.CRYPTOREFILLS_API_KEY) ||
+    process.env.MELT_REMOTE_CATALOG === "1",
+  async fetch() {
+    if (crCache && Date.now() - crCache.at < 10 * 60_000)
+      return crCache.options;
+    const response = await fetch(
+      "https://api.cryptorefills.com/v2/brands?country_code=US",
+      {
+        headers: { Accept: "application/json", "User-Agent": "Melt/1.0" },
+        signal: AbortSignal.timeout(6000),
+        redirect: "error",
+      },
+    );
+    if (!response.ok) return crCache?.options || [];
+    crCache = { at: Date.now(), options: parseCrBrands(await response.json()) };
+    return crCache.options;
+  },
+};
+
+const SOURCES: CatalogSource[] = [cryptorefillsSource];
 
 function parseCrBrands(body: unknown): CatalogOption[] {
   const categories = (body as { categories?: unknown })?.categories;
@@ -267,7 +299,7 @@ function parseCrBrands(body: unknown): CatalogOption[] {
         title: `${title} gift card`,
         merchant: title,
         category,
-        description: `${title} gift card (${brand.min}–${brand.max}), delivered by Cryptorefills after crypto payment.`,
+        description: `${title} gift card (${brand.min}–${brand.max}).`,
         priceUsd: minUsd,
         keywords: [
           ...title.toLowerCase().split(/\W+/),
@@ -289,35 +321,19 @@ export async function remoteCatalog(
   query: string,
   ethUsd: number,
 ): Promise<CatalogOption[]> {
-  if (
-    !process.env.CRYPTOREFILLS_API_KEY &&
-    process.env.MELT_REMOTE_CATALOG !== "1"
-  )
-    return [];
-  if (!crCache || Date.now() - crCache.at > 10 * 60_000) {
-    try {
-      const response = await fetch(
-        "https://api.cryptorefills.com/v2/brands?country_code=US",
-        {
-          headers: { Accept: "application/json", "User-Agent": "Melt/1.0" },
-          signal: AbortSignal.timeout(6000),
-          redirect: "error",
-        },
-      );
-      if (!response.ok) return [];
-      crCache = {
-        at: Date.now(),
-        options: parseCrBrands(await response.json()),
-      };
-    } catch {
-      /* Public catalog is optional; Melt's own catalog still works. */
-      return [];
-    }
-  }
+  const lists = await Promise.all(
+    SOURCES.filter((source) => source.enabled()).map((source) =>
+      /* A failing source never breaks discovery; Melt's own catalog and
+         propose_item still work. */
+      source.fetch().catch(() => [] as CatalogOption[]),
+    ),
+  );
+  const all = lists.flat();
+  if (!all.length) return [];
   /* Keep only brands related to what was asked, so the policy gate and the
      model ranker see a shortlist instead of nine hundred brands. */
   const terms = requestTerms(query);
-  const scored = crCache.options
+  const scored = all
     .map((item) => {
       const hay = [item.title, item.merchant, ...item.keywords, ...item.tags]
         .join(" ")
@@ -459,6 +475,7 @@ export async function findCatalogOptions(
     }
     approved.push(item);
   }
+  rememberOffered(approved);
   if (request.trim()) {
     const picked = await aiSelectOptions(policy, request, approved);
     if (picked) {
@@ -595,4 +612,26 @@ export function catalogBySku(sku: string, ethUsd: number) {
   const local = LOCAL.find((item) => item.sku === sku);
   if (local) return withEthPrice(local, ethUsd);
   return undefined;
+}
+
+/* Any option a search has actually shown stays proposable for a while, even
+   if a later search, the model ranking, or a remote refresh would order things
+   differently. Proposing still re-runs the deterministic policy gate, so this
+   cache cannot widen what an envelope may buy — it only makes "Use this"
+   deterministic instead of hoping the same item reappears. */
+const offered = new Map<string, { at: number; option: CatalogOption }>();
+const OFFER_TTL = 30 * 60_000;
+
+function rememberOffered(options: CatalogOption[]) {
+  const now = Date.now();
+  for (const option of options) offered.set(option.sku, { at: now, option });
+  if (offered.size > 5000)
+    for (const [sku, entry] of offered)
+      if (now - entry.at > OFFER_TTL) offered.delete(sku);
+}
+
+export function offeredOption(sku: string, ethUsd: number) {
+  const entry = offered.get(sku);
+  if (!entry || Date.now() - entry.at > OFFER_TTL) return undefined;
+  return withEthPrice(entry.option, ethUsd);
 }

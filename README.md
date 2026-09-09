@@ -6,11 +6,14 @@ You create an envelope. Ethereum holds the amount, the purpose, the expiry, and 
 
 [Open Melt](https://melt-woad.vercel.app) · [API reference](docs/api.md) · [Connect an agent](docs/agents.md) · [Verification record](docs/verification.md)
 
-This is not an agent wallet for the owner’s own spending, and it is not a store gift card. The relationship is:
+Underneath there is one primitive: a purpose-bound onchain task vault with a budget, a deadline, and recovery that works without Melt. It is spent by two kinds of hands:
 
 ```text
-sender’s money → immutable purpose → recipient’s chosen assistant → qualifying purchase
+Envelope    sender’s money → immutable purpose → recipient’s chosen assistant → qualifying purchase
+Agent job   your money     → one instruction   → your own browser agent       → the task, live, with takeover
 ```
+
+The gift is the headline surface; the agent job surface (Activity → “New agent job”) hands the same vault to a browser agent you watch work in real time. Neither is a store gift card, and neither hands an agent an unrestricted key.
 
 ## Run locally
 
@@ -60,6 +63,7 @@ MCP tools: `list_envelopes`, `get_envelope`, `find_options`, `propose_purchase`,
 - **MCP as distribution.** ChatGPT, Claude, Codex or Grok redeem an existing gift. They cannot invent a transfer. Hosted MCP lives at `/api/mcp`; a stdio server ships in the SDK.
 - **Developer platform.** `/developers` is a standalone portal with API keys, per-key usage metering, webhooks, quickstarts, and generated OpenAPI docs.
 - **Privy identity.** Email or wallet login, embedded Ethereum wallets, passkeys, and a relayer for outer vault transactions. Implementation: [`apps/web/src/PrivyApp.tsx`](apps/web/src/PrivyApp.tsx).
+- **Agent jobs on the same vault.** From Activity, fund a task wallet for your own browser agent — an instruction, a budget, a time limit. Watch the live browser, pause and take control, or let it finish; the vault enforces the budget onchain and returns the rest.
 - Solidity task wallets with immutable owner, agent, cumulative native-token budget and expiry. ERC-20 and ERC-721 recovery, including late assets.
 - SQLite persistence, idempotent creation, hashed revocable agent keys, HMAC-signed webhooks, and shareable public receipts.
 
@@ -80,15 +84,15 @@ Testnet ETH has no monetary value. Mainnet gas, hosted models and infrastructure
 
 ## Repository
 
-| Location          | Responsibility                                                                    |
-| ----------------- | --------------------------------------------------------------------------------- |
+| Location          | Responsibility                                                                  |
+| ----------------- | ------------------------------------------------------------------------------- |
 | `apps/web`        | Product page, envelope composer, Discover, Activity, and `/developers` platform |
-| `apps/api`        | HTTP API, catalog, envelope settlement, persistence and chain execution           |
-| `packages/shared` | Shared validation, envelope policy and domain types                               |
-| `packages/sdk`    | Standalone JavaScript client, types and stdio MCP server                          |
-| `examples`        | HTTP and downloaded-client examples                                               |
-| `contracts`       | TaskVault, collectible test contract and Solidity tests                           |
-| `docs`            | Setup, architecture, security, API reference and submission evidence              |
+| `apps/api`        | HTTP API, catalog, envelope settlement, persistence and chain execution         |
+| `packages/shared` | Shared validation, envelope policy and domain types                             |
+| `packages/sdk`    | Standalone JavaScript client, types and stdio MCP server                        |
+| `examples`        | HTTP and downloaded-client examples                                             |
+| `contracts`       | TaskVault, collectible test contract and Solidity tests                         |
+| `docs`            | Setup, architecture, security, API reference and submission evidence            |
 
 ## Verify
 

@@ -31,6 +31,7 @@ import {
   aiPurposeCheck,
   catalogBySku,
   findCatalogOptions,
+  offeredOption,
   type ExternalItem,
 } from "./catalog.js";
 import { emit } from "./webhooks.js";
@@ -526,7 +527,8 @@ export async function proposePurchase(
   const live = presentEnvelope(envelope, task);
   assertProposable(live);
   const ethUsd = await ethUsdRate();
-  let option: CatalogOption | undefined = catalogBySku(sku, ethUsd);
+  let option: CatalogOption | undefined =
+    catalogBySku(sku, ethUsd) || offeredOption(sku, ethUsd);
   if (!option) {
     const found = await findCatalogOptions(
       live.policy,

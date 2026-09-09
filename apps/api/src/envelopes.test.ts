@@ -9,7 +9,7 @@ import {
   type Task,
   type Envelope,
 } from "../../../packages/shared/src/index.js";
-import { findCatalogOptions, catalogBySku } from "./catalog.js";
+import { findCatalogOptions, catalogBySku, offeredOption } from "./catalog.js";
 import { policyHash, publicGift } from "./envelopes.js";
 
 const lamp = catalogBySku("apt-lamp", 2500)!;
@@ -97,6 +97,18 @@ test("plural and filler words in the request still find matching options", async
   assert.ok(tickets.options.some((item) => item.sku === "concert-any"));
   const miss = await findCatalogOptions(policy, 1, "skydiving lessons", 2500);
   assert.equal(miss.options.length, 0);
+});
+
+test("an option a search served stays proposable via the offered cache", async () => {
+  const policy = inferEnvelopePolicy("Any indie game under $40");
+  const found = await findCatalogOptions(policy, 1, "an indie game", 2500);
+  const served = found.options[0];
+  assert.ok(served, "search should return at least one option");
+  const cached = offeredOption(served.sku, 2500);
+  assert.ok(cached, "served option must be retrievable without re-searching");
+  assert.equal(cached!.sku, served.sku);
+  assert.equal(cached!.priceUsd, served.priceUsd);
+  assert.equal(offeredOption("never-served-sku", 2500), undefined);
 });
 
 test("refuses cash-out wording instead of returning a transfer", async () => {

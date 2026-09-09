@@ -172,6 +172,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     [notice, setNotice] = useState(""),
     [txToasts, setTxToasts] = useState<ChainToast[]>([]),
     [newTask, setNewTask] = useState(false),
+    [newJob, setNewJob] = useState(false),
     [now, setNow] = useState(() => Date.now());
   const seenTx = useRef(new Set<string>());
   useEffect(() => {
@@ -481,8 +482,12 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               }}
               repeat={() => {
                 setSelected(undefined);
-                setPage("Envelopes");
-                setNewTask(true);
+                if (task.envelopeId) {
+                  setPage("Envelopes");
+                  setNewTask(true);
+                } else {
+                  setNewJob(true);
+                }
               }}
             />
           </>
@@ -560,15 +565,27 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               <div>
                 <h1>
                   {page === "Activity"
-                    ? "See what got used."
+                    ? "Put an agent to work."
                     : "Send a gift they can spend later."}
                 </h1>
                 <p>
                   {page === "Activity"
-                    ? "Settlements, deliveries, and leftover funds."
+                    ? "The same purpose-bound wallet behind every envelope, handed to your own browser agent. Watch it work, take over anytime, and recover what it does not spend."
                     : "Lock a purpose and an amount. They pick the restaurant, the flight, or the eSIM when they need it."}
                 </p>
               </div>
+              {user && page === "Activity" && !newJob && (
+                <button
+                  className="primary"
+                  onClick={() => {
+                    setSelected(undefined);
+                    setNewJob(true);
+                  }}
+                >
+                  <Plus size={16} />
+                  New agent job
+                </button>
+              )}
               {user && page === "Envelopes" && (
                 <button
                   className="primary"
@@ -706,6 +723,30 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                   )}
                 </section>
               )}
+            {page === "Activity" && user && newJob && (
+              <section className="compose panel">
+                <div className="section-top">
+                  <h2>Give your agent a task wallet</h2>
+                </div>
+                <JobComposer
+                  symbol={config.chain.symbol}
+                  busy={busy}
+                  onCancel={() => setNewJob(false)}
+                  onSubmit={(body) =>
+                    act("create-job", async () => {
+                      const created = await request(
+                        "/sessions",
+                        { ...body, recovery: user.owner },
+                        "POST",
+                        { "Idempotency-Key": crypto.randomUUID() },
+                      );
+                      setNewJob(false);
+                      setSelected(created.id);
+                    })
+                  }
+                />
+              </section>
+            )}
             {page === "Activity" && (
               <section className="session-list">
                 {user && listed.length > 0 && (
@@ -801,6 +842,107 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
     </div>
   );
 }
+function JobComposer({
+  symbol,
+  busy,
+  onCancel,
+  onSubmit,
+}: {
+  symbol: string;
+  busy: string;
+  onCancel: () => void;
+  onSubmit: (body: {
+    title: string;
+    instruction: string;
+    url: string;
+    budget: string;
+    durationMinutes: number;
+  }) => void;
+}) {
+  const [instruction, setInstruction] = useState("");
+  const [url, setUrl] = useState("");
+  const [budget, setBudget] = useState("0.005");
+  const [minutes, setMinutes] = useState(15);
+  const valid =
+    instruction.trim().length >= 3 && /^\d+(\.\d{1,18})?$/.test(budget.trim());
+  return (
+    <form
+      className="compose-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!valid) return;
+        const text = instruction.trim();
+        onSubmit({
+          title: text.length > 80 ? `${text.slice(0, 77)}…` : text,
+          instruction: text,
+          url: url.trim(),
+          budget: budget.trim(),
+          durationMinutes: minutes,
+        });
+      }}
+    >
+      <label>
+        What should it do?
+        <textarea
+          rows={3}
+          value={instruction}
+          onChange={(e) => setInstruction(e.target.value)}
+          placeholder="Mint the demo NFT on the test site, or: swap 0.005 ETH for USDC"
+          maxLength={2000}
+        />
+      </label>
+      <label>
+        Start at (optional)
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://…"
+          inputMode="url"
+        />
+      </label>
+      <div className="compose-row">
+        <label>
+          Budget ({symbol})
+          <input
+            value={budget}
+            onChange={(e) => setBudget(e.target.value)}
+            inputMode="decimal"
+          />
+        </label>
+        <label>
+          Time limit (minutes)
+          <input
+            type="number"
+            min={1}
+            max={60}
+            value={minutes}
+            onChange={(e) =>
+              setMinutes(Math.max(1, Math.min(60, Number(e.target.value) || 1)))
+            }
+          />
+        </label>
+      </div>
+      <p className="helper">
+        The agent gets its own onchain vault with this budget and deadline — the
+        same vault an envelope uses. Anything unspent returns to your wallet.
+      </p>
+      <div className="compose-actions">
+        <button className="primary" type="submit" disabled={!valid || !!busy}>
+          {busy === "create-job" ? (
+            <MeltLoader size={16} />
+          ) : (
+            <Plus size={16} />
+          )}
+          Create the wallet
+        </button>
+        <button className="secondary" type="button" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function SessionDetail({
   task: t,
   config,

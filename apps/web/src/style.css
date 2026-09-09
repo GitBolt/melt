@@ -237,6 +237,26 @@ footer button {
   font-size: 15px;
   color: #4c5161;
 }
+.compose-form {
+  display: grid;
+  gap: 16px;
+  max-width: 560px;
+}
+.compose-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.compose-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .compose-row {
+    grid-template-columns: 1fr;
+  }
+}
 .sign-in-copy {
   max-width: 360px;
   font-size: 15px;

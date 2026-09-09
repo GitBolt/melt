@@ -381,6 +381,36 @@ await melt.redeem(received[0].id, quote.quote.id);`}</pre>
         </div>
       </motion.section>
 
+      <motion.section className="landing-block" {...reveal}>
+        <div className="landing-wrap agents-grid">
+          <div>
+            <p className="landing-kicker">One primitive, two hands</p>
+            <h2>The gift wallet is also an agent wallet.</h2>
+            <p>
+              Every envelope is a purpose-bound task vault onchain. The same
+              vault powers agent jobs: hand your own browser agent a budget and
+              a deadline, watch it work live, take over anytime, and recover
+              whatever it does not spend.
+            </p>
+            <a className="secondary" href={`${app}#activity`}>
+              Put an agent to work
+              <ArrowUpRight size={16} />
+            </a>
+          </div>
+          <div className="panel story-card">
+            <div className="story-meta">
+              <strong>Same vault, different hands</strong>
+            </div>
+            <blockquote>
+              An envelope is funded by you and spent by their assistant. An
+              agent job is funded by you and spent by your own browser agent.
+              Either way: a budget, a purpose, a deadline, and onchain recovery
+              that works even if Melt disappears.
+            </blockquote>
+          </div>
+        </div>
+      </motion.section>
+
       <section className="landing-close">
         <div className="landing-wrap close-panel panel">
           <SessionSeal status="ready" />
