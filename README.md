@@ -53,8 +53,10 @@ MCP tools: `list_envelopes`, `get_envelope`, `find_options`, `propose_purchase`,
 ## What's implemented
 
 - **Purpose-bound envelopes.** A sender locks ETH against a semantic promise. Policy (category, dollar cap, deny list, partial use, unused-to-sender) is hashed and cannot be rewritten after funding.
+- **AI discovery over a real catalog.** A recipient asks in plain language — “an eSIM for Japan”, “fps games” — and a model ranks candidates from roughly 900 live gift-card brands (Cryptorefills public API) plus the built-in catalog. The model only orders candidates that already passed the deterministic policy gate; it cannot add items, change prices, or bypass caps. A stemmed keyword matcher answers when no model is configured.
 - **Discover and redeem.** Matching catalog options only. Uniswap V3 converts the required ETH to USDC from the envelope vault (`exactInputSingle`, native value, no ERC-20 approval). Leftover funds stay until expiry, then return to the sender.
-- **MCP as distribution.** ChatGPT, Claude, Codex or Grok redeem an existing gift. They cannot invent a transfer.
+- **MCP as distribution.** ChatGPT, Claude, Codex or Grok redeem an existing gift. They cannot invent a transfer. Hosted MCP lives at `/api/mcp`; a stdio server ships in the SDK.
+- **Developer platform.** `/developers` is a standalone portal with API keys, per-key usage metering, webhooks, quickstarts, and generated OpenAPI docs.
 - **Privy identity.** Email or wallet login, embedded Ethereum wallets, passkeys, and a relayer for outer vault transactions. Implementation: [`apps/web/src/PrivyApp.tsx`](apps/web/src/PrivyApp.tsx).
 - Solidity task wallets with immutable owner, agent, cumulative native-token budget and expiry. ERC-20 and ERC-721 recovery, including late assets.
 - SQLite persistence, idempotent creation, hashed revocable agent keys, HMAC-signed webhooks, and shareable public receipts.

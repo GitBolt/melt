@@ -21,7 +21,7 @@ The source is public at [GitBolt/melt](https://github.com/GitBolt/melt). The pro
 | 0:00–0:20 | Product page: gift cards without stores                             | Clear, distinct problem                |
 | 0:20–0:50 | Email sign-in, create “mobile data for your trip, up to $20”        | Privy and envelope UX                  |
 | 0:50–1:20 | Fund with ETH; vault holds the gift                                 | Real onchain lock                      |
-| 1:20–1:50 | Discover finds an eSIM; a TV or cash-out is rejected                | Semantic policy, not a store gift card |
+| 1:20–1:50 | Discover: plain-language search ranks real brands; cash-out is rejected | AI matching over ~900 live brands, hard policy gate |
 | 1:50–2:20 | Redeem: Uniswap converts only the required amount to USDC           | Uniswap serves the consumer flow       |
 | 2:20–2:45 | MCP: Claude or ChatGPT lists the envelope and proposes the purchase | Assistants are distribution            |
 | 2:45–3:00 | Receipt, leftover funds still in the envelope                       | Honest settlement                      |

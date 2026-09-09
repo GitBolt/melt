@@ -1,6 +1,11 @@
 # Verification record
 
-Updated September 7, 2026 (September 8 UTC in some logs). Local runtime: macOS, Node 25.8.1, Playwright, Solidity 0.8.30 and Anvil chain 31337.
+Updated September 9, 2026. Local runtime: macOS, Node 25.8.1, Playwright, Solidity 0.8.30 and Anvil chain 31337.
+
+## September 9 additions
+
+- **AI discovery and remote catalog.** Envelope search now asks a configured model to rank policy-approved candidates, and the catalog can include live Cryptorefills brands (`MELT_REMOTE_CATALOG=1`). Unit tests cover the deterministic keyword fallback (stemming, filler words) and the policy gate; the browser suite runs the full discover → propose → redeem flow with the deterministic matcher. Live model ranking and the remote catalog fetch are exercised manually, not by automated evidence: the model can only reorder or reject candidates that already passed policy, so a wrong model answer cannot move funds outside the envelope's rules.
+- **Developer platform and hosted MCP.** The browser suite covers key create/revoke, revealed-secret clearing on logout, and OpenAPI download. Production smoke checks confirm `/api/platform` discovery, `/api/openapi.json`, and that `/api/mcp` rejects unauthenticated calls.
 
 ## What the checks establish
 
