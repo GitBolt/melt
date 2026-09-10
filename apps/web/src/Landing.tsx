@@ -5,6 +5,7 @@ import { MeltWordmark } from "./components/MeltMotion";
 import { BudgetRibbon } from "./components/BudgetRibbon";
 import { SessionSeal } from "./SessionSeal";
 import { NetworkStrip } from "./NetworkStrip";
+import { WaxPool } from "./components/WaxPool";
 import {
   networkKind,
   SEPOLIA_FAUCET,
@@ -177,21 +178,24 @@ export default function Landing() {
       <section className="landing-hero">
         <div className="landing-wrap hero-grid">
           <div>
+            <p className="landing-kicker">
+              Purpose-bound money for people and agents
+            </p>
             <h1 className="hero-title">
               Send money that knows what it is for.
             </h1>
             <p className="hero-lead">
-              You lock a purpose and an amount. They spend it later on dinner, a
-              flight, or an eSIM, in Melt or in the assistant they already use.
-              Cash is too loose. A store card is too tight.
+              Lock a purpose and an amount. They spend it later — dinner, a
+              flight, an eSIM — in Melt or in ChatGPT. Or hand the same wallet
+              to your own browser agent for one job.
             </p>
             <div className="hero-actions">
               <a className="primary" href={app}>
                 Create an envelope
                 <ArrowRight size={16} />
               </a>
-              <a className="secondary" href="#examples">
-                See examples
+              <a className="secondary" href={`${app}#activity`}>
+                Give an agent a job
               </a>
             </div>
             <div className="hero-network">
@@ -211,6 +215,11 @@ export default function Landing() {
           </div>
           <div className="hero-stage panel">
             <SessionSeal status="running" />
+            <WaxPool
+              remaining={34}
+              budget={120}
+              label="Thirty-four dollars left of one hundred twenty"
+            />
             <div className="hero-stage-copy">
               <span>Envelope for Alex</span>
               <strong>
@@ -235,7 +244,7 @@ export default function Landing() {
       <motion.section id="examples" className="landing-block" {...reveal}>
         <div className="landing-wrap">
           <p className="landing-kicker">What people actually send</p>
-          <h2>Write the gift in plain English.</h2>
+          <h2>Write it in English. The store is not the point.</h2>
           <div className="example-grid">
             {examples.map((item) => (
               <article
@@ -384,16 +393,12 @@ await melt.redeem(received[0].id, quote.quote.id);`}</pre>
       <motion.section className="landing-block" {...reveal}>
         <div className="landing-wrap">
           <p className="landing-kicker">Where Melt started</p>
-          <h2>
-            First we gave a browser agent a wallet. Then we asked who else
-            deserves one.
-          </h2>
+          <h2>A wallet for a browser agent. Then a gift on the same vault.</h2>
           <p className="evolution-lead">
-            Melt began as a spending-limit wallet for browser agents: a budget,
-            a deadline, one job, everything recoverable onchain. The gift is the
-            same vault handed across the table. The purpose is the instruction.
-            The recipient&apos;s assistant is the agent. Nothing was thrown away
-            — the wallet just learned to be generous.
+            Melt began as a spending-limit wallet for one job: a budget, a
+            deadline, leftover money back. The gift is that wallet handed to
+            someone else. The purpose is the instruction. Their assistant spends
+            it.
           </p>
           <div className="evolution-strip" aria-hidden="true">
             <motion.article
@@ -455,7 +460,7 @@ await melt.redeem(received[0].id, quote.quote.id);`}</pre>
           </div>
           <div className="evolution-actions">
             <a className="secondary" href={`${app}#activity`}>
-              Put an agent to work
+              Give an agent a job
               <ArrowUpRight size={16} />
             </a>
           </div>

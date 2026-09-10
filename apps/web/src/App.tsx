@@ -531,10 +531,10 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
           <>
             <section className="intro">
               <div>
-                <h1>Use a gift.</h1>
+                <h1>Spend a gift.</h1>
                 <p>
-                  Search for what they actually want. Melt only lists purchases
-                  that still match the original promise.
+                  Ask for what you actually want. Melt only lists purchases that
+                  still match the original promise.
                 </p>
               </div>
             </section>
@@ -565,13 +565,13 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               <div>
                 <h1>
                   {page === "Activity"
-                    ? "Put an agent to work."
-                    : "Send a gift they can spend later."}
+                    ? "Give an agent a job."
+                    : "Write a gift they can spend later."}
                 </h1>
                 <p>
                   {page === "Activity"
-                    ? "The same purpose-bound wallet behind every envelope, handed to your own browser agent. Watch it work, take over anytime, and recover what it does not spend."
-                    : "Lock a purpose and an amount. They pick the restaurant, the flight, or the eSIM when they need it."}
+                    ? "A budget, a deadline, a live browser. Unused funds come back."
+                    : "Lock a purpose and an amount. They pick dinner, a flight, or an eSIM when they need it."}
                 </p>
               </div>
               {user && page === "Activity" && !newJob && (
@@ -661,8 +661,8 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                       <div>
                         <h2>Write one of your own</h2>
                         <p>
-                          Lock a purpose and an amount. They spend it later in
-                          Melt or in an assistant they already use.
+                          Purpose-bound money. They spend it later, in Melt or
+                          in ChatGPT. Unused funds come back.
                         </p>
                       </div>
                       <div className="launch-actions">

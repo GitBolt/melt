@@ -18,8 +18,13 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { parseEther, toHex } from "viem";
-import type { Config, Envelope } from "../../../packages/shared/src/index";
+import {
+  inferEnvelopePolicy,
+  type Config,
+  type Envelope,
+} from "../../../packages/shared/src/index";
 import { BudgetRibbon } from "./components/BudgetRibbon";
+import { WaxPool } from "./components/WaxPool";
 import { SessionSeal } from "./SessionSeal";
 
 const short = (s: string) =>
@@ -62,6 +67,28 @@ export const PRESETS = [
     usd: "25",
   },
 ];
+
+const CATEGORY_SAY: Record<string, string> = {
+  esim: "mobile data",
+  dinner: "dinner",
+  concert: "a concert",
+  flight: "a flight",
+  game: "a game",
+  apartment: "the apartment",
+  ai: "an AI product",
+  other: "this purpose",
+};
+
+const ASK_FOR: Record<string, string[]> = {
+  esim: ["an eSIM for Japan", "data for my trip", "a local top-up"],
+  dinner: ["Italian near me", "a tasting menu", "lunch for two"],
+  concert: ["tickets this weekend", "whatever is playing Friday"],
+  flight: ["a flight home", "a one-way ticket"],
+  game: ["an indie game", "something on Steam under $40"],
+  apartment: ["a lamp for the apartment", "kitchen things, not electronics"],
+  ai: ["a month of ChatGPT", "the AI I actually use"],
+  other: ["what this gift was for"],
+};
 
 export function usdToEth(usd: number, rate: number) {
   if (!(usd > 0) || !(rate > 0)) return "";
@@ -306,6 +333,7 @@ export function EnvelopeComposer({
     budget: string;
     expiresAt: number;
     partialUse: boolean;
+    note: string;
   }) => void;
   onCancel?: () => void;
 }) {
@@ -316,10 +344,15 @@ export function EnvelopeComposer({
   const [usd, setUsd] = useState(PRESETS[0].usd);
   const [until, setUntil] = useState(defaultUntil);
   const [partialUse, setPartialUse] = useState(true);
+  const [note, setNote] = useState("");
   const rate = config.ethUsd || 2500;
   const budget = usdToEth(Number(usd), rate);
   const overCap = Number(usd) > 0 && Number(usd) / rate > 10;
   const emailTo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientLabel.trim());
+  const heard = inferEnvelopePolicy(purpose, {
+    maxUsd: Number(usd) > 0 ? Number(usd) : undefined,
+    partialUse,
+  });
   return (
     <form
       className="envelope-compose"
@@ -335,12 +368,13 @@ export function EnvelopeComposer({
           budget,
           expiresAt: endOfDay(until),
           partialUse,
+          note,
         });
       }}
     >
       <p className="swap-lead">
-        Start from a preset or write your own. They spend it later. Leftover
-        funds come back to you.
+        Write what it is for. They pick the place, the ticket, or the eSIM
+        later.
       </p>
       <div className="template-options">
         {PRESETS.map((item) => (
@@ -392,6 +426,25 @@ export function EnvelopeComposer({
             setPreset("");
             setPurpose(e.target.value);
           }}
+        />
+      </label>
+      {purpose.trim().length >= 8 ? (
+        <p className="policy-hear" role="status">
+          <i />
+          <span>
+            This can become {CATEGORY_SAY[heard.category]}
+            {heard.maxUsd ? `, up to $${heard.maxUsd}` : ""}. Not cash
+            {heard.deny.length ? `, not ${heard.deny[0]}` : ""}.
+          </span>
+        </p>
+      ) : null}
+      <label>
+        A line they will see
+        <input
+          maxLength={400}
+          value={note}
+          placeholder="Happy birthday. Pick somewhere you actually like."
+          onChange={(e) => setNote(e.target.value)}
         />
       </label>
       <label className="usd-field">
@@ -579,6 +632,7 @@ export function EnvelopeDetail({
 }) {
   const [fundHash, setFundHash] = useState("");
   const [copiedVault, setCopiedVault] = useState(false);
+  const [copiedLine, setCopiedLine] = useState(false);
   const unfunded = envelope.status === "funding";
   const shownUsd = formatUsd(
     unfunded ? envelope.budget : envelope.remaining,
@@ -610,6 +664,32 @@ export function EnvelopeDetail({
           ? ". Partial use allowed."
           : ". One purchase only."}
       </p>
+      <ol className="gift-path">
+        <li className="is-done">
+          <i />
+          Written
+        </li>
+        <li className={unfunded ? "is-now" : "is-done"}>
+          <i />
+          {unfunded ? "Fund it" : "Funded"}
+        </li>
+        <li
+          className={
+            unfunded
+              ? ""
+              : envelope.giftOpenedAt || envelope.redemptions.length
+                ? "is-done"
+                : "is-now"
+          }
+        >
+          <i />
+          {envelope.redemptions.length
+            ? "Spent"
+            : envelope.giftOpenedAt
+              ? "Opened"
+              : "Hand it over"}
+        </li>
+      </ol>
       <div className="work-grid">
         <aside className="wallet-panel panel">
           <SessionSeal
@@ -622,6 +702,10 @@ export function EnvelopeDetail({
                     ? "closed"
                     : "running"
             }
+          />
+          <WaxPool
+            remaining={Number(unfunded ? envelope.budget : envelope.remaining)}
+            budget={Number(envelope.budget)}
           />
           <div className="balance-heading">
             <span>{unfunded ? "To fund" : "Remaining"}</span>
@@ -775,6 +859,24 @@ export function EnvelopeDetail({
               <button className="secondary wide" onClick={onShare}>
                 <Copy size={15} />
                 Copy gift link
+              </button>
+            )}
+            {envelope.receiptToken && envelope.status !== "funding" && (
+              <button
+                className="secondary wide"
+                onClick={() => {
+                  const usd =
+                    formatUsd(envelope.budget, config.ethUsd) ||
+                    `${envelope.budget} ${config.chain.symbol}`;
+                  const line = `I sent you ${usd} for ${envelope.purpose}. Open it here: ${location.origin}/g/${envelope.receiptToken}`;
+                  void navigator.clipboard.writeText(line).then(() => {
+                    setCopiedLine(true);
+                    window.setTimeout(() => setCopiedLine(false), 1600);
+                  });
+                }}
+              >
+                <Copy size={15} />
+                {copiedLine ? "Copied" : "Copy a message to send"}
               </button>
             )}
             {config.mailConfigured && envelope.recipientEmail && (
@@ -1053,10 +1155,13 @@ export function DiscoverPanel({
   }, [selectedId, envelope?.status]);
   if (!envelopes.length)
     return (
-      <p className="helper">
-        Create a gift first. Discover only shows purchases that match one you
-        already funded.
-      </p>
+      <section className="compose panel">
+        <h2>Nothing to spend yet</h2>
+        <p className="helper">
+          Create a gift first. Discover only shows purchases that match one you
+          already funded.
+        </p>
+      </section>
     );
   return (
     <div className="discover-grid">
@@ -1101,6 +1206,24 @@ export function DiscoverPanel({
             </button>
           </form>
         )}
+        {envelope && !needsFunds ? (
+          <div className="ask-chips">
+            {(ASK_FOR[envelope.category] || ASK_FOR.other).map((ask) => (
+              <button
+                key={ask}
+                type="button"
+                className={query === ask ? "chosen" : ""}
+                disabled={!!busy}
+                onClick={() => {
+                  setQuery(ask);
+                  void act("search", () => search(ask));
+                }}
+              >
+                {ask}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {result?.note && <p className="helper">{result.note}</p>}
         {result?.settlement && (
           <p className="helper">

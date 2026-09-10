@@ -1,0 +1,74 @@
+.wax-pool {
+  --fill: 80%;
+  width: 132px;
+  color: #5463c4;
+}
+.wax-pool svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.wax-vessel {
+  fill: #eef1fb;
+  stroke: #c9d2ec;
+  stroke-width: 1.6;
+}
+.wax-fill {
+  fill: currentColor;
+  transform: translateY(calc((1 - var(--fill)) * 62px));
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.wax-meniscus {
+  fill: #8b97e0;
+  transform-origin: 60px 8px;
+  animation: wax-surface 3.4s ease-in-out infinite;
+}
+.wax-drip {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-dasharray: 18;
+  stroke-dashoffset: 18;
+  animation: wax-fall 2.2s ease-in infinite;
+}
+.wax-drip-b {
+  animation-delay: 0.7s;
+  opacity: 0.65;
+}
+.wax-pool.is-still .wax-meniscus,
+.wax-pool.is-still .wax-drip {
+  animation: none;
+}
+@keyframes wax-surface {
+  0%,
+  100% {
+    transform: translateY(0) scaleX(1);
+  }
+  50% {
+    transform: translateY(1.4px) scaleX(1.03);
+  }
+}
+@keyframes wax-fall {
+  0% {
+    stroke-dashoffset: 18;
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: -6;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wax-body {
+    transition: none;
+  }
+  .wax-meniscus,
+  .wax-drip {
+    animation: none;
+  }
+}

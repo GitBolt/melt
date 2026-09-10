@@ -35,6 +35,7 @@ export function Gift({ token }: { token: string }) {
   const [thanks, setThanks] = useState("");
   const [thanking, setThanking] = useState(false);
   const [thanksError, setThanksError] = useState("");
+  const [promptCopied, setPromptCopied] = useState(false);
   const reduced = useReducedMotion();
   useEffect(() => {
     if (!gift) return;
@@ -204,6 +205,28 @@ export function Gift({ token }: { token: string }) {
               <p className="gift-until">Use by {until}</p>
               {gift.lastPurchase ? (
                 <p className="gift-until">Bought {gift.lastPurchase}</p>
+              ) : null}
+              {gift.funded && !gift.lastPurchase ? (
+                <p className="gift-prompt">
+                  Or tell ChatGPT: “Use the gift {gift.senderName} sent me.”
+                  <button
+                    type="button"
+                    className="quiet-inline"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      navigator.clipboard
+                        .writeText(
+                          `Use the gift ${gift.senderName} sent me. Find something that matches it.`,
+                        )
+                        .then(() => {
+                          setPromptCopied(true);
+                          setTimeout(() => setPromptCopied(false), 1600);
+                        });
+                    }}
+                  >
+                    {promptCopied ? "Copied" : "Copy"}
+                  </button>
+                </p>
               ) : null}
               <div className="gift-actions">
                 <a className="primary" href="/app#discover">

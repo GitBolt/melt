@@ -657,7 +657,7 @@ test("envelope create, discover matching options, and reject cash-out", async ({
 }) => {
   await signInLocal(page);
   await expect(
-    page.getByRole("heading", { name: "Send a gift they can spend later." }),
+    page.getByRole("heading", { name: "Write a gift they can spend later." }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Uniswap swap" })).toHaveCount(
     0,
