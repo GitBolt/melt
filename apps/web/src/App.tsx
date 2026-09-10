@@ -34,6 +34,7 @@ import type {
 } from "../../../packages/shared/src/index";
 import { mandateText, networkKind } from "../../../packages/shared/src/index";
 import { BudgetRibbon } from "./components/BudgetRibbon";
+import { WaxPool } from "./components/WaxPool";
 import { GooeyNav } from "./components/ui/gooey-nav";
 import { SessionSeal } from "./SessionSeal";
 import { FundingSwap } from "./FundingSwap";
@@ -44,6 +45,7 @@ import {
   EnvelopeComposer,
   EnvelopeDetail,
   EnvelopeList,
+  ComingBack,
   formatRemaining,
 } from "./Envelopes";
 import "./public-receipt.css";
@@ -697,6 +699,11 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                     <h2>Sent</h2>
                     <span className="quiet">{envelopes.sent.length}</span>
                   </div>
+                  <ComingBack
+                    envelopes={envelopes.sent}
+                    ethUsd={config.ethUsd}
+                    symbol={config.chain.symbol}
+                  />
                   <EnvelopeList
                     envelopes={envelopes.sent}
                     now={now}
@@ -1062,6 +1069,10 @@ function SessionDetail({
       <div className="work-grid">
         <aside className="wallet-panel panel">
           <SessionSeal status={t.status} />
+          <WaxPool
+            remaining={Math.max(0, Number(t.budget) - Number(t.spent))}
+            budget={Number(t.budget)}
+          />
           <div className="balance-heading">
             <span>Spending limit</span>
             <h2>

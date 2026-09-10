@@ -25,6 +25,11 @@ import {
 } from "../../../packages/shared/src/index";
 import { BudgetRibbon } from "./components/BudgetRibbon";
 import { WaxPool } from "./components/WaxPool";
+import { ReturnRing } from "./components/ReturnRing";
+import { PurposeLoom } from "./components/PurposeLoom";
+import { TearStub } from "./components/TearStub";
+import { OpenedBlot } from "./components/OpenedBlot";
+import { FitNeedle } from "./components/FitNeedle";
 import { SessionSeal } from "./SessionSeal";
 
 const short = (s: string) =>
@@ -89,6 +94,22 @@ const ASK_FOR: Record<string, string[]> = {
   ai: ["a month of ChatGPT", "the AI I actually use"],
   other: ["what this gift was for"],
 };
+
+const LOOM_EXCEPT: Record<string, string[]> = {
+  dinner: ["groceries"],
+  concert: ["merch"],
+  flight: ["hotels"],
+  game: ["wallet credit"],
+  apartment: ["electronics"],
+  esim: ["headphones"],
+  ai: ["hardware"],
+  other: [],
+};
+
+function addExcept(purpose: string, word: string) {
+  if (purpose.toLowerCase().includes(word.toLowerCase())) return purpose;
+  return `${purpose.replace(/[.\s]+$/, "")}, except ${word}`;
+}
 
 export function usdToEth(usd: number, rate: number) {
   if (!(usd > 0) || !(rate > 0)) return "";
@@ -343,6 +364,7 @@ export function EnvelopeComposer({
   const [purpose, setPurpose] = useState(PRESETS[0].purpose);
   const [usd, setUsd] = useState(PRESETS[0].usd);
   const [until, setUntil] = useState(defaultUntil);
+  const [writtenAt] = useState(() => new Date().toISOString());
   const [partialUse, setPartialUse] = useState(true);
   const [note, setNote] = useState("");
   const rate = config.ethUsd || 2500;
@@ -429,14 +451,24 @@ export function EnvelopeComposer({
         />
       </label>
       {purpose.trim().length >= 8 ? (
-        <p className="policy-hear" role="status">
-          <i />
-          <span>
-            This can become {CATEGORY_SAY[heard.category]}
-            {heard.maxUsd ? `, up to $${heard.maxUsd}` : ""}. Not cash
-            {heard.deny.length ? `, not ${heard.deny[0]}` : ""}.
-          </span>
-        </p>
+        <PurposeLoom
+          can={CATEGORY_SAY[heard.category]}
+          cannot={[
+            { word: "cash", locked: true },
+            ...heard.deny.slice(0, 2).map((word) => ({ word, locked: true })),
+            ...(LOOM_EXCEPT[heard.category] || [])
+              .filter(
+                (word) =>
+                  !heard.deny.includes(word) &&
+                  !purpose.toLowerCase().includes(word),
+              )
+              .map((word) => ({ word })),
+          ]}
+          onExcept={(word) => {
+            setPreset("");
+            setPurpose((cur) => addExcept(cur, word));
+          }}
+        />
       ) : null}
       <label>
         A line they will see
@@ -479,6 +511,7 @@ export function EnvelopeComposer({
         min={new Date().toISOString().slice(0, 10)}
         onChange={setUntil}
       />
+      <ReturnRing expiresAt={endOfDay(until)} createdAt={writtenAt} />
       <div className="template-options">
         <button
           type="button"
@@ -515,6 +548,40 @@ export function EnvelopeComposer({
         </button>
       </div>
     </form>
+  );
+}
+
+export function ComingBack({
+  envelopes,
+  ethUsd,
+  symbol,
+}: {
+  envelopes: Envelope[];
+  ethUsd?: number;
+  symbol: string;
+}) {
+  const live = envelopes.filter((item) =>
+    ["funding", "open", "redeeming"].includes(item.status),
+  );
+  const remaining = live.reduce(
+    (n, item) =>
+      n + Number(item.status === "funding" ? item.budget : item.remaining),
+    0,
+  );
+  const budget = live.reduce((n, item) => n + Number(item.budget), 0);
+  if (remaining < 1e-8) return null;
+  return (
+    <div className="coming-back">
+      <WaxPool
+        remaining={remaining}
+        budget={Math.max(budget, remaining)}
+        label="Leftover still sitting in gifts"
+      />
+      <p>
+        {formatUsd(remaining, ethUsd) || `${remaining} ${symbol}`} still sitting
+        in gifts. Stores keep remnants. These come back.
+      </p>
+    </div>
   );
 }
 
@@ -633,6 +700,7 @@ export function EnvelopeDetail({
   const [fundHash, setFundHash] = useState("");
   const [copiedVault, setCopiedVault] = useState(false);
   const [copiedLine, setCopiedLine] = useState(false);
+  const [copiedLeft, setCopiedLeft] = useState(false);
   const unfunded = envelope.status === "funding";
   const shownUsd = formatUsd(
     unfunded ? envelope.budget : envelope.remaining,
@@ -690,6 +758,16 @@ export function EnvelopeDetail({
               : "Hand it over"}
         </li>
       </ol>
+      {envelope.status !== "funding" && (
+        <ReturnRing
+          expiresAt={envelope.expiresAt}
+          createdAt={envelope.createdAt}
+          now={now}
+          onCopy={(when) =>
+            void navigator.clipboard.writeText(`Leftover returns ${when}`)
+          }
+        />
+      )}
       <div className="work-grid">
         <aside className="wallet-panel panel">
           <SessionSeal
@@ -720,6 +798,30 @@ export function EnvelopeDetail({
             value={Number(envelope.spent)}
             total={Number(envelope.budget)}
             large
+          />
+          <TearStub
+            remaining={
+              shownUsd || (unfunded ? envelope.budget : envelope.remaining)
+            }
+            spent={formatUsd(envelope.spent, config.ethUsd) || envelope.spent}
+            remainingLabel={
+              copiedLeft ? "Copied" : shownUsd ? "USD" : config.chain.symbol
+            }
+            spentLabel={
+              formatUsd(envelope.spent, config.ethUsd)
+                ? "USD"
+                : config.chain.symbol
+            }
+            onCopyRemaining={() => {
+              void navigator.clipboard
+                .writeText(
+                  shownUsd || (unfunded ? envelope.budget : envelope.remaining),
+                )
+                .then(() => {
+                  setCopiedLeft(true);
+                  window.setTimeout(() => setCopiedLeft(false), 1600);
+                });
+            }}
           />
           <dl className="wallet-facts">
             <div>
@@ -892,10 +994,15 @@ export function EnvelopeDetail({
                 Email {envelope.recipientEmail}
               </button>
             )}
-            {envelope.giftOpenedAt && (
-              <p className="helper">
-                Opened {new Date(envelope.giftOpenedAt).toLocaleString()}
-              </p>
+            {envelope.giftOpenedAt ? (
+              <OpenedBlot
+                openedAt={envelope.giftOpenedAt}
+                onCopy={(when) =>
+                  void navigator.clipboard.writeText(`Opened ${when}`)
+                }
+              />
+            ) : (
+              <OpenedBlot />
             )}
             {envelope.receiptToken && (
               <a
@@ -1156,6 +1263,11 @@ export function DiscoverPanel({
   if (!envelopes.length)
     return (
       <section className="compose panel">
+        <img
+          src="/illustrations/melt-well.png"
+          alt=""
+          className="empty-illust"
+        />
         <h2>Nothing to spend yet</h2>
         <p className="helper">
           Create a gift first. Discover only shows purchases that match one you
@@ -1190,6 +1302,17 @@ export function DiscoverPanel({
               void act("search", () => search(query));
             }}
           >
+            <FitNeedle
+              verdict={
+                busy === "search"
+                  ? "loading"
+                  : result
+                    ? result.options?.length
+                      ? "fits"
+                      : "no"
+                    : "idle"
+              }
+            />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}

@@ -1,4 +1,6 @@
 import { MeltLoader, MeltWordmark } from "./components/MeltMotion";
+import { FitNeedle } from "./components/FitNeedle";
+import { ReturnRing } from "./components/ReturnRing";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowRight, Copy, Check, Printer } from "lucide-react";
@@ -12,6 +14,9 @@ type PublicGift = {
   note: string;
   status: string;
   amount: string;
+  remaining?: string;
+  leftoverReturns?: boolean;
+  createdAt?: string;
   expiresAt: number;
   giftOpenedAt?: string;
   funded: boolean;
@@ -36,6 +41,11 @@ export function Gift({ token }: { token: string }) {
   const [thanking, setThanking] = useState(false);
   const [thanksError, setThanksError] = useState("");
   const [promptCopied, setPromptCopied] = useState(false);
+  const [ask, setAsk] = useState("");
+  const [fit, setFit] = useState<{
+    verdict: "idle" | "fits" | "no" | "loading";
+    reason: string;
+  }>({ verdict: "idle", reason: "" });
   const reduced = useReducedMotion();
   useEffect(() => {
     if (!gift) return;
@@ -199,10 +209,24 @@ export function Gift({ token }: { token: string }) {
                   {status}
                 </span>
               </div>
-              <p className="gift-amount">{gift.amount}</p>
+              <p className="gift-amount">{gift.remaining || gift.amount}</p>
+              {gift.remaining && gift.remaining !== gift.amount ? (
+                <p className="gift-until">of {gift.amount} sent</p>
+              ) : null}
               <h1>{gift.purpose}</h1>
               {gift.note ? <blockquote>“{gift.note}”</blockquote> : null}
               <p className="gift-until">Use by {until}</p>
+              {gift.createdAt ? (
+                <ReturnRing
+                  expiresAt={gift.expiresAt}
+                  createdAt={gift.createdAt}
+                />
+              ) : null}
+              {gift.leftoverReturns ? (
+                <p className="gift-until">
+                  What you don’t spend comes back to {gift.senderName}.
+                </p>
+              ) : null}
               {gift.lastPurchase ? (
                 <p className="gift-until">Bought {gift.lastPurchase}</p>
               ) : null}
@@ -227,6 +251,58 @@ export function Gift({ token }: { token: string }) {
                     {promptCopied ? "Copied" : "Copy"}
                   </button>
                 </p>
+              ) : null}
+              {gift.funded && !gift.lastPurchase ? (
+                <form
+                  className="gift-fit"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const request = ask.trim();
+                    if (request.length < 2) return;
+                    setFit({ verdict: "loading", reason: "" });
+                    fetch(`/api/public/gifts/${token}/fit`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ request }),
+                    })
+                      .then(async (response) => {
+                        const body = await response.json();
+                        if (!response.ok)
+                          throw Error(body.error || "Could not check that");
+                        setFit({
+                          verdict: body.fits ? "fits" : "no",
+                          reason: body.reason || "",
+                        });
+                      })
+                      .catch((err) =>
+                        setFit({ verdict: "no", reason: err.message }),
+                      );
+                  }}
+                >
+                  <FitNeedle verdict={fit.verdict} />
+                  <div>
+                    <label>
+                      Would this count?
+                      <input
+                        value={ask}
+                        onChange={(e) => setAsk(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="Italian near me, cash out, an eSIM…"
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      className="secondary"
+                      disabled={
+                        ask.trim().length < 2 || fit.verdict === "loading"
+                      }
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Ask
+                    </button>
+                    {fit.reason ? <p className="helper">{fit.reason}</p> : null}
+                  </div>
+                </form>
               ) : null}
               <div className="gift-actions">
                 <a className="primary" href="/app#discover">

@@ -1,0 +1,112 @@
+.breakage-pour {
+  width: 100%;
+}
+.pour-modes {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.pour-modes button {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  color: #4c5161;
+}
+.pour-modes button.chosen {
+  background: #eef1fb;
+  border-color: #c9d2ec;
+  color: #414f9e;
+}
+.pour-stage {
+  display: grid;
+  grid-template-columns: 1fr 18px 1fr 18px 1fr;
+  align-items: end;
+  gap: 4px;
+  min-height: 118px;
+}
+.pour-well {
+  --fill: 0.4;
+  text-align: center;
+  color: #5463c4;
+}
+.pour-well svg {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+}
+.pour-vessel {
+  fill: #eef1fb;
+  stroke: #c9d2ec;
+  stroke-width: 1.4;
+}
+.pour-fill {
+  fill: currentColor;
+  transform-origin: 36px 58px;
+  transform: scaleY(var(--fill));
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pour-well.is-spent {
+  color: #8b97e0;
+}
+.pour-well.is-locked {
+  color: #b7bcc9;
+}
+.pour-well span {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8a90a3;
+}
+.pour-stream {
+  height: 46px;
+  margin-bottom: 22px;
+  border-radius: 2px;
+  background: linear-gradient(#5463c4, #8b97e0);
+  opacity: 0.12;
+  transform-origin: top center;
+  transform: scaleY(0.2);
+}
+.pour-stream.is-on {
+  opacity: 0.7;
+  transform: scaleY(1);
+  animation: pour-drip 1.4s ease-in infinite;
+}
+.pour-stream.is-return {
+  background: linear-gradient(#8b97e0, #5463c4);
+}
+.breakage-pour.is-still .pour-stream.is-on {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pour-stream.is-on {
+    animation: none;
+  }
+  .pour-fill {
+    transition: none;
+  }
+}
+@keyframes pour-drip {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+.pour-readout {
+  margin: 10px 0 8px;
+  text-align: center;
+  font-size: 14px;
+  color: #3d4354;
+}
+.breakage-pour .budget-control {
+  margin-top: 4px;
+}

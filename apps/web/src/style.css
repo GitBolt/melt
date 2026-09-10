@@ -1842,12 +1842,34 @@ a.quiet-button {
   gap: 22px;
 }
 .discover-search {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   gap: 10px;
   margin-top: 12px;
+  align-items: center;
+}
+.discover-search .fit-needle {
+  width: 96px;
 }
 .discover-search input {
   flex: 1;
+}
+.coming-back {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #eef1fb;
+}
+.coming-back .wax-pool {
+  width: 64px;
+}
+.coming-back p {
+  margin: 0;
+  font-size: 14px;
+  color: #3d4354;
 }
 .option-card {
   display: grid;
@@ -1995,8 +2017,19 @@ a.quiet-button {
   flex-wrap: wrap;
   gap: 8px;
   list-style: none;
-  margin: 0 0 22px;
+  margin: 0 0 14px;
   padding: 0;
+}
+.return-ring {
+  margin: 0 0 22px;
+}
+.envelope-compose .return-ring {
+  margin: 8px 0 6px;
+}
+.empty-illust {
+  width: 112px;
+  display: block;
+  margin: 0 0 12px;
 }
 .gift-path li {
   display: inline-flex;

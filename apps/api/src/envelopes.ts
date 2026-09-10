@@ -32,6 +32,7 @@ import {
   catalogBySku,
   findCatalogOptions,
   offeredOption,
+  previewLocalFit,
   type ExternalItem,
 } from "./catalog.js";
 import { emit } from "./webhooks.js";
@@ -228,15 +229,6 @@ export function giftByToken(token: string) {
 }
 
 export function publicGift(envelope: Envelope, rate?: number) {
-  const usd = Number(envelope.budget) * (rate || 0);
-  const amount =
-    rate && Number.isFinite(usd) && usd > 0
-      ? usd.toLocaleString(undefined, {
-          style: "currency",
-          currency: "USD",
-          maximumFractionDigits: usd >= 10 ? 0 : 2,
-        })
-      : `${envelope.budget} ETH`;
   return {
     object: "gift" as const,
     purpose: envelope.purpose,
@@ -244,19 +236,91 @@ export function publicGift(envelope: Envelope, rate?: number) {
     recipientLabel: envelope.recipientLabel,
     note: envelope.note || "",
     status: envelope.status,
-    amount,
+    amount: moneyLabel(envelope.budget, rate),
+    remaining: moneyLabel(envelope.remaining || envelope.budget, rate),
     expiresAt: envelope.expiresAt,
     giftOpenedAt: envelope.giftOpenedAt,
     lastEmailedAt: envelope.lastEmailedAt,
     funded: envelope.status !== "funding",
     lastPurchase: envelope.redemptions.at(-1)?.title || "",
     thankYou: envelope.thankYou,
+    leftoverReturns: true,
+    createdAt: envelope.createdAt,
     url: giftUrl(envelope.receiptToken),
   };
 }
 
+function moneyLabel(eth: string, rate?: number) {
+  const usd = Number(eth) * (rate || 0);
+  if (rate && Number.isFinite(usd) && usd > 0)
+    return usd.toLocaleString(undefined, {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: usd >= 10 ? 0 : 2,
+    });
+  return `${eth} ETH`;
+}
+
 export async function publicGiftByToken(token: string) {
   return publicGift(giftByToken(token), await ethUsdRate({ wait: false }));
+}
+
+export async function publicFitCheck(token: string, request: string) {
+  const ask = request.trim();
+  if (ask.length < 2)
+    throw Object.assign(Error("Say what you want to use it on"), {
+      statusCode: 400,
+    });
+  const envelope = giftByToken(token);
+  if (envelope.status === "funding")
+    return {
+      fits: false,
+      reason: "This gift has no funds yet.",
+    };
+  if (["closed", "exhausted", "expired"].includes(envelope.status))
+    return {
+      fits: false,
+      reason: "This gift is used up or already returned.",
+    };
+  const ethUsd = await ethUsdRate({ wait: false });
+  const found = await findCatalogOptions(
+    envelope.policy,
+    Number(envelope.remaining),
+    ask,
+    ethUsd,
+  );
+  const hit = found.options[0];
+  return {
+    fits: Boolean(hit),
+    reason: hit
+      ? `This could become ${hit.title}.`
+      : found.note || "That does not match this gift.",
+    leftoverReturns: true,
+  };
+}
+
+export async function publicPreviewFit(
+  purpose: string,
+  request: string,
+  remainingUsd?: number,
+) {
+  const ask = request.trim();
+  const promise = purpose.trim();
+  if (promise.length < 4)
+    throw Object.assign(Error("Write the purpose first"), { statusCode: 400 });
+  if (ask.length < 2)
+    throw Object.assign(Error("Say what you want to use it on"), {
+      statusCode: 400,
+    });
+  const policy = inferEnvelopePolicy(promise);
+  const ethUsd = (await ethUsdRate({ wait: false })) || 2500;
+  const usd =
+    remainingUsd && remainingUsd > 0 ? remainingUsd : policy.maxUsd || 120;
+  return {
+    ...previewLocalFit(policy, usd / Math.max(ethUsd, 1), ask, ethUsd),
+    purpose: policy.purpose,
+    category: policy.category,
+  };
 }
 
 export async function thankGiftSender(token: string, message: string) {

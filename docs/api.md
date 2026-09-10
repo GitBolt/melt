@@ -38,6 +38,10 @@ Paths below are relative to the base URL.
 | POST       | `/envelopes/{id}/propose`                              | Owner or agent | Propose a catalog option; does not move funds                       |
 | POST       | `/envelopes/{id}/redeem`                               | Owner or agent | Settle a quote after policy check; rejects generic transfers        |
 | GET        | `/envelopes/{id}/redemptions`                          | Owner or agent | Settlement and delivery status                                      |
+| POST       | `/public/preview-fit`                                  | Public         | Ask whether a purchase would count against a purpose, no account    |
+| GET        | `/public/gifts/{token}`                                | Public         | Purpose, remaining funds, leftover-return promise, by gift token    |
+| POST       | `/public/gifts/{token}/opened`                         | Public         | Mark that the recipient opened the gift                             |
+| POST       | `/public/gifts/{token}/fit`                            | Public         | Ask whether a purchase would count against this gift                |
 | POST       | `/public/gifts/{token}/thanks`                         | Public         | Leave a thank-you note for the sender, by gift link token           |
 | GET        | `/sessions`                                            | Owner or agent | List backing vault sessions                                         |
 | POST       | `/sessions`                                            | Owner          | Create a wallet with a spending limit and an optional contract lock |

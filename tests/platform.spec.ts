@@ -145,6 +145,27 @@ test("product page explains the gift before the workspace", async ({
       name: "Send money that knows what it is for.",
     }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Would this count?" }),
+  ).toBeVisible();
+  const previewYes = await page.request.post(`${base}/api/public/preview-fit`, {
+    headers: { Origin: base },
+    data: {
+      purpose: "Dinner for two, anywhere you like, up to $120",
+      request: "Italian near me",
+    },
+  });
+  expect(previewYes.ok(), await previewYes.text()).toBeTruthy();
+  expect((await previewYes.json()).fits).toBeTruthy();
+  const previewNo = await page.request.post(`${base}/api/public/preview-fit`, {
+    headers: { Origin: base },
+    data: {
+      purpose: "Dinner for two, anywhere you like, up to $120",
+      request: "cash out to my wallet",
+    },
+  });
+  expect(previewNo.ok(), await previewNo.text()).toBeTruthy();
+  expect((await previewNo.json()).fits).toBeFalsy();
   await page.getByRole("link", { name: "Create an envelope" }).first().click();
   await expect(
     page.getByRole("button", { name: "Open local workspace" }),
@@ -710,6 +731,24 @@ test("envelope create, discover matching options, and reject cash-out", async ({
   const cashBody = await cash.json();
   expect(cashBody.options).toEqual([]);
   expect(cashBody.note).toMatch(/unrestricted cash/i);
+  expect(envelope.receiptToken).toMatch(/^[0-9a-fA-F]{48}$/);
+  const publicView = await (
+    await page.request.get(`${base}/api/public/gifts/${envelope.receiptToken}`)
+  ).json();
+  expect(publicView.leftoverReturns).toBeTruthy();
+  expect(publicView.remaining).toBeTruthy();
+  const fitYes = await page.request.post(
+    `${base}/api/public/gifts/${envelope.receiptToken}/fit`,
+    { headers: { Origin: base }, data: { request: "an eSIM for Japan" } },
+  );
+  expect(fitYes.ok(), await fitYes.text()).toBeTruthy();
+  expect((await fitYes.json()).fits).toBeTruthy();
+  const fitNo = await page.request.post(
+    `${base}/api/public/gifts/${envelope.receiptToken}/fit`,
+    { headers: { Origin: base }, data: { request: "cash out to my wallet" } },
+  );
+  expect(fitNo.ok(), await fitNo.text()).toBeTruthy();
+  expect((await fitNo.json()).fits).toBeFalsy();
   const transfer = await page.request.post(
     `${base}/api/envelopes/${envelope.id}/redeem`,
     {

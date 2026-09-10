@@ -1,0 +1,64 @@
+.tear-stub {
+  display: grid;
+  grid-template-columns: 1fr 14px 1fr;
+  align-items: stretch;
+  margin: 8px 0 14px;
+}
+.tear-half {
+  padding: 10px 12px;
+  background: #eef1fb;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  min-height: 0;
+}
+.tear-half.is-left {
+  border-radius: 12px 0 0 12px;
+  border: 1px solid var(--line);
+  border-right: 0;
+  cursor: pointer;
+}
+.tear-half.is-right {
+  border-radius: 0 12px 12px 0;
+  border: 1px solid var(--line);
+  border-left: 0;
+  background: #f7f8fc;
+}
+.tear-half span,
+.tear-half small {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8a90a3;
+}
+.tear-half strong {
+  display: block;
+  margin: 4px 0 2px;
+  font-size: 18px;
+  letter-spacing: -0.6px;
+  font-variant-numeric: tabular-nums;
+}
+.tear-perf {
+  width: 14px;
+  background:
+    radial-gradient(circle at 50% 7px, var(--paper) 4px, transparent 4.5px) 0
+      0 / 14px 14px,
+    repeating-linear-gradient(180deg, #c9d2ec 0 1px, transparent 1px 7px);
+  border-top: 1px dashed #c9d2ec;
+  border-bottom: 1px dashed #c9d2ec;
+}
+.tear-half.is-left:hover {
+  background: #e4e8f8;
+}
+.tear-stub.is-still .tear-half.is-left:active {
+  transform: none;
+}
+.tear-half.is-left:active {
+  transform: translateX(-2px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tear-half.is-left:active {
+    transform: none;
+  }
+}

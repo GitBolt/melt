@@ -1,0 +1,49 @@
+.return-ring {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #eef1fb;
+  text-align: left;
+  color: #3d4354;
+}
+.return-ring svg {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  transform: rotate(-90deg);
+}
+.return-track,
+.return-fill {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.return-track {
+  stroke: #d5dbed;
+}
+.return-fill {
+  stroke: #5463c4;
+  stroke-dasharray: 176;
+  stroke-dashoffset: calc(176 * (1 - var(--left)));
+  transition: stroke-dashoffset 0.6s ease;
+}
+.return-ring span {
+  display: grid;
+  font-size: 14px;
+}
+.return-ring small {
+  color: #8a90a3;
+  font-size: 12px;
+}
+.return-ring.is-still .return-fill {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .return-fill {
+    transition: none;
+  }
+}

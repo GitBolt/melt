@@ -1,0 +1,47 @@
+.fit-needle {
+  width: 148px;
+  color: #5463c4;
+}
+.fit-needle svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+.fit-arc {
+  stroke: #c9d2ec;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.fit-label {
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  fill: #8a90a3;
+}
+.fit-pivot {
+  transform-origin: 60px 68px;
+  transform: rotate(var(--angle));
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  fill: #5463c4;
+}
+.fit-needle.is-still .fit-pivot {
+  transition: none;
+  animation: none;
+}
+.fit-needle.is-loading .fit-pivot {
+  animation: needle-seek 0.7s ease-in-out infinite alternate;
+}
+@keyframes needle-seek {
+  from {
+    transform: rotate(-12deg);
+  }
+  to {
+    transform: rotate(12deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fit-pivot {
+    transition: none;
+    animation: none;
+  }
+}

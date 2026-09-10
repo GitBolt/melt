@@ -78,6 +78,8 @@ import {
   proposeExternalPurchase,
   proposePurchase,
   publicGiftByToken,
+  publicFitCheck,
+  publicPreviewFit,
   redeemQuote,
   redemptionStatus,
   resendGiftEmail,
@@ -770,6 +772,31 @@ app.post(
   async (req) => {
     const token = String((req.params as { token: string }).token || "");
     return markGiftOpened(token);
+  },
+);
+app.post(
+  "/api/public/preview-fit",
+  { config: { rateLimit: { max: 40, timeWindow: "1 minute" } } },
+  async (req) => {
+    const { purpose, request, remainingUsd } = z
+      .object({
+        purpose: z.string().trim().min(4).max(500),
+        request: z.string().trim().min(2).max(300),
+        remainingUsd: z.number().positive().max(10000).optional(),
+      })
+      .parse(req.body);
+    return publicPreviewFit(purpose, request, remainingUsd);
+  },
+);
+app.post(
+  "/api/public/gifts/:token/fit",
+  { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+  async (req) => {
+    const token = String((req.params as { token: string }).token || "");
+    const { request } = z
+      .object({ request: z.string().trim().min(2).max(300) })
+      .parse(req.body);
+    return publicFitCheck(token, request);
   },
 );
 app.post(

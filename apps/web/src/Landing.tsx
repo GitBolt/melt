@@ -2,10 +2,10 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { MeltWordmark } from "./components/MeltMotion";
-import { BudgetRibbon } from "./components/BudgetRibbon";
 import { SessionSeal } from "./SessionSeal";
 import { NetworkStrip } from "./NetworkStrip";
-import { WaxPool } from "./components/WaxPool";
+import { BreakagePour } from "./components/BreakagePour";
+import { FitNeedle } from "./components/FitNeedle";
 import {
   networkKind,
   SEPOLIA_FAUCET,
@@ -106,7 +106,13 @@ const story = [
 export default function Landing() {
   const reduced = useReducedMotion();
   const [scrolled, setScrolled] = useState(false);
+  const [flipped, setFlipped] = useState<string>();
   const [mainnetNote, setMainnetNote] = useState(false);
+  const [tryAsk, setTryAsk] = useState("Italian near me");
+  const [tryFit, setTryFit] = useState<{
+    verdict: "idle" | "fits" | "no" | "loading";
+    reason: string;
+  }>({ verdict: "idle", reason: "" });
   const [hostedChainId, setHostedChainId] = useState(
     Number(import.meta.env.VITE_CHAIN_ID || 31337),
   );
@@ -165,6 +171,7 @@ export default function Landing() {
           </a>
           <nav>
             <a href="#examples">Examples</a>
+            <a href="#try">Would it count</a>
             <a href="#how">How it works</a>
             <a href="/developers">Developers</a>
           </nav>
@@ -214,19 +221,13 @@ export default function Landing() {
             </div>
           </div>
           <div className="hero-stage panel">
-            <SessionSeal status="running" />
-            <WaxPool
-              remaining={34}
-              budget={120}
-              label="Thirty-four dollars left of one hundred twenty"
-            />
+            <BreakagePour />
             <div className="hero-stage-copy">
-              <span>Envelope for Alex</span>
-              <strong>
-                $120 <small>USD</small>
-              </strong>
-              <BudgetRibbon value={86} total={120} large symbol="USD" />
-              <p>Dinner for two, anywhere they like, before New Year.</p>
+              <span>Dinner for two, anywhere they like</span>
+              <p>
+                Drag what they spend. Flip to a store card to see the leftover
+                get stuck. Melt sends it back.
+              </p>
             </div>
           </div>
         </div>
@@ -247,29 +248,128 @@ export default function Landing() {
           <h2>Write it in English. The store is not the point.</h2>
           <div className="example-grid">
             {examples.map((item) => (
-              <article
+              <button
                 key={item.kind}
-                className="example-slip"
+                type="button"
+                className={`example-slip${flipped === item.kind ? " is-flipped" : ""}`}
                 style={{ "--tilt": item.tilt } as CSSProperties}
+                onClick={() =>
+                  setFlipped((cur) =>
+                    cur === item.kind ? undefined : item.kind,
+                  )
+                }
               >
-                <header>
-                  <span>{item.kind}</span>
-                  <strong>{item.usd}</strong>
-                </header>
-                <blockquote>{item.quote}</blockquote>
-                <ul>
-                  <li>
-                    <span>Can</span>
-                    {item.ok}
-                  </li>
-                  <li>
-                    <span>Cannot</span>
-                    {item.no}
-                  </li>
-                </ul>
-              </article>
+                <span className="example-face">
+                  <header>
+                    <span>{item.kind}</span>
+                    <strong>{item.usd}</strong>
+                  </header>
+                  <blockquote>{item.quote}</blockquote>
+                  <ul>
+                    <li>
+                      <span>Can</span>
+                      {item.ok}
+                    </li>
+                    <li>
+                      <span>Cannot</span>
+                      {item.no}
+                    </li>
+                  </ul>
+                </span>
+                <span className="example-back">
+                  <strong>Leftover comes back</strong>
+                  <p>
+                    Gift cards keep the $3 you don’t spend. This one returns it
+                    to the sender.
+                  </p>
+                </span>
+              </button>
             ))}
           </div>
+        </div>
+      </motion.section>
+
+      <motion.section id="try" className="landing-block" {...reveal}>
+        <div className="landing-wrap try-grid">
+          <div>
+            <p className="landing-kicker">
+              The question gift cards cannot answer
+            </p>
+            <h2>Would this count?</h2>
+            <p>
+              People lose billions on leftover balances because they cannot
+              check remaining, and a $3 remnant is stranded. Ask a purchase
+              against a dinner gift. Cash-out does not count. Italian does.
+            </p>
+          </div>
+          <form
+            className="try-fit panel"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const request = tryAsk.trim();
+              if (request.length < 2) return;
+              setTryFit({ verdict: "loading", reason: "" });
+              fetch("/api/public/preview-fit", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  purpose: "Dinner for two, anywhere you like, up to $120",
+                  request,
+                }),
+              })
+                .then(async (response) => {
+                  const body = await response.json();
+                  if (!response.ok)
+                    throw Error(body.error || "Could not check that");
+                  setTryFit({
+                    verdict: body.fits ? "fits" : "no",
+                    reason: body.reason || "",
+                  });
+                })
+                .catch((err) =>
+                  setTryFit({ verdict: "no", reason: err.message }),
+                );
+            }}
+          >
+            <img
+              src="/illustrations/melt-fit-needle.png"
+              alt=""
+              className="try-illust"
+            />
+            <FitNeedle verdict={tryFit.verdict} />
+            <label>
+              Dinner gift, $120
+              <input
+                value={tryAsk}
+                onChange={(e) => setTryAsk(e.target.value)}
+                placeholder="Italian near me, cash out, headphones…"
+              />
+            </label>
+            <div className="try-chips">
+              {["Italian near me", "cash out to my wallet", "headphones"].map(
+                (ask) => (
+                  <button
+                    key={ask}
+                    type="button"
+                    className={tryAsk === ask ? "chosen" : ""}
+                    onClick={() => setTryAsk(ask)}
+                  >
+                    {ask}
+                  </button>
+                ),
+              )}
+            </div>
+            <button
+              type="submit"
+              className="secondary"
+              disabled={
+                tryAsk.trim().length < 2 || tryFit.verdict === "loading"
+              }
+            >
+              Ask
+            </button>
+            {tryFit.reason ? <p className="helper">{tryFit.reason}</p> : null}
+          </form>
         </div>
       </motion.section>
 
@@ -323,7 +423,7 @@ export default function Landing() {
             </div>
             <figure className="feature-media panel">
               <img
-                src="/illustrations/melt-browser.jpg"
+                src="/illustrations/melt-agent-sleeve.png"
                 alt="Paper card with a receipt strip, representing a purpose-bound envelope"
               />
             </figure>
@@ -341,8 +441,8 @@ export default function Landing() {
             </div>
             <figure className="feature-media panel">
               <img
-                src="/illustrations/melt-sleeve.jpg"
-                alt="Paper sleeve holding fanned sheets, representing an envelope vault that opens for one gift"
+                src="/illustrations/melt-loom.png"
+                alt="A small loom of waxed threads, representing a gift that can become some things and not others"
               />
             </figure>
           </motion.article>
@@ -358,8 +458,8 @@ export default function Landing() {
             </div>
             <figure className="feature-media panel">
               <img
-                src="/illustrations/melt-return.jpg"
-                alt="Paper ticket moving from an open sleeve toward an envelope, representing leftover funds returning"
+                src="/illustrations/melt-pour.png"
+                alt="Wax pouring from a gift well into a sender well, representing leftover funds returning"
               />
             </figure>
           </motion.article>

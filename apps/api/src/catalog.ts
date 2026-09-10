@@ -515,6 +515,35 @@ export async function findCatalogOptions(
   return { options: options.slice(0, 12), rejected: rejected.slice(0, 8) };
 }
 
+/** Local catalog only: used by the public “would this count?” preview so a
+    landing visitor is not waiting on a merchant API. */
+export function previewLocalFit(
+  policy: EnvelopePolicy,
+  remainingEth: number,
+  request: string,
+  ethUsd: number,
+) {
+  if (looksLikeCashOut(request))
+    return {
+      fits: false,
+      reason: "An envelope cannot send unrestricted cash.",
+      leftoverReturns: true as const,
+    };
+  let best: { title: string; score: number } | undefined;
+  for (const item of LOCAL.map((item) => withEthPrice(item, ethUsd))) {
+    const match = optionFitsPolicy(policy, item, remainingEth, request);
+    if (match.ok && (!best || match.score > best.score))
+      best = { title: item.title, score: match.score };
+  }
+  return {
+    fits: Boolean(best),
+    reason: best
+      ? `This could become ${best.title}.`
+      : "That does not match this purpose.",
+    leftoverReturns: true as const,
+  };
+}
+
 export interface ExternalItem {
   title: string;
   merchant: string;

@@ -9,7 +9,12 @@ import {
   type Task,
   type Envelope,
 } from "../../../packages/shared/src/index.js";
-import { findCatalogOptions, catalogBySku, offeredOption } from "./catalog.js";
+import {
+  findCatalogOptions,
+  catalogBySku,
+  offeredOption,
+  previewLocalFit,
+} from "./catalog.js";
 import { policyHash, publicGift } from "./envelopes.js";
 
 const lamp = catalogBySku("apt-lamp", 2500)!;
@@ -190,4 +195,18 @@ test("public gift quotes the budget in dollars, not leftover remaining", () => {
   assert.equal(gift.funded, false);
   assert.match(gift.amount, /\$1/);
   assert.doesNotMatch(gift.amount, /ETH/);
+  assert.equal(gift.leftoverReturns, true);
+  assert.ok(gift.remaining);
+});
+
+test("preview fit matches a dinner request and blocks cash-out", () => {
+  const policy = inferEnvelopePolicy(
+    "Dinner for two, anywhere you like, up to $120",
+  );
+  const yes = previewLocalFit(policy, 0.05, "Italian near me", 2500);
+  assert.equal(yes.fits, true);
+  const cash = previewLocalFit(policy, 0.05, "cash out to my wallet", 2500);
+  assert.equal(cash.fits, false);
+  const gadgets = previewLocalFit(policy, 0.05, "headphones", 2500);
+  assert.equal(gadgets.fits, false);
 });

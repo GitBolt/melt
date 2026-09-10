@@ -432,6 +432,50 @@ route(
   obj,
 );
 route(
+  "get",
+  "/public/gifts/{token}",
+  "Read a gift by its public link token: purpose, remaining, leftover return",
+  obj,
+  undefined,
+  { public: true },
+);
+route(
+  "post",
+  "/public/gifts/{token}/opened",
+  "Mark that the recipient opened the gift (public, by gift token)",
+  obj,
+  undefined,
+  { public: true },
+);
+route(
+  "post",
+  "/public/preview-fit",
+  "Ask whether a purchase would count against a purpose, before creating a gift",
+  obj,
+  {
+    type: "object",
+    required: ["purpose", "request"],
+    properties: {
+      purpose: { type: "string", minLength: 4, maxLength: 500 },
+      request: { type: "string", minLength: 2, maxLength: 300 },
+      remainingUsd: { type: "number", exclusiveMinimum: 0, maximum: 10000 },
+    },
+  },
+  { public: true },
+);
+route(
+  "post",
+  "/public/gifts/{token}/fit",
+  "Ask whether a purchase would count against this gift (public, by gift token)",
+  obj,
+  {
+    type: "object",
+    required: ["request"],
+    properties: { request: { type: "string", minLength: 2, maxLength: 300 } },
+  },
+  { public: true },
+);
+route(
   "post",
   "/public/gifts/{token}/thanks",
   "Leave a thank-you note for the sender (public, by gift token)",

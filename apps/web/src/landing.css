@@ -171,7 +171,112 @@
   align-items: start;
 }
 .example-slip {
+  position: relative;
+  padding: 0;
+  perspective: 900px;
+  background: none;
+  min-height: 240px;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  border: 0;
+  cursor: pointer;
+  transform: rotate(var(--tilt, 0deg));
+  transform-style: preserve-3d;
+}
+.example-face,
+.example-back {
+  display: grid;
   padding: 22px 22px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  backface-visibility: hidden;
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.example-face {
+  transform: rotateY(0deg);
+}
+.example-back {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+  align-content: center;
+  gap: 8px;
+}
+.example-slip {
+  position: relative;
+}
+.example-slip.is-flipped .example-face {
+  transform: rotateY(-180deg);
+}
+.example-slip.is-flipped .example-back {
+  transform: rotateY(0deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .example-face,
+  .example-back {
+    transition: none;
+  }
+}
+.example-back strong {
+  font-size: 18px;
+}
+.example-back p {
+  margin: 0;
+  color: #565b6b;
+}
+.try-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr);
+  gap: 40px;
+  align-items: center;
+}
+.try-fit {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 22px 22px 20px;
+}
+.try-illust {
+  width: 88px;
+  display: block;
+}
+.try-fit .fit-needle {
+  width: 148px;
+}
+.try-fit label {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  font-size: 13px;
+  color: #4c5161;
+}
+.try-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+.try-chips button {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  color: #4c5161;
+}
+.try-chips button.chosen {
+  background: #eef1fb;
+  border-color: #c9d2ec;
+  color: #414f9e;
+}
+.try-fit .helper {
+  margin: 0;
+  text-align: center;
 }
 .example-slip header {
   margin-bottom: 14px;
@@ -266,8 +371,9 @@
   display: block;
   width: 100%;
   height: 320px;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
+  background: #f6f1e8;
 }
 .flow-grid {
   display: grid;
@@ -502,7 +608,8 @@
   .example-grid,
   .story-grid,
   .flow-grid,
-  .fact-row {
+  .fact-row,
+  .try-grid {
     grid-template-columns: 1fr;
   }
   .hero-stage {
