@@ -7,7 +7,7 @@
   display: block;
   width: 100%;
   height: auto;
-  overflow: visible;
+  overflow: hidden;
 }
 .wax-vessel {
   fill: #eef1fb;

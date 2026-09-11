@@ -5,21 +5,28 @@ import "./breakage-pour.css";
 
 const BUDGET = 120;
 
-/** Spend the dinner. Leftover either returns, or a store card keeps it. */
+function readout(mode: "melt" | "card", spent: number, leftover: number) {
+  if (mode === "card") {
+    return leftover === 0
+      ? `$${spent} on dinner. Nothing left for the store to keep.`
+      : `$${spent} on dinner. The store keeps the unused $${leftover}.`;
+  }
+  if (leftover === 0) return `$${spent} on dinner. Nothing unused.`;
+  if (spent === 0) return `$${BUDGET} unused. It returns to the sender.`;
+  return `$${spent} on dinner. $${leftover} unused returns to the sender.`;
+}
+
 export function BreakagePour() {
   const reduced = useReducedMotion();
-  const [spent, setSpent] = useState(86);
+  const [spent, setSpent] = useState(85);
   const [mode, setMode] = useState<"melt" | "card">("melt");
   const leftover = Math.max(0, BUDGET - spent);
-  const giftFill = leftover / BUDGET;
-  const senderFill = mode === "melt" ? leftover / BUDGET : 0;
-  const plateFill = spent / BUDGET;
   return (
     <div className={`breakage-pour${reduced ? " is-still" : ""}`}>
       <div
         className="pour-modes"
         role="tablist"
-        aria-label="Where leftover goes"
+        aria-label="Where unused money goes"
       >
         <button
           type="button"
@@ -40,55 +47,42 @@ export function BreakagePour() {
           Store card
         </button>
       </div>
-      <div className="pour-stage" aria-hidden="true">
-        <Well fill={giftFill} label="Gift" />
-        <span className={`pour-stream${spent > 0 ? " is-on" : ""}`} />
-        <Well fill={plateFill} label="Dinner" tone="spent" />
-        <span
-          className={`pour-stream is-return${mode === "melt" && leftover > 0 ? " is-on" : ""}`}
-        />
-        <Well fill={senderFill} label="You" locked={mode === "card"} />
+      <p className="pour-total">${BUDGET} envelope</p>
+      <div
+        className="pour-ticket"
+        style={
+          {
+            "--dinner": String(Math.max(spent, 0.001)),
+            "--unused": String(Math.max(leftover, 0.001)),
+          } as CSSProperties
+        }
+      >
+        <div className="pour-half is-dinner">
+          <span>Dinner</span>
+          <strong>${spent}</strong>
+        </div>
+        <i className="pour-perf" aria-hidden="true" />
+        <div
+          className={`pour-half is-unused${mode === "card" ? " is-kept" : ""}`}
+        >
+          <span>{mode === "card" ? "The store" : "Unused"}</span>
+          <strong>${leftover}</strong>
+          <small>
+            {mode === "card" ? "Not returned" : "Returns to sender"}
+          </small>
+        </div>
       </div>
-      <p className="pour-readout">
-        {mode === "melt"
-          ? `$${spent} for dinner. $${leftover} comes back to you.`
-          : `$${spent} for dinner. The store keeps the leftover $${leftover}.`}
+      <p className="pour-readout" aria-live="polite">
+        {readout(mode, spent, leftover)}
       </p>
       <BudgetRibbon
         value={spent}
         total={BUDGET}
         large
         symbol="USD"
+        label="Dinner spend"
         onChange={(value) => setSpent(Math.round(value))}
       />
-    </div>
-  );
-}
-
-function Well({
-  fill,
-  label,
-  tone,
-  locked,
-}: {
-  fill: number;
-  label: string;
-  tone?: "spent";
-  locked?: boolean;
-}) {
-  return (
-    <div
-      className={`pour-well${tone === "spent" ? " is-spent" : ""}${locked ? " is-locked" : ""}`}
-      style={{ "--fill": fill } as CSSProperties}
-    >
-      <svg viewBox="0 0 72 64">
-        <path
-          className="pour-vessel"
-          d="M10 8h52c3 0 6 3 6 6v32c0 8-8 12-32 12S4 54 4 46V14c0-3 3-6 6-6z"
-        />
-        <rect className="pour-fill" x="8" y="10" width="56" height="48" />
-      </svg>
-      <span>{locked ? "Kept" : label}</span>
     </div>
   );
 }

@@ -29,9 +29,9 @@ export function ReturnRing({
     <button
       type="button"
       className={`return-ring${reduced ? " is-still" : ""}`}
-      style={{ "--left": fraction } as CSSProperties}
+      style={{ "--left": String(fraction) } as CSSProperties}
       onClick={() => onCopy?.(when)}
-      title={`Leftover returns ${when}`}
+      title={`Unused funds return ${when}`}
     >
       <svg viewBox="0 0 72 72" aria-hidden="true">
         <circle className="return-track" cx="36" cy="36" r="28" />
@@ -39,7 +39,7 @@ export function ReturnRing({
       </svg>
       <span>
         {days === 0 ? "Returns today" : `${days}d left`}
-        <small>then leftover comes back</small>
+        <small>then unused funds return</small>
       </span>
     </button>
   );

@@ -930,8 +930,8 @@ function JobComposer({
         </label>
       </div>
       <p className="helper">
-        The agent gets its own onchain vault with this budget and deadline — the
-        same vault an envelope uses. Anything unspent returns to your wallet.
+        The agent gets its own onchain vault with this budget and deadline.
+        Anything unspent returns to your wallet.
       </p>
       <div className="compose-actions">
         <button className="primary" type="submit" disabled={!valid || !!busy}>

@@ -379,6 +379,49 @@ const CATEGORY_HINTS: Record<EnvelopeCategory, string[]> = {
   other: [],
 };
 
+export const categoryPhrase: Record<EnvelopeCategory, string> = {
+  esim: "mobile data",
+  dinner: "dinner",
+  concert: "a concert",
+  flight: "a flight",
+  game: "a game",
+  apartment: "a home",
+  ai: "an AI product",
+  other: "this gift",
+};
+
+const ASK_EXTRA: Record<EnvelopeCategory, string[]> = {
+  esim: ["sim card", "roam"],
+  dinner: [
+    "resturant",
+    "restaruant",
+    "resteraunt",
+    "restaruent",
+    "ristorante",
+    "pizza",
+    "pasta",
+    "cafe",
+  ],
+  concert: ["ticket"],
+  flight: ["airline"],
+  game: ["games", "hades", "celeste"],
+  apartment: ["lamp", "bedding"],
+  ai: ["chatgpt", "claude"],
+  other: [],
+};
+
+export function requestCategory(
+  request: string,
+): EnvelopeCategory | undefined {
+  const text = request.toLowerCase();
+  for (const key of envelopeCategories) {
+    if (key === "other") continue;
+    const hints = [...CATEGORY_HINTS[key], ...ASK_EXTRA[key]];
+    if (hints.some((hint) => hint.length > 2 && text.includes(hint)))
+      return key;
+  }
+}
+
 export function inferEnvelopePolicy(
   purpose: string,
   extras: Partial<EnvelopePolicy> = {},

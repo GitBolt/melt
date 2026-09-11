@@ -5,7 +5,7 @@
   display: flex;
   gap: 8px;
   justify-content: center;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .pour-modes button {
   min-height: 34px;
@@ -22,91 +22,154 @@
   border-color: #c9d2ec;
   color: #414f9e;
 }
-.pour-stage {
-  display: grid;
-  grid-template-columns: 1fr 18px 1fr 18px 1fr;
-  align-items: end;
-  gap: 4px;
-  min-height: 118px;
-}
-.pour-well {
-  --fill: 0.4;
+.pour-total {
+  margin: 0 0 8px;
   text-align: center;
-  color: #5463c4;
-}
-.pour-well svg {
-  display: block;
-  width: 100%;
-  overflow: hidden;
-}
-.pour-vessel {
-  fill: #eef1fb;
-  stroke: #c9d2ec;
-  stroke-width: 1.4;
-}
-.pour-fill {
-  fill: currentColor;
-  transform-origin: 36px 58px;
-  transform: scaleY(var(--fill));
-  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.pour-well.is-spent {
-  color: #8b97e0;
-}
-.pour-well.is-locked {
-  color: #b7bcc9;
-}
-.pour-well span {
-  display: block;
-  margin-top: 4px;
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #8a90a3;
 }
-.pour-stream {
-  height: 46px;
-  margin-bottom: 22px;
-  border-radius: 2px;
-  background: linear-gradient(#5463c4, #8b97e0);
-  opacity: 0.12;
-  transform-origin: top center;
-  transform: scaleY(0.2);
+.pour-ticket {
+  --dinner: 85;
+  --unused: 35;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-height: 148px;
 }
-.pour-stream.is-on {
-  opacity: 0.7;
-  transform: scaleY(1);
-  animation: pour-drip 1.4s ease-in infinite;
+.pour-half {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 14px 14px 18px;
+  min-width: 6.75rem;
+  text-align: left;
 }
-.pour-stream.is-return {
-  background: linear-gradient(#8b97e0, #5463c4);
+.pour-half > * {
+  position: relative;
+  z-index: 1;
 }
-.breakage-pour.is-still .pour-stream.is-on {
-  animation: none;
+.pour-half::before {
+  content: "";
+  position: absolute;
+  left: -28%;
+  right: -20%;
+  bottom: -48%;
+  height: 62%;
+  border-radius: 50% 44% 38% 42%;
+  pointer-events: none;
+  z-index: 0;
+  transition:
+    opacity 0.45s ease,
+    background 0.45s ease;
 }
-@media (prefers-reduced-motion: reduce) {
-  .pour-stream.is-on {
-    animation: none;
-  }
-  .pour-fill {
-    transition: none;
-  }
+.pour-half.is-dinner {
+  flex: var(--dinner) 1 6.75rem;
+  border: 1px solid var(--line);
+  border-right: 0;
+  border-radius: 16px 0 0 16px;
+  background: #f7f8fc;
+  color: #3d4354;
 }
-@keyframes pour-drip {
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 0.85;
-  }
+.pour-half.is-dinner::before {
+  background: radial-gradient(
+    ellipse at 46% 30%,
+    #9aa6e6 0%,
+    #6b78d4 54%,
+    #5463c4 100%
+  );
+  opacity: 0.34;
+}
+.pour-half.is-unused {
+  flex: var(--unused) 1 6.75rem;
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0 16px 16px 0;
+  background: #eef1fb;
+  color: #3d4354;
+}
+.pour-half.is-unused::before {
+  background: radial-gradient(
+    ellipse at 50% 28%,
+    #b7c0ee 0%,
+    #7b89d8 60%,
+    #5463c4 100%
+  );
+  opacity: 0.42;
+}
+.pour-half.is-kept {
+  background: #f4f5f8;
+  color: #6a7080;
+}
+.pour-half.is-kept::before {
+  background: repeating-linear-gradient(
+    -22deg,
+    #d8dbe4 0 7px,
+    #eceef0 7px 14px
+  );
+  opacity: 0.45;
+  border-radius: 0;
+  inset: 0;
+  height: auto;
+}
+.pour-half span,
+.pour-half small {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #6e7588;
+}
+.pour-half strong {
+  display: block;
+  font-size: clamp(22px, 4.4vw, 30px);
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+.pour-half.is-kept span,
+.pour-half.is-kept small {
+  color: #8a90a3;
+}
+.pour-perf {
+  flex: 0 0 14px;
+  width: 14px;
+  background:
+    radial-gradient(circle at 50% 8px, var(--panel) 4px, transparent 4.6px) 0
+      0 / 14px 16px,
+    repeating-linear-gradient(180deg, #c9d2ec 0 1px, transparent 1px 8px);
+  border-top: 1px dashed #c9d2ec;
+  border-bottom: 1px dashed #c9d2ec;
 }
 .pour-readout {
-  margin: 10px 0 8px;
+  margin: 12px 0 8px;
   text-align: center;
   font-size: 14px;
+  line-height: 1.45;
   color: #3d4354;
 }
 .breakage-pour .budget-control {
-  margin-top: 4px;
+  width: 100%;
+  margin-top: 2px;
+}
+.breakage-pour.is-still .pour-half::before {
+  transition: none;
+}
+@media (max-width: 420px) {
+  .pour-half {
+    min-width: 5.5rem;
+    padding: 14px 10px 12px;
+  }
+  .pour-half.is-dinner,
+  .pour-half.is-unused {
+    flex-basis: 5.5rem;
+  }
+  .pour-half strong {
+    font-size: 22px;
+  }
 }

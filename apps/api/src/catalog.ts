@@ -5,6 +5,8 @@ import {
   looksLikeCashOut,
   requestTerms,
   stemWord,
+  requestCategory,
+  categoryPhrase,
   type CatalogOption,
   type EnvelopeCategory,
   type EnvelopePolicy,
@@ -526,20 +528,38 @@ export function previewLocalFit(
   if (looksLikeCashOut(request))
     return {
       fits: false,
-      reason: "An envelope cannot send unrestricted cash.",
+      reason: "This gift cannot be cashed out.",
       leftoverReturns: true as const,
     };
-  let best: { title: string; score: number } | undefined;
+  const askCat = requestCategory(request);
+  if (
+    askCat &&
+    policy.category !== "other" &&
+    askCat !== policy.category
+  ) {
+    return {
+      fits: false,
+      reason: `No. This gift is for ${categoryPhrase[policy.category]}, not ${categoryPhrase[askCat]}.`,
+      leftoverReturns: true as const,
+    };
+  }
+  let matched = false;
   for (const item of LOCAL.map((item) => withEthPrice(item, ethUsd))) {
-    const match = optionFitsPolicy(policy, item, remainingEth, request);
-    if (match.ok && (!best || match.score > best.score))
-      best = { title: item.title, score: match.score };
+    if (optionFitsPolicy(policy, item, remainingEth, request).ok) {
+      matched = true;
+      break;
+    }
+  }
+  if (!matched && askCat && askCat === policy.category) matched = true;
+  if (!matched && policy.category === "other") {
+    const hay = policy.purpose.toLowerCase();
+    matched = requestTerms(request).some((term) => hay.includes(term));
   }
   return {
-    fits: Boolean(best),
-    reason: best
-      ? `This could become ${best.title}.`
-      : "That does not match this purpose.",
+    fits: matched,
+    reason: matched
+      ? "Yes. That can count toward this gift."
+      : "No. That does not match this gift.",
     leftoverReturns: true as const,
   };
 }

@@ -24,13 +24,13 @@ export function TearStub({
         onClick={onCopyRemaining}
         title="Copy what is still left"
       >
-        <span>Still left</span>
+        <span>Left</span>
         <strong>{remaining}</strong>
         {remainingLabel ? <small>{remainingLabel}</small> : null}
       </button>
       <i className="tear-perf" aria-hidden="true" />
       <div className="tear-half is-right">
-        <span>Already used</span>
+        <span>Used</span>
         <strong>{spent}</strong>
         {spentLabel ? <small>{spentLabel}</small> : null}
       </div>

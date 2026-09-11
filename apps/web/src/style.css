@@ -644,11 +644,73 @@ details label {
 .divider-dot {
   padding: 0 8px;
 }
+.envelope-board {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.2fr);
+  gap: 20px;
+  align-items: start;
+}
+.envelope-money,
+.envelope-activity {
+  padding: 20px;
+}
+.envelope-money .return-ring {
+  margin: 8px 0 4px;
+}
+.envelope-money .tear-stub {
+  margin: 4px 0 10px;
+}
+.envelope-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.envelope-more {
+  margin-top: 16px;
+  border-top: 1px dashed var(--line);
+  padding-top: 12px;
+}
+.envelope-more summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: #4c5161;
+  user-select: none;
+}
+.envelope-more .fund-address,
+.envelope-more .quiet-button {
+  margin-top: 12px;
+}
+.envelope-empty {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-height: 120px;
+}
+.envelope-empty p {
+  margin: 0;
+  font-size: 14px;
+  color: #4c5161;
+  line-height: 1.5;
+}
+.envelope-empty .secondary {
+  justify-self: start;
+}
+@media (max-width: 900px) {
+  .envelope-board {
+    grid-template-columns: 1fr;
+  }
+}
 .work-grid {
   display: grid;
   grid-template-columns: 300px 1fr;
   gap: 24px;
   align-items: start;
+}
+.envelope-money .balance-heading {
+  margin: 0 0 8px;
+}
+.envelope-money .balance-heading h2 {
+  margin-top: 4px;
 }
 .wallet-panel {
   padding: 24px;

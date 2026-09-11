@@ -192,9 +192,9 @@ export default function Landing() {
               Send money that knows what it is for.
             </h1>
             <p className="hero-lead">
-              Lock a purpose and an amount. They spend it later — dinner, a
-              flight, an eSIM — in Melt or in ChatGPT. Or hand the same wallet
-              to your own browser agent for one job.
+              Lock a purpose and an amount. They spend it later on dinner, a
+              flight, or an eSIM, in Melt or in ChatGPT. Or give the same wallet
+              to a browser agent for one job.
             </p>
             <div className="hero-actions">
               <a className="primary" href={app}>
@@ -225,8 +225,8 @@ export default function Landing() {
             <div className="hero-stage-copy">
               <span>Dinner for two, anywhere they like</span>
               <p>
-                Drag what they spend. Flip to a store card to see the leftover
-                get stuck. Melt sends it back.
+                Drag dinner. Unused funds return to the sender. A store card
+                keeps them.
               </p>
             </div>
           </div>
@@ -277,10 +277,10 @@ export default function Landing() {
                   </ul>
                 </span>
                 <span className="example-back">
-                  <strong>Leftover comes back</strong>
+                  <strong>Unused funds return</strong>
                   <p>
-                    Gift cards keep the $3 you don’t spend. This one returns it
-                    to the sender.
+                    Gift cards keep the $3 you don’t spend. Unused money here
+                    returns to the sender.
                   </p>
                 </span>
               </button>
@@ -297,9 +297,8 @@ export default function Landing() {
             </p>
             <h2>Would this count?</h2>
             <p>
-              People lose billions on leftover balances because they cannot
-              check remaining, and a $3 remnant is stranded. Ask a purchase
-              against a dinner gift. Cash-out does not count. Italian does.
+              Ask before anyone spends. Italian counts on a dinner gift.
+              Cash-out does not.
             </p>
           </div>
           <form
@@ -341,7 +340,11 @@ export default function Landing() {
               Dinner gift, $120
               <input
                 value={tryAsk}
-                onChange={(e) => setTryAsk(e.target.value)}
+                onChange={(e) => {
+                  setTryAsk(e.target.value);
+                  if (tryFit.verdict !== "idle")
+                    setTryFit({ verdict: "idle", reason: "" });
+                }}
                 placeholder="Italian near me, cash out, headphones…"
               />
             </label>
@@ -352,7 +355,10 @@ export default function Landing() {
                     key={ask}
                     type="button"
                     className={tryAsk === ask ? "chosen" : ""}
-                    onClick={() => setTryAsk(ask)}
+                    onClick={() => {
+                      setTryAsk(ask);
+                      setTryFit({ verdict: "idle", reason: "" });
+                    }}
                   >
                     {ask}
                   </button>
@@ -450,10 +456,10 @@ export default function Landing() {
           <motion.article className="feature-row" {...reveal}>
             <div>
               <p className="landing-kicker">What they do not use</p>
-              <h2>Leftover money comes back to you.</h2>
+              <h2>Unused funds return to the sender.</h2>
               <p>
-                Allow partial use if you want. After expiry, leftover ETH and
-                the settlement asset return, even if Melt is offline.
+                After the gift ends, unused ETH and the settlement asset return
+                to the sender, even if Melt is offline.
               </p>
             </div>
             <figure className="feature-media panel">
@@ -496,7 +502,7 @@ await melt.redeem(received[0].id, quote.quote.id);`}</pre>
           <h2>A wallet for a browser agent. Then a gift on the same vault.</h2>
           <p className="evolution-lead">
             Melt began as a spending-limit wallet for one job: a budget, a
-            deadline, leftover money back. The gift is that wallet handed to
+            deadline, unused funds returned. The gift is that wallet handed to
             someone else. The purpose is the instruction. Their assistant spends
             it.
           </p>

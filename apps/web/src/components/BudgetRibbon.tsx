@@ -8,12 +8,14 @@ export function BudgetRibbon({
   large = false,
   onChange,
   symbol = "ETH",
+  label = "Adjust spending limit",
 }: {
   value: number;
   total: number;
   large?: boolean;
   onChange?: (value: number) => void;
   symbol?: string;
+  label?: string;
 }) {
   const reduced = useReducedMotion();
   const count = large ? 36 : 24;
@@ -55,7 +57,7 @@ export function BudgetRibbon({
         {folds}
         <input
           type="range"
-          aria-label="Adjust spending limit"
+          aria-label={label}
           aria-valuetext={`${amount} ${symbol}`}
           min="0"
           max={total}

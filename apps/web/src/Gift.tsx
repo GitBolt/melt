@@ -9,12 +9,15 @@ import "./gift.css";
 type PublicGift = {
   object: "gift";
   purpose: string;
+  category?: string;
   senderName: string;
   recipientLabel: string;
   note: string;
   status: string;
   amount: string;
   remaining?: string;
+  sentUsd?: number;
+  leftUsd?: number;
   leftoverReturns?: boolean;
   createdAt?: string;
   expiresAt: number;
@@ -23,6 +26,16 @@ type PublicGift = {
   lastPurchase: string;
   thankYou?: { message: string; at: string };
   url: string;
+};
+
+const ASK_HINT: Record<string, string> = {
+  dinner: "Italian near me, cash out, headphones",
+  game: "an indie game, a restaurant, cash out",
+  esim: "Japan eSIM, headphones, cash out",
+  concert: "tickets this weekend, merch, cash out",
+  flight: "a flight home, a hotel, cash out",
+  apartment: "a lamp, a TV, cash out",
+  ai: "ChatGPT Plus, cash out",
 };
 
 function statusLabel(gift: PublicGift) {
@@ -210,7 +223,10 @@ export function Gift({ token }: { token: string }) {
                 </span>
               </div>
               <p className="gift-amount">{gift.remaining || gift.amount}</p>
-              {gift.remaining && gift.remaining !== gift.amount ? (
+              {gift.remaining &&
+              gift.leftUsd != null &&
+              gift.sentUsd != null &&
+              gift.leftUsd < gift.sentUsd * 0.98 ? (
                 <p className="gift-until">of {gift.amount} sent</p>
               ) : null}
               <h1>{gift.purpose}</h1>
@@ -224,7 +240,7 @@ export function Gift({ token }: { token: string }) {
               ) : null}
               {gift.leftoverReturns ? (
                 <p className="gift-until">
-                  What you don’t spend comes back to {gift.senderName}.
+                  What you don’t spend returns to {gift.senderName}.
                 </p>
               ) : null}
               {gift.lastPurchase ? (
@@ -279,15 +295,24 @@ export function Gift({ token }: { token: string }) {
                       );
                   }}
                 >
-                  <FitNeedle verdict={fit.verdict} />
+                  {fit.verdict !== "idle" ? (
+                    <FitNeedle verdict={fit.verdict} />
+                  ) : null}
                   <div>
                     <label>
                       Would this count?
                       <input
                         value={ask}
-                        onChange={(e) => setAsk(e.target.value)}
+                        onChange={(e) => {
+                          setAsk(e.target.value);
+                          if (fit.verdict !== "idle")
+                            setFit({ verdict: "idle", reason: "" });
+                        }}
                         onClick={(e) => e.stopPropagation()}
-                        placeholder="Italian near me, cash out, an eSIM…"
+                        placeholder={
+                          ASK_HINT[gift.category || ""] ||
+                          "a purchase, cash out, headphones"
+                        }
                       />
                     </label>
                     <button

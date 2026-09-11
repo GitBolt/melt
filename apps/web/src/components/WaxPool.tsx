@@ -22,7 +22,7 @@ export function WaxPool({
   return (
     <div
       className={`wax-pool${spent ? " is-spent" : ""}${reduced ? " is-still" : ""}`}
-      style={{ "--fill": fraction } as CSSProperties}
+      style={{ "--fill": `${Math.round(fraction * 1000) / 10}%` } as CSSProperties}
       role="img"
       aria-label={
         label ||

@@ -318,9 +318,7 @@
 }
 .gift-fit {
   display: grid;
-  grid-template-columns: auto 1fr;
   gap: 12px;
-  align-items: center;
   margin-top: 18px;
   padding-top: 16px;
   border-top: 1px dashed var(--line);
@@ -333,11 +331,6 @@
   gap: 6px;
   font-size: 13px;
   color: #4c5670;
-}
-@media (max-width: 640px) {
-  .gift-fit {
-    grid-template-columns: 1fr;
-  }
 }
 .gift-actions {
   display: flex;

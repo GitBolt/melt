@@ -205,8 +205,47 @@ test("preview fit matches a dinner request and blocks cash-out", () => {
   );
   const yes = previewLocalFit(policy, 0.05, "Italian near me", 2500);
   assert.equal(yes.fits, true);
+  assert.match(yes.reason, /^Yes/);
+  assert.doesNotMatch(yes.reason, /Hades/i);
   const cash = previewLocalFit(policy, 0.05, "cash out to my wallet", 2500);
   assert.equal(cash.fits, false);
   const gadgets = previewLocalFit(policy, 0.05, "headphones", 2500);
   assert.equal(gadgets.fits, false);
+});
+
+test("preview fit rejects a restaurant against a game gift and never names Hades", () => {
+  const policy = inferEnvelopePolicy("Any indie game under $40");
+  const restaurant = previewLocalFit(policy, 0.02, "restaurant", 2500);
+  assert.equal(restaurant.fits, false);
+  assert.match(restaurant.reason, /game/i);
+  assert.doesNotMatch(restaurant.reason, /Hades/i);
+  const typo = previewLocalFit(policy, 0.02, "restaruent", 2500);
+  assert.equal(typo.fits, false);
+  const yes = previewLocalFit(policy, 0.02, "indie game", 2500);
+  assert.equal(yes.fits, true);
+  assert.match(yes.reason, /^Yes/);
+  assert.doesNotMatch(yes.reason, /Hades/i);
+});
+
+test("public gift uses the typed dollar cap as the sent amount", () => {
+  const gift = publicGift(
+    {
+      budget: "0.0004",
+      remaining: "0.01",
+      status: "open",
+      purpose: "Any indie game under $40",
+      category: "game",
+      policy: inferEnvelopePolicy("Any indie game under $40"),
+      senderName: "Maya",
+      recipientLabel: "Alex",
+      note: "",
+      expiresAt: 1_900_000_000,
+      redemptions: [],
+      receiptToken: "ab".repeat(24),
+    } as unknown as Envelope,
+    2500,
+  );
+  assert.equal(gift.amount, "$40");
+  assert.equal(gift.sentUsd, 40);
+  assert.ok(gift.leftUsd && gift.leftUsd > 1);
 });

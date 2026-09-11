@@ -23,14 +23,12 @@ import {
   type Config,
   type Envelope,
 } from "../../../packages/shared/src/index";
-import { BudgetRibbon } from "./components/BudgetRibbon";
 import { WaxPool } from "./components/WaxPool";
 import { ReturnRing } from "./components/ReturnRing";
 import { PurposeLoom } from "./components/PurposeLoom";
 import { TearStub } from "./components/TearStub";
 import { OpenedBlot } from "./components/OpenedBlot";
 import { FitNeedle } from "./components/FitNeedle";
-import { SessionSeal } from "./SessionSeal";
 
 const short = (s: string) =>
   s ? `${s.slice(0, 6)}…${s.slice(-4)}` : "Creating…";
@@ -527,7 +525,7 @@ export function EnvelopeComposer({
           checked={partialUse}
           onChange={(e) => setPartialUse(e.target.checked)}
         />
-        Allow partial use. Leftover funds stay in the envelope, then return to{" "}
+        Allow partial use. Unused funds stay in the envelope, then return to{" "}
         {short(owner)}.
       </label>
       <div className="recovery-line">
@@ -702,10 +700,22 @@ export function EnvelopeDetail({
   const [copiedLine, setCopiedLine] = useState(false);
   const [copiedLeft, setCopiedLeft] = useState(false);
   const unfunded = envelope.status === "funding";
+  const intendedUsd = envelope.policy?.maxUsd;
+  const budgetUsd =
+    intendedUsd && intendedUsd > 0
+      ? intendedUsd.toLocaleString("en-US", {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: intendedUsd >= 10 ? 0 : 2,
+        })
+      : formatUsd(envelope.budget, config.ethUsd);
   const shownUsd = formatUsd(
     unfunded ? envelope.budget : envelope.remaining,
     config.ethUsd,
   );
+  const leftLabel =
+    shownUsd || (unfunded ? envelope.budget : envelope.remaining);
+  const spentUsd = formatUsd(envelope.spent, config.ethUsd) || envelope.spent;
   return (
     <>
       <section className="detail-heading">
@@ -716,9 +726,7 @@ export function EnvelopeDetail({
             {envelope.senderName ? ` · from ${envelope.senderName}` : ""}
             {envelope.recipientAddress
               ? ` · ${short(envelope.recipientAddress)}`
-              : ""}{" "}
-            <span className="divider-dot">·</span> from{" "}
-            {short(envelope.senderAddress)}
+              : ""}
           </p>
         </div>
         <span className={`status status-${envelope.status}`}>
@@ -726,8 +734,7 @@ export function EnvelopeDetail({
         </span>
       </section>
       <p className="session-mandate">
-        Locked for{" "}
-        {envelope.category === "other" ? "this purpose" : envelope.category}
+        Locked for {CATEGORY_SAY[envelope.category] || "this purpose"}
         {envelope.partialUse
           ? ". Partial use allowed."
           : ". One purchase only."}
@@ -758,52 +765,20 @@ export function EnvelopeDetail({
               : "Hand it over"}
         </li>
       </ol>
-      {envelope.status !== "funding" && (
-        <ReturnRing
-          expiresAt={envelope.expiresAt}
-          createdAt={envelope.createdAt}
-          now={now}
-          onCopy={(when) =>
-            void navigator.clipboard.writeText(`Leftover returns ${when}`)
-          }
-        />
-      )}
-      <div className="work-grid">
-        <aside className="wallet-panel panel">
-          <SessionSeal
-            status={
-              envelope.status === "open"
-                ? "ready"
-                : envelope.status === "funding"
-                  ? "funding"
-                  : envelope.status === "closed"
-                    ? "closed"
-                    : "running"
-            }
-          />
-          <WaxPool
-            remaining={Number(unfunded ? envelope.budget : envelope.remaining)}
-            budget={Number(envelope.budget)}
-          />
+      <div className="envelope-board">
+        <aside className="panel envelope-money">
           <div className="balance-heading">
-            <span>{unfunded ? "To fund" : "Remaining"}</span>
+            <span>{unfunded ? "To fund" : "Left in the envelope"}</span>
             <h2>
-              {shownUsd || (unfunded ? envelope.budget : envelope.remaining)}
+              {leftLabel}
               <small>
                 {shownUsd ? (unfunded ? "USD" : "left") : config.chain.symbol}
               </small>
             </h2>
           </div>
-          <BudgetRibbon
-            value={Number(envelope.spent)}
-            total={Number(envelope.budget)}
-            large
-          />
           <TearStub
-            remaining={
-              shownUsd || (unfunded ? envelope.budget : envelope.remaining)
-            }
-            spent={formatUsd(envelope.spent, config.ethUsd) || envelope.spent}
+            remaining={leftLabel}
+            spent={spentUsd}
             remainingLabel={
               copiedLeft ? "Copied" : shownUsd ? "USD" : config.chain.symbol
             }
@@ -813,22 +788,29 @@ export function EnvelopeDetail({
                 : config.chain.symbol
             }
             onCopyRemaining={() => {
-              void navigator.clipboard
-                .writeText(
-                  shownUsd || (unfunded ? envelope.budget : envelope.remaining),
-                )
-                .then(() => {
-                  setCopiedLeft(true);
-                  window.setTimeout(() => setCopiedLeft(false), 1600);
-                });
+              void navigator.clipboard.writeText(String(leftLabel)).then(() => {
+                setCopiedLeft(true);
+                window.setTimeout(() => setCopiedLeft(false), 1600);
+              });
             }}
           />
+          {envelope.status !== "funding" && (
+            <ReturnRing
+              expiresAt={envelope.expiresAt}
+              createdAt={envelope.createdAt}
+              now={now}
+              onCopy={(when) =>
+                void navigator.clipboard.writeText(
+                  `Unused funds return ${when}`,
+                )
+              }
+            />
+          )}
           <dl className="wallet-facts">
             <div>
               <dt>Budget</dt>
               <dd>
-                {formatUsd(envelope.budget, config.ethUsd) ||
-                  `${envelope.budget} ${config.chain.symbol}`}
+                {budgetUsd || `${envelope.budget} ${config.chain.symbol}`}
               </dd>
             </div>
             <div>
@@ -846,7 +828,99 @@ export function EnvelopeDetail({
               <dd>{envelope.redemptions.length}</dd>
             </div>
           </dl>
-          <div className="wallet-actions">
+          <div className="envelope-actions">
+            {unfunded && envelope.vault && (
+              <>
+                <button
+                  className="primary wide"
+                  disabled={!auth || !!busy || !!fundHash}
+                  onClick={() =>
+                    act("fund", async () => {
+                      const hash = await auth!.send({
+                        from: owner,
+                        to: envelope.vault,
+                        value: toHex(parseEther(envelope.budget)),
+                      });
+                      setFundHash(hash);
+                      try {
+                        await auth!.wait?.(hash);
+                      } catch (error) {
+                        if ((error as Error).message === "Transaction reverted")
+                          setFundHash("");
+                        throw error;
+                      }
+                      await request(`/sessions/${envelope.sessionId}/funding`, {
+                        hash,
+                      });
+                    })
+                  }
+                >
+                  <Wallet size={15} />
+                  Fund from Melt
+                </button>
+                <button
+                  className="secondary wide"
+                  disabled={!!busy}
+                  onClick={() =>
+                    act("refresh", () =>
+                      request(
+                        `/sessions/${envelope.sessionId}/refresh`,
+                        {},
+                        "POST",
+                      ),
+                    )
+                  }
+                >
+                  Check for funds
+                </button>
+              </>
+            )}
+            {envelope.status === "open" && (
+              <button className="primary wide" onClick={onDiscover}>
+                <Search size={15} />
+                Find a purchase
+              </button>
+            )}
+            {envelope.receiptToken && (
+              <button className="secondary wide" onClick={onShare}>
+                <Copy size={15} />
+                Copy gift link
+              </button>
+            )}
+            {envelope.receiptToken && envelope.status !== "funding" && (
+              <button
+                className="secondary wide"
+                onClick={() => {
+                  const usd =
+                    budgetUsd ||
+                    `${envelope.budget} ${config.chain.symbol}`;
+                  const line = `I sent you ${usd} for ${envelope.purpose}. Open it here: ${location.origin}/g/${envelope.receiptToken}`;
+                  void navigator.clipboard.writeText(line).then(() => {
+                    setCopiedLine(true);
+                    window.setTimeout(() => setCopiedLine(false), 1600);
+                  });
+                }}
+              >
+                <Copy size={15} />
+                {copiedLine ? "Copied" : "Copy a message"}
+              </button>
+            )}
+            {config.mailConfigured && envelope.recipientEmail && (
+              <button
+                className="secondary wide"
+                disabled={!!busy}
+                onClick={() =>
+                  act("notify", () =>
+                    request(`/envelopes/${envelope.id}/notify`, {}, "POST"),
+                  )
+                }
+              >
+                Email {envelope.recipientEmail}
+              </button>
+            )}
+          </div>
+          <details className="envelope-more">
+            <summary>Envelope details</summary>
             {envelope.vault ? (
               <div className="fund-address">
                 <span>Envelope address</span>
@@ -905,105 +979,6 @@ export function EnvelopeDetail({
             ) : (
               <p className="helper">Creating the envelope address…</p>
             )}
-            {unfunded && envelope.vault && (
-              <>
-                <button
-                  className="primary wide"
-                  disabled={!auth || !!busy || !!fundHash}
-                  onClick={() =>
-                    act("fund", async () => {
-                      const hash = await auth!.send({
-                        from: owner,
-                        to: envelope.vault,
-                        value: toHex(parseEther(envelope.budget)),
-                      });
-                      setFundHash(hash);
-                      try {
-                        await auth!.wait?.(hash);
-                      } catch (error) {
-                        if ((error as Error).message === "Transaction reverted")
-                          setFundHash("");
-                        throw error;
-                      }
-                      await request(`/sessions/${envelope.sessionId}/funding`, {
-                        hash,
-                      });
-                    })
-                  }
-                >
-                  <Wallet size={15} />
-                  Fund from Melt
-                </button>
-                <button
-                  className="secondary wide"
-                  disabled={!!busy}
-                  onClick={() =>
-                    act("refresh", () =>
-                      request(
-                        `/sessions/${envelope.sessionId}/refresh`,
-                        {},
-                        "POST",
-                      ),
-                    )
-                  }
-                >
-                  Check for funds
-                </button>
-              </>
-            )}
-            {envelope.status === "open" && (
-              <button className="primary wide" onClick={onDiscover}>
-                <Search size={15} />
-                Find ways to use this
-              </button>
-            )}
-            {envelope.receiptToken && (
-              <button className="secondary wide" onClick={onShare}>
-                <Copy size={15} />
-                Copy gift link
-              </button>
-            )}
-            {envelope.receiptToken && envelope.status !== "funding" && (
-              <button
-                className="secondary wide"
-                onClick={() => {
-                  const usd =
-                    formatUsd(envelope.budget, config.ethUsd) ||
-                    `${envelope.budget} ${config.chain.symbol}`;
-                  const line = `I sent you ${usd} for ${envelope.purpose}. Open it here: ${location.origin}/g/${envelope.receiptToken}`;
-                  void navigator.clipboard.writeText(line).then(() => {
-                    setCopiedLine(true);
-                    window.setTimeout(() => setCopiedLine(false), 1600);
-                  });
-                }}
-              >
-                <Copy size={15} />
-                {copiedLine ? "Copied" : "Copy a message to send"}
-              </button>
-            )}
-            {config.mailConfigured && envelope.recipientEmail && (
-              <button
-                className="secondary wide"
-                disabled={!!busy}
-                onClick={() =>
-                  act("notify", () =>
-                    request(`/envelopes/${envelope.id}/notify`, {}, "POST"),
-                  )
-                }
-              >
-                Email {envelope.recipientEmail}
-              </button>
-            )}
-            {envelope.giftOpenedAt ? (
-              <OpenedBlot
-                openedAt={envelope.giftOpenedAt}
-                onCopy={(when) =>
-                  void navigator.clipboard.writeText(`Opened ${when}`)
-                }
-              />
-            ) : (
-              <OpenedBlot />
-            )}
             {envelope.receiptToken && (
               <a
                 className="quiet-button wide"
@@ -1022,10 +997,20 @@ export function EnvelopeDetail({
                 <ShieldCheck size={14} /> Recover without Melt
               </a>
             )}
-          </div>
+          </details>
         </aside>
-        <section className="workspace panel envelope-activity">
+        <section className="panel envelope-activity">
           <h2>Activity</h2>
+          {envelope.giftOpenedAt ? (
+            <OpenedBlot
+              openedAt={envelope.giftOpenedAt}
+              onCopy={(when) =>
+                void navigator.clipboard.writeText(`Opened ${when}`)
+              }
+            />
+          ) : (
+            <OpenedBlot />
+          )}
           {envelope.thankYou && (
             <blockquote className="thanks-note">
               <Heart size={14} />
@@ -1039,10 +1024,17 @@ export function EnvelopeDetail({
             </blockquote>
           )}
           {envelope.redemptions.length === 0 && (
-            <p className="helper">
-              No purchase yet. The recipient can open Melt or ask an assistant
-              they already use to spend this gift through MCP.
-            </p>
+            <div className="envelope-empty">
+              <p>
+                Nothing spent yet. Send the gift link, or find a purchase that
+                matches the purpose.
+              </p>
+              {envelope.status === "open" ? (
+                <button className="secondary" onClick={onDiscover}>
+                  Find a purchase
+                </button>
+              ) : null}
+            </div>
           )}
           {envelope.redemptions.map((item) => (
             <article key={item.id} className="event-row">
@@ -1062,7 +1054,7 @@ export function EnvelopeDetail({
           {(envelope.timeline?.length || 0) > 0 && (
             <details className="envelope-timeline">
               <summary>
-                Every step, onchain and off
+                Every step
                 <span className="quiet"> · {envelope.timeline!.length}</span>
               </summary>
               <ol>
