@@ -572,7 +572,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                 </h1>
                 <p>
                   {page === "Activity"
-                    ? "A budget, a deadline, a live browser. Unused funds come back."
+                    ? "A budget, a deadline, a live browser. Unused funds return."
                     : "Lock a purpose and an amount. They pick dinner, a flight, or an eSIM when they need it."}
                 </p>
               </div>
@@ -664,7 +664,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                         <h2>Write one of your own</h2>
                         <p>
                           Purpose-bound money. They spend it later, in Melt or
-                          in ChatGPT. Unused funds come back.
+                          in ChatGPT. Unused funds return.
                         </p>
                       </div>
                       <div className="launch-actions">

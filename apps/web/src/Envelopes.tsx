@@ -577,7 +577,7 @@ export function ComingBack({
       />
       <p>
         {formatUsd(remaining, ethUsd) || `${remaining} ${symbol}`} still sitting
-        in gifts. Stores keep remnants. These come back.
+        in gifts. Stores keep remnants. Unused funds are returned.
       </p>
     </div>
   );

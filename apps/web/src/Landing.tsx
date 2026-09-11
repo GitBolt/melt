@@ -579,7 +579,7 @@ await melt.redeem(received[0].id, quote.quote.id);`}</pre>
           <div>
             <h2>Send dinner tonight. Let them pick the table later.</h2>
             <p>
-              Create an envelope in a minute. Unused funds come back to you.
+              Create an envelope in a minute. Unused funds return to the sender.
             </p>
             <a className="primary" href={app}>
               Create an envelope
