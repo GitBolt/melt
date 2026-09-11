@@ -102,6 +102,7 @@ export const createEnvelope = z
       .default(""),
     note: z.string().trim().max(400).optional().default(""),
     notifyRecipient: z.boolean().optional().default(true),
+    maxUsd: z.number().positive().max(10000).optional(),
   })
   .superRefine((data, ctx) => {
     const now = Math.floor(Date.now() / 1000);
@@ -401,6 +402,8 @@ const ASK_EXTRA: Record<EnvelopeCategory, string[]> = {
     "pizza",
     "pasta",
     "cafe",
+    "tasting",
+    "omakase",
   ],
   concert: ["ticket"],
   flight: ["airline"],
@@ -535,15 +538,29 @@ export function optionFitsPolicy(
   let score = option.category === policy.category ? 5 : 1;
   for (const keyword of option.keywords)
     if (query.includes(keyword.toLowerCase())) score += 2;
+  const askCat = requestCategory(request);
+  if (
+    askCat &&
+    policy.category !== "other" &&
+    askCat !== policy.category
+  )
+    return {
+      ok: false,
+      reason: `This gift is for ${categoryPhrase[policy.category]}, not ${categoryPhrase[askCat]}`,
+      score: 0,
+    };
   if (request.trim()) {
     const terms = requestTerms(request);
     const hayStems = new Set(hay.split(/\W+/).filter(Boolean).map(stemWord));
     const hits = terms.filter(
       (term) => hay.includes(term) || hayStems.has(stemWord(term)),
     );
-    if (terms.length && hits.length === 0)
-      return { ok: false, reason: "Does not match the request", score: 0 };
-    score += hits.length;
+    if (terms.length && hits.length === 0) {
+      if (askCat && askCat === option.category)
+        score += 2;
+      else
+        return { ok: false, reason: "Does not match the request", score: 0 };
+    } else score += hits.length;
   }
   return { ok: true, score };
 }
@@ -580,6 +597,10 @@ const REQUEST_FILLER = new Set([
   "them",
   "that",
   "this",
+  "near",
+  "nearby",
+  "around",
+  "here",
 ]);
 
 export function stemWord(word: string) {

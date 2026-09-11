@@ -221,6 +221,32 @@ function withEthPrice(item: CatalogOption, ethUsd: number): CatalogOption {
   return { ...item, priceEth };
 }
 
+/* Melt SKUs are stand-ins for a purpose, not a store price. Spend what is
+   left, up to the listed amount and the gift cap, so a dinner chip still
+   returns an option when leftover funds are smaller than $85. */
+function pricedForRemaining(
+  item: CatalogOption,
+  remainingEth: number,
+  ethUsd: number,
+  maxUsd?: number,
+): CatalogOption {
+  if (item.source !== "melt") return withEthPrice(item, ethUsd);
+  const remainingUsd = remainingEth * Math.max(ethUsd, 1);
+  const cap = Math.min(
+    item.priceUsd,
+    remainingUsd,
+    maxUsd ?? Number.POSITIVE_INFINITY,
+  );
+  const priceUsd = Math.floor(cap * 100) / 100;
+  if (!(priceUsd >= 0.01)) return withEthPrice(item, ethUsd);
+  const priced = withEthPrice(
+    priceUsd >= item.priceUsd - 0.01 ? item : { ...item, priceUsd },
+    ethUsd,
+  );
+  if (Number(priced.priceEth) <= remainingEth + 1e-9) return priced;
+  return { ...priced, priceEth: Math.max(remainingEth, 0).toFixed(6) };
+}
+
 /* Map Cryptorefills categories onto envelope categories so the policy gate
    keeps meaning for remote items. Unmapped kinds become "other". The e-money
    category (PayPal-style balances) is excluded entirely: it is cash-like and
@@ -456,7 +482,9 @@ export async function findCatalogOptions(
       rejected: [],
       note: "An envelope cannot send unrestricted cash. Propose a purchase that matches the gift.",
     };
-  const priced = LOCAL.map((item) => withEthPrice(item, ethUsd));
+  const priced = LOCAL.map((item) =>
+    pricedForRemaining(item, remainingEth, ethUsd, policy.maxUsd),
+  );
   const remote = await remoteCatalog(request || policy.purpose, ethUsd).catch(
     () => [],
   );
@@ -480,24 +508,27 @@ export async function findCatalogOptions(
   rememberOffered(approved);
   if (request.trim()) {
     const picked = await aiSelectOptions(policy, request, approved);
-    if (picked) {
+    if (picked?.skus.length) {
       const bySku = new Map(approved.map((item) => [item.sku, item]));
-      const options = picked.skus.map((sku, rank) => ({
-        ...bySku.get(sku)!,
-        score: picked.skus.length - rank,
-      }));
-      for (const item of approved)
-        if (!picked.skus.includes(item.sku))
-          rejected.push({
-            sku: item.sku,
-            title: item.title,
-            reason: "Allowed by the gift, but not what the request asked for",
-          });
-      return {
-        options,
-        rejected: rejected.slice(0, 8),
-        note: options.length ? undefined : picked.note,
-      };
+      const options = picked.skus
+        .map((sku, rank) => {
+          const item = bySku.get(sku);
+          return item ? { ...item, score: picked.skus.length - rank } : null;
+        })
+        .filter((item): item is CatalogOption & { score: number } => !!item);
+      if (options.length) {
+        for (const item of approved)
+          if (!picked.skus.includes(item.sku))
+            rejected.push({
+              sku: item.sku,
+              title: item.title,
+              reason: "Allowed by the gift, but not what the request asked for",
+            });
+        return {
+          options,
+          rejected: rejected.slice(0, 8),
+        };
+      }
     }
   }
   const options: (CatalogOption & { score: number })[] = [];
@@ -514,7 +545,15 @@ export async function findCatalogOptions(
     options.push({ ...item, score: match.score });
   }
   options.sort((a, b) => b.score - a.score || a.priceUsd - b.priceUsd);
-  return { options: options.slice(0, 12), rejected: rejected.slice(0, 8) };
+  const leftoverUsd = remainingEth * Math.max(ethUsd, 1);
+  return {
+    options: options.slice(0, 12),
+    rejected: rejected.slice(0, 8),
+    note:
+      options.length || leftoverUsd >= 1
+        ? undefined
+        : `This gift has $${leftoverUsd.toFixed(2)} left, which is not enough to settle a matching purchase.`,
+  };
 }
 
 /** Local catalog only: used by the public “would this count?” preview so a

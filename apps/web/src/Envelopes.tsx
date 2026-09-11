@@ -353,6 +353,7 @@ export function EnvelopeComposer({
     expiresAt: number;
     partialUse: boolean;
     note: string;
+    maxUsd?: number;
   }) => void;
   onCancel?: () => void;
 }) {
@@ -389,6 +390,7 @@ export function EnvelopeComposer({
           expiresAt: endOfDay(until),
           partialUse,
           note,
+          maxUsd: Number(usd) > 0 ? Number(usd) : undefined,
         });
       }}
     >

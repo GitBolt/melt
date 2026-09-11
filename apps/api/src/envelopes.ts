@@ -433,6 +433,7 @@ export async function createFundedEnvelope(
     category: parsed.category,
     partialUse: parsed.partialUse,
     unusedTo: parsed.unusedTo,
+    maxUsd: parsed.maxUsd,
   });
   const now = Math.floor(Date.now() / 1000);
   const durationMinutes = Math.max(1, Math.ceil((parsed.expiresAt - now) / 60));
@@ -638,7 +639,7 @@ export async function proposePurchase(
   assertProposable(live);
   const ethUsd = await ethUsdRate();
   let option: CatalogOption | undefined =
-    catalogBySku(sku, ethUsd) || offeredOption(sku, ethUsd);
+    offeredOption(sku, ethUsd) || catalogBySku(sku, ethUsd);
   if (!option) {
     const found = await findCatalogOptions(
       live.policy,
