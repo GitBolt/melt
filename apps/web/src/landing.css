@@ -227,57 +227,6 @@
   margin: 0;
   color: #565b6b;
 }
-.try-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr);
-  gap: 40px;
-  align-items: center;
-}
-.try-fit {
-  display: grid;
-  justify-items: center;
-  gap: 12px;
-  padding: 22px 22px 20px;
-}
-.try-illust {
-  width: 88px;
-  display: block;
-}
-.try-fit .fit-needle {
-  width: 148px;
-}
-.try-fit label {
-  display: grid;
-  gap: 6px;
-  width: 100%;
-  font-size: 13px;
-  color: #4c5161;
-}
-.try-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-}
-.try-chips button {
-  min-height: 32px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: #fff;
-  font: inherit;
-  font-size: 12px;
-  color: #4c5161;
-}
-.try-chips button.chosen {
-  background: #eef1fb;
-  border-color: #c9d2ec;
-  color: #414f9e;
-}
-.try-fit .helper {
-  margin: 0;
-  text-align: center;
-}
 .example-slip header {
   margin-bottom: 14px;
 }
@@ -608,8 +557,7 @@
   .example-grid,
   .story-grid,
   .flow-grid,
-  .fact-row,
-  .try-grid {
+  .fact-row {
     grid-template-columns: 1fr;
   }
   .hero-stage {

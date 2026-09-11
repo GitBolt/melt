@@ -146,7 +146,9 @@ test("product page explains the gift before the workspace", async ({
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Would this count?" }),
+    page.getByRole("heading", {
+      name: "Write it in English. The store is not the point.",
+    }),
   ).toBeVisible();
   const previewYes = await page.request.post(`${base}/api/public/preview-fit`, {
     headers: { Origin: base },

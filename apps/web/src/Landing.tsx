@@ -5,7 +5,6 @@ import { MeltWordmark } from "./components/MeltMotion";
 import { SessionSeal } from "./SessionSeal";
 import { NetworkStrip } from "./NetworkStrip";
 import { BreakagePour } from "./components/BreakagePour";
-import { FitNeedle } from "./components/FitNeedle";
 import {
   networkKind,
   SEPOLIA_FAUCET,
@@ -108,11 +107,6 @@ export default function Landing() {
   const [scrolled, setScrolled] = useState(false);
   const [flipped, setFlipped] = useState<string>();
   const [mainnetNote, setMainnetNote] = useState(false);
-  const [tryAsk, setTryAsk] = useState("Italian near me");
-  const [tryFit, setTryFit] = useState<{
-    verdict: "idle" | "fits" | "no" | "loading";
-    reason: string;
-  }>({ verdict: "idle", reason: "" });
   const [hostedChainId, setHostedChainId] = useState(
     Number(import.meta.env.VITE_CHAIN_ID || 31337),
   );
@@ -171,7 +165,6 @@ export default function Landing() {
           </a>
           <nav>
             <a href="#examples">Examples</a>
-            <a href="#try">Would it count</a>
             <a href="#how">How it works</a>
             <a href="/developers">Developers</a>
           </nav>
@@ -286,96 +279,6 @@ export default function Landing() {
               </button>
             ))}
           </div>
-        </div>
-      </motion.section>
-
-      <motion.section id="try" className="landing-block" {...reveal}>
-        <div className="landing-wrap try-grid">
-          <div>
-            <p className="landing-kicker">
-              The question gift cards cannot answer
-            </p>
-            <h2>Would this count?</h2>
-            <p>
-              Ask before anyone spends. Italian counts on a dinner gift.
-              Cash-out does not.
-            </p>
-          </div>
-          <form
-            className="try-fit panel"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const request = tryAsk.trim();
-              if (request.length < 2) return;
-              setTryFit({ verdict: "loading", reason: "" });
-              fetch("/api/public/preview-fit", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  purpose: "Dinner for two, anywhere you like, up to $120",
-                  request,
-                }),
-              })
-                .then(async (response) => {
-                  const body = await response.json();
-                  if (!response.ok)
-                    throw Error(body.error || "Could not check that");
-                  setTryFit({
-                    verdict: body.fits ? "fits" : "no",
-                    reason: body.reason || "",
-                  });
-                })
-                .catch((err) =>
-                  setTryFit({ verdict: "no", reason: err.message }),
-                );
-            }}
-          >
-            <img
-              src="/illustrations/melt-fit-needle.png"
-              alt=""
-              className="try-illust"
-            />
-            <FitNeedle verdict={tryFit.verdict} />
-            <label>
-              Dinner gift, $120
-              <input
-                value={tryAsk}
-                onChange={(e) => {
-                  setTryAsk(e.target.value);
-                  if (tryFit.verdict !== "idle")
-                    setTryFit({ verdict: "idle", reason: "" });
-                }}
-                placeholder="Italian near me, cash out, headphones…"
-              />
-            </label>
-            <div className="try-chips">
-              {["Italian near me", "cash out to my wallet", "headphones"].map(
-                (ask) => (
-                  <button
-                    key={ask}
-                    type="button"
-                    className={tryAsk === ask ? "chosen" : ""}
-                    onClick={() => {
-                      setTryAsk(ask);
-                      setTryFit({ verdict: "idle", reason: "" });
-                    }}
-                  >
-                    {ask}
-                  </button>
-                ),
-              )}
-            </div>
-            <button
-              type="submit"
-              className="secondary"
-              disabled={
-                tryAsk.trim().length < 2 || tryFit.verdict === "loading"
-              }
-            >
-              Ask
-            </button>
-            {tryFit.reason ? <p className="helper">{tryFit.reason}</p> : null}
-          </form>
         </div>
       </motion.section>
 
