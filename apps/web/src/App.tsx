@@ -574,7 +574,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                 <p>
                   {page === "Activity"
                     ? "A budget, a deadline, a live browser. Unused funds return."
-                    : "Lock a purpose and an amount. They pick dinner, a flight, or an eSIM when they need it."}
+                    : "Lock a purpose and an amount. They pick Uber Eats, Steam, or an eSIM when they need it."}
                 </p>
               </div>
               {user && page === "Activity" && !newJob && (
