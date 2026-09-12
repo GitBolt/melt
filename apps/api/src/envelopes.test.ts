@@ -63,6 +63,12 @@ test("infers a trip data envelope and a dollar cap", () => {
   assert.equal(policy.partialUse, true);
 });
 
+test("except food on a Steam gift stays a game envelope", () => {
+  const policy = inferEnvelopePolicy("Steam games, up to $40, except food");
+  assert.equal(policy.category, "game");
+  assert.ok(policy.deny.some((word) => /food/i.test(word)));
+});
+
 test("except electronics becomes a deny list", () => {
   const policy = inferEnvelopePolicy(
     "Something for your new apartment, except electronics",

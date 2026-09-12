@@ -50,6 +50,7 @@ export function Gift({ token }: { token: string }) {
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyHint, setCopyHint] = useState("");
   const [qr, setQr] = useState("");
   const [thanks, setThanks] = useState("");
   const [thanking, setThanking] = useState(false);
@@ -344,8 +345,12 @@ export function Gift({ token }: { token: string }) {
                       .writeText(gift.url || location.href)
                       .then(() => {
                         setCopied(true);
+                        setCopyHint("");
                         setTimeout(() => setCopied(false), 1600);
-                      });
+                      })
+                      .catch(() =>
+                        setCopyHint(gift.url || location.href),
+                      );
                   }}
                 >
                   {copied ? <Check size={16} /> : <Copy size={16} />}
@@ -363,6 +368,9 @@ export function Gift({ token }: { token: string }) {
                   Print it
                 </button>
               </div>
+              {copyHint ? (
+                <p className="helper">Could not copy. Gift page: {copyHint}</p>
+              ) : null}
               {gift.thankYou ? (
                 <p className="gift-thanked">
                   You said thanks: “{gift.thankYou.message}”

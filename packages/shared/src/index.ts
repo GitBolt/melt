@@ -431,10 +431,14 @@ const ASK_EXTRA: Record<EnvelopeCategory, string[]> = {
   other: [],
 };
 
+function purposeForCategory(value: string) {
+  return value.replace(/except\s+[^.,;]+/gi, " ").toLowerCase();
+}
+
 export function requestCategory(
   request: string,
 ): EnvelopeCategory | undefined {
-  const text = request.toLowerCase();
+  const text = purposeForCategory(request);
   for (const key of envelopeCategories) {
     if (key === "other") continue;
     const hints = [...CATEGORY_HINTS[key], ...ASK_EXTRA[key]];
@@ -447,7 +451,7 @@ export function inferEnvelopePolicy(
   purpose: string,
   extras: Partial<EnvelopePolicy> = {},
 ): EnvelopePolicy {
-  const text = purpose.toLowerCase();
+  const text = purposeForCategory(purpose);
   let category: EnvelopeCategory = extras.category || "other";
   if (!extras.category) {
     for (const key of envelopeCategories) {

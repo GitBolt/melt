@@ -59,6 +59,9 @@ type RecoveryTx = {
   status: "pending" | "confirmed" | "reverted";
 };
 const short = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;
+function looksLikeAddress(value: string) {
+  return isAddress(value.trim(), { strict: false });
+}
 const message = (error: unknown) =>
   error instanceof Error
     ? (error as Error & { shortMessage?: string }).shortMessage || error.message
@@ -185,7 +188,7 @@ export function DirectRecovery({
   async function load() {
     setError("");
     setNotice("");
-    if (!isAddress(address.trim())) {
+    if (!looksLikeAddress(address)) {
       setError("Enter a complete task wallet address.");
       return;
     }
@@ -264,7 +267,7 @@ export function DirectRecovery({
         throw Error(
           "Agent access is already closed. Refresh the wallet details.",
         );
-      if (kind === "asset" && !isAddress(token.trim()))
+      if (kind === "asset" && !looksLikeAddress(token))
         throw Error("Enter the token's contract address.");
       if (kind === "asset" && assetType === "erc721" && !/^\d+$/.test(tokenId))
         throw Error("Enter a whole-number collectible ID.");
@@ -480,7 +483,7 @@ export function DirectRecovery({
                   disabled={!auth.ready || !!busy}
                   onClick={onSignIn || auth.login}
                 >
-                  Continue with email or wallet
+                  Continue with email, Google, or wallet
                 </button>
               )}
               {auth?.authenticated && owner && injected && (
@@ -612,7 +615,7 @@ export function DirectRecovery({
                           !vault.closed ||
                           !!busy ||
                           pending ||
-                          !isAddress(token) ||
+                          !looksLikeAddress(token) ||
                           (assetType === "erc721" && !/^\d+$/.test(tokenId))
                         }
                         onClick={() => void submit("asset")}

@@ -26,6 +26,14 @@ const PAGES = [
   { id: "webhooks", label: "Webhooks", group: "Account" },
 ] as const;
 type Page = (typeof PAGES)[number]["id"];
+function httpsEndpoint(value: string) {
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "https:" && !parsed.username && !parsed.password;
+  } catch {
+    return false;
+  }
+}
 const HOOK_EVENTS = [
   "envelope.created",
   "envelope.funded",
@@ -854,6 +862,9 @@ curl --fail-with-body '${origin}/api/envelopes/$ID/redeem' \\
                       placeholder="https://example.com/melt-webhooks"
                     />
                   </label>
+                  {hookUrl.trim() && !httpsEndpoint(hookUrl) ? (
+                    <p className="helper">Use an https URL.</p>
+                  ) : null}
                   <div className="hook-events">
                     {HOOK_EVENTS.map((type) => (
                       <label key={type}>
@@ -875,7 +886,9 @@ curl --fail-with-body '${origin}/api/envelopes/$ID/redeem' \\
                   <button
                     className="primary"
                     disabled={
-                      !!busy || !hookUrl.trim() || !selectedEvents.length
+                      !!busy ||
+                      !httpsEndpoint(hookUrl) ||
+                      !selectedEvents.length
                     }
                     onClick={() =>
                       act("webhook", async () => {

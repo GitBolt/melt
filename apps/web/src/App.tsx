@@ -487,7 +487,11 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                 void navigator.clipboard
                   .writeText(`${location.origin}/r/${task.receiptToken}`)
                   .then(() => setNotice("Receipt link copied"))
-                  .catch(() => setError("Could not copy the receipt link"));
+                  .catch(() =>
+                    setError(
+                      `Could not copy. Receipt: ${location.origin}/r/${task.receiptToken}`,
+                    ),
+                  );
               }}
               repeat={() => {
                 setSelected(undefined);
@@ -687,13 +691,13 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                           {busy === "signin" ? <MeltLoader size={16} /> : null}
                           {config.mode === "local"
                             ? "Open local workspace"
-                            : "Continue with email or wallet"}
+                            : "Continue with email, Google, or wallet"}
                           <ArrowRight size={16} />
                         </button>
                         <p className="helper">
                           {config.mode === "local"
                             ? "No wallet or funds needed. Uses local test ETH."
-                            : "Sign in with email to create an embedded wallet."}
+                            : "Sign in with email or Google. Melt creates an embedded wallet."}
                         </p>
                       </div>
                     </>
@@ -881,10 +885,26 @@ function JobComposer({
   const [url, setUrl] = useState("");
   const [budget, setBudget] = useState("0.005");
   const [minutes, setMinutes] = useState(15);
-  const valid =
-    instruction.trim().length >= 3 &&
+  const urlText = url.trim();
+  const urlOk =
+    !urlText ||
+    (() => {
+      try {
+        const parsed = new URL(urlText);
+        return (
+          parsed.protocol === "https:" &&
+          !parsed.username &&
+          !parsed.password
+        );
+      } catch {
+        return false;
+      }
+    })();
+  const budgetOk =
     /^\d+(\.\d{1,18})?$/.test(budget.trim()) &&
-    Number(budget) > 0;
+    Number(budget) > 0 &&
+    Number(budget) <= 10;
+  const valid = instruction.trim().length >= 3 && budgetOk && urlOk;
   return (
     <form
       className="compose-form"
@@ -920,6 +940,9 @@ function JobComposer({
           inputMode="url"
         />
       </label>
+      {urlText && !urlOk ? (
+        <p className="helper">Use an https URL, or leave this blank.</p>
+      ) : null}
       <div className="compose-row">
         <label>
           Budget ({symbol})
@@ -943,8 +966,9 @@ function JobComposer({
         </label>
       </div>
       <p className="helper">
-        The agent gets its own onchain vault with this budget and deadline.
-        Anything unspent returns to your wallet.
+        {!budgetOk
+          ? "Use an amount between 0 and 10 ETH."
+          : "The agent gets its own onchain vault with this budget and deadline. Anything unspent returns to your wallet."}
       </p>
       <div className="compose-actions">
         <button className="primary" type="submit" disabled={!valid || !!busy}>

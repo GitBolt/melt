@@ -20,14 +20,19 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
+function usdLabel(n: number) {
+  return n.toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: n >= 10 ? 0 : 2,
+  });
+}
+
 function dollars(envelope: Envelope, rate?: number) {
+  const cap = envelope.policy?.maxUsd;
+  if (cap && Number.isFinite(cap) && cap > 0) return usdLabel(cap);
   const n = Number(envelope.budget) * (rate || 0);
-  if (rate && Number.isFinite(n) && n > 0)
-    return n.toLocaleString(undefined, {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: n >= 10 ? 0 : 2,
-    });
+  if (rate && Number.isFinite(n) && n > 0) return usdLabel(n);
   return `${envelope.budget} ETH`;
 }
 

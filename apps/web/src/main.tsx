@@ -20,10 +20,18 @@ const developers =
   location.pathname === "/developers" ||
   location.pathname.startsWith("/developers/") ||
   location.pathname === "/docs";
-const publicReceiptToken = location.pathname.match(
-  /^\/r\/([0-9a-f]{48})$/i,
-)?.[1];
-const publicGiftToken = location.pathname.match(/^\/g\/([0-9a-f]{48})$/i)?.[1];
+const giftRoute = location.pathname.match(/^\/g(?:\/(.*))?$/i);
+const receiptRoute = location.pathname.match(/^\/r(?:\/(.*))?$/i);
+function routeToken(match: RegExpMatchArray | null) {
+  if (!match) return undefined;
+  try {
+    return decodeURIComponent(match[1] || "");
+  } catch {
+    return match[1] || "";
+  }
+}
+const publicGiftToken = giftRoute ? routeToken(giftRoute) : undefined;
+const publicReceiptToken = receiptRoute ? routeToken(receiptRoute) : undefined;
 const recoveryChainId = Number(import.meta.env.VITE_CHAIN_ID || 11155111);
 const recoveryConfig: Config = {
   mode: "configured",
@@ -66,8 +74,8 @@ function Root() {
       .then(setConfig)
       .catch((e) => setError(e.message));
   }, []);
-  if (publicGiftToken) return <Gift token={publicGiftToken} />;
-  if (publicReceiptToken) return <PublicReceipt token={publicReceiptToken} />;
+  if (giftRoute) return <Gift token={publicGiftToken || ""} />;
+  if (receiptRoute) return <PublicReceipt token={publicReceiptToken || ""} />;
   if (!product && !recovery && !developers) return <Landing />;
   if (!config && !error) return <MeltLoading />;
   if (!config)
