@@ -1,0 +1,31 @@
+.powered-uniswap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: -0.12px;
+  line-height: 1;
+  min-height: 28px;
+}
+.powered-uniswap img {
+  width: 18px;
+  height: 20px;
+  display: block;
+  flex: 0 0 auto;
+}
+.powered-uniswap span {
+  white-space: nowrap;
+}
+.powered-uniswap:hover {
+  color: var(--ink);
+}
+.powered-uniswap.is-compact {
+  gap: 6px;
+  font-size: 12px;
+}
+.powered-uniswap.is-compact img {
+  width: 15px;
+  height: 16px;
+}

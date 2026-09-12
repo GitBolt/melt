@@ -433,9 +433,12 @@ export class Melt {
   redeem(id, quoteId, options = {}) {
     if (typeof quoteId !== "string" || !quoteId)
       throw new TypeError("redeem needs the quote ID from proposePurchase");
+    const { email, ...rest } = options;
+    const body = { quoteId };
+    if (typeof email === "string" && email) body.email = email;
     return this.#request(`${envelopePath(id)}/redeem`, {
-      ...options,
-      body: { quoteId },
+      ...rest,
+      body,
       validate: (value) => record(value) && record(value.redemption),
     });
   }

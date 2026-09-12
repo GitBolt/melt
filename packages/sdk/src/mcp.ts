@@ -59,7 +59,7 @@ server.registerTool(
   "find_options",
   {
     description:
-      "Find purchases that satisfy an existing envelope. Pass what the recipient wants (for example 'Italian near me' or 'an eSIM for Japan'). Unrestricted cash-out requests return no options.",
+      "Find gift cards that satisfy an existing envelope. Pass what the recipient wants (for example 'Uber Eats' or 'an eSIM for Japan'). Unrestricted cash-out requests return no options.",
     inputSchema: envelopeId.extend({
       request: z.string().max(500).optional().default(""),
     }),
@@ -110,13 +110,14 @@ server.registerTool(
   "redeem",
   {
     description:
-      "Settle a proposed quote. Melt checks the purchase against the envelope and releases only the required amount via Uniswap. There is no generic transfer tool.",
+      "Settle a proposed quote. Melt converts the required ETH to USDC on Uniswap, then asks Cryptorefills to email the card. On testnet the swap is real and the card waits for mainnet. There is no generic transfer tool.",
     inputSchema: envelopeId.extend({
       quote_id: z.string().uuid(),
+      email: z.string().email().max(200).optional(),
     }),
   },
-  ({ envelope_id, quote_id }) =>
-    result(() => client.redeem(envelope_id, quote_id)),
+  ({ envelope_id, quote_id, email }) =>
+    result(() => client.redeem(envelope_id, quote_id, { email })),
 );
 server.registerTool(
   "get_redemption_status",

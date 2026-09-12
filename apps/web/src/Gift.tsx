@@ -4,6 +4,7 @@ import { ReturnRing } from "./components/ReturnRing";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowRight, Copy, Check, Printer } from "lucide-react";
+import { PoweredByUniswap } from "./components/PoweredByUniswap";
 import "./gift.css";
 
 type PublicGift = {
@@ -29,8 +30,8 @@ type PublicGift = {
 };
 
 const ASK_HINT: Record<string, string> = {
-  dinner: "Italian near me, cash out, headphones",
-  game: "an indie game, a restaurant, cash out",
+  dinner: "Uber Eats, cash out, headphones",
+  game: "Steam, a restaurant, cash out",
   esim: "Japan eSIM, headphones, cash out",
   concert: "tickets this weekend, merch, cash out",
   flight: "a flight home, a hotel, cash out",
@@ -412,6 +413,7 @@ export function Gift({ token }: { token: string }) {
                   ) : null}
                 </form>
               )}
+              <PoweredByUniswap compact />
             </motion.section>
           ) : (
             <p className="helper gift-hint">

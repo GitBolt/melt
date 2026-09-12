@@ -5,6 +5,7 @@ import { MeltWordmark } from "./components/MeltMotion";
 import { SessionSeal } from "./SessionSeal";
 import { NetworkStrip } from "./NetworkStrip";
 import { BreakagePour } from "./components/BreakagePour";
+import { PoweredByUniswap } from "./components/PoweredByUniswap";
 import {
   networkKind,
   SEPOLIA_FAUCET,
@@ -14,51 +15,27 @@ import "./landing.css";
 const app = "/app";
 const examples = [
   {
-    kind: "Dinner",
-    usd: "$120",
-    quote: "Dinner for two, anywhere you like, before New Year.",
-    ok: "Any restaurant that is still dinner",
-    no: "Not groceries. Not cash.",
+    kind: "Food",
+    usd: "$50",
+    quote: "Food delivery, up to $50.",
+    ok: "Uber Eats, DoorDash, or another food card",
+    no: "Not cash. Not Steam.",
     tilt: "-1.4deg",
-  },
-  {
-    kind: "Flight",
-    usd: "$400",
-    quote: "A flight home for Thanksgiving.",
-    ok: "A real ticket in that window",
-    no: "Not hotel points. Not a transfer.",
-    tilt: "1.2deg",
-  },
-  {
-    kind: "Concert",
-    usd: "$150",
-    quote: "Any concert you want this summer.",
-    ok: "Tickets they actually want to see",
-    no: "Not merch, unless you said so.",
-    tilt: "-0.8deg",
   },
   {
     kind: "eSIM",
     usd: "$20",
     quote: "Mobile data for your Japan trip.",
-    ok: "An eSIM or a local top-up",
+    ok: "A travel eSIM they can actually use",
     no: "Not headphones. Not spending money.",
     tilt: "0.9deg",
   },
   {
-    kind: "Apartment",
-    usd: "$200",
-    quote: "Something for your new apartment, except electronics.",
-    ok: "Kitchen, linens, a lamp",
-    no: "Not a laptop or a speaker.",
-    tilt: "-1.1deg",
-  },
-  {
-    kind: "Game",
+    kind: "Steam",
     usd: "$40",
-    quote: "Any indie game under $40.",
-    ok: "A game that fits the cap",
-    no: "Not a Steam wallet dump.",
+    quote: "Steam games, up to $40.",
+    ok: "A Steam card that fits the cap",
+    no: "Not cash. Not food delivery.",
     tilt: "1.4deg",
   },
 ];
@@ -75,30 +52,30 @@ const steps = [
   },
   {
     n: "03",
-    title: "They choose later",
-    text: "In Melt, or in an assistant they already use. The assistant finds a match.",
+    title: "They pick a card",
+    text: "In Melt, or in an assistant they already use. Melt shows cards that match the purpose.",
   },
   {
     n: "04",
     title: "Only a match pays",
-    text: "Melt checks the purchase, converts just enough on Uniswap, and leaves the rest.",
+    text: "Uniswap converts just enough ETH to USDC. Cryptorefills emails the card. The rest stays, then returns.",
   },
 ];
 const story = [
   {
     who: "You",
     when: "Today",
-    text: "Dinner for two, anywhere you like, up to $120, before New Year.",
+    text: "Food delivery, up to $50. Unused funds return to me.",
   },
   {
     who: "Alex",
     when: "A Friday in December",
-    text: "Use the dinner gift Sarah sent me. Find something Italian near me.",
+    text: "Use the food gift Sarah sent me. Find Uber Eats.",
   },
   {
     who: "Melt",
     when: "Same night",
-    text: "Italian dinner matches. $86 settles. The rest stays in the envelope.",
+    text: "Uber Eats $25 matches. Uniswap converts that amount. The rest stays in the envelope.",
   },
 ];
 
@@ -185,9 +162,9 @@ export default function Landing() {
               Send money that knows what it is for.
             </h1>
             <p className="hero-lead">
-              Lock a purpose and an amount. They spend it later on dinner, a
-              flight, or an eSIM, in Melt or in ChatGPT. Or give the same wallet
-              to a browser agent for one job.
+              Lock a purpose and an amount. They spend it later on Uber Eats,
+              Steam, or an eSIM, in Melt or in ChatGPT. Unused funds return to
+              you. Or give the same wallet to a browser agent for one job.
             </p>
             <div className="hero-actions">
               <a className="primary" href={app}>
@@ -207,19 +184,20 @@ export default function Landing() {
               />
               {mainnetNote ? (
                 <p>
-                  This hosted Melt is Sepolia. Mainnet would spend real ETH and
-                  is not this deployment.
+                  This hosted Melt is Sepolia. Uniswap settlement is live here.
+                  Cryptorefills cannot email a live card from testnet funds.
                 </p>
               ) : null}
+              <PoweredByUniswap />
             </div>
           </div>
           <div className="hero-stage panel">
             <BreakagePour />
             <div className="hero-stage-copy">
-              <span>Dinner for two, anywhere they like</span>
+              <span>Food delivery, up to $50</span>
               <p>
-                Drag dinner. Unused funds return to the sender. A store card
-                keeps them.
+                Drag the spend. A food card uses what it costs. Unused funds
+                return to the sender. A store card keeps them.
               </p>
             </div>
           </div>
@@ -228,17 +206,17 @@ export default function Landing() {
 
       <section className="landing-facts">
         <div className="landing-wrap fact-row">
-          <p>Dinner for two, up to $120</p>
-          <p>A flight home for Thanksgiving</p>
-          <p>Any concert this summer</p>
+          <p>Food delivery, up to $50</p>
+          <p>Steam, up to $40</p>
           <p>An eSIM for Japan</p>
+          <p>Unused funds return</p>
         </div>
       </section>
 
       <motion.section id="examples" className="landing-block" {...reveal}>
         <div className="landing-wrap">
           <p className="landing-kicker">What people actually send</p>
-          <h2>Write it in English. The store is not the point.</h2>
+          <h2>Write it in English. They pick the card.</h2>
           <div className="example-grid">
             {examples.map((item) => (
               <button
@@ -382,7 +360,7 @@ export default function Landing() {
             <h2>Connect an agent. It can spend a gift, not send cash.</h2>
             <p>
               Fund the envelope yourself. Give the recipient an API key. Their
-              assistant can find options, propose a purchase, and redeem, e.g.
+              assistant can find options, propose a card, and redeem, e.g.
               ChatGPT, Claude, Cursor, or Grok. It cannot create envelopes or
               raise the amount.
             </p>
@@ -393,7 +371,7 @@ export default function Landing() {
           </div>
           <pre className="panel agent-sample">{`const melt = new Melt({ apiKey });
 const { received } = await melt.envelopes();
-const found = await melt.findOptions(received[0].id, 'Italian near me');
+const found = await melt.findOptions(received[0].id, 'Uber Eats');
 const quote = await melt.proposePurchase(received[0].id, { sku: found.options[0].sku });
 await melt.redeem(received[0].id, quote.quote.id);`}</pre>
         </div>
@@ -450,15 +428,15 @@ await melt.redeem(received[0].id, quote.quote.id);`}</pre>
             >
               <span className="evolution-tag">What it became</span>
               <strong>An envelope</strong>
-              <p>“Dinner for two, anywhere you like.”</p>
+              <p>“Food delivery, up to $50.”</p>
               <dl>
                 <div>
                   <dt>Budget</dt>
-                  <dd>$120</dd>
+                  <dd>$50</dd>
                 </div>
                 <div>
                   <dt>Deadline</dt>
-                  <dd>New Year</dd>
+                  <dd>30 days</dd>
                 </div>
                 <div>
                   <dt>Spent by</dt>
@@ -480,7 +458,7 @@ await melt.redeem(received[0].id, quote.quote.id);`}</pre>
         <div className="landing-wrap close-panel panel">
           <SessionSeal status="ready" />
           <div>
-            <h2>Send dinner tonight. Let them pick the table later.</h2>
+            <h2>Send food money tonight. They pick the card later.</h2>
             <p>
               Create an envelope in a minute. Unused funds return to the sender.
             </p>
@@ -494,7 +472,8 @@ await melt.redeem(received[0].id, quote.quote.id);`}</pre>
 
       <footer className="landing-footer">
         <div className="landing-wrap footer-row">
-          <span>Melt · Gift cards without stores</span>
+          <span>Melt · Purpose-bound gift cards</span>
+          <PoweredByUniswap compact />
           <div>
             <a href={app}>App</a>
             <a href="/recover">Recover</a>

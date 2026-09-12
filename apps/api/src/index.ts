@@ -461,8 +461,13 @@ app.post(
         ),
         { statusCode: 400 },
       );
-    const parsed = z.object({ quoteId: z.string().uuid() }).parse(req.body);
-    return redeemQuote(envelope, parsed.quoteId);
+    const parsed = z
+      .object({
+        quoteId: z.string().uuid(),
+        email: z.string().trim().email().max(200).optional(),
+      })
+      .parse(req.body);
+    return redeemQuote(envelope, parsed.quoteId, parsed.email);
   },
 );
 app.get("/api/envelopes/:id/redemptions", async (req) => {

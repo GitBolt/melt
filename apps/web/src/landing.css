@@ -72,6 +72,12 @@
 }
 .hero-network {
   margin-top: 22px;
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+.hero-network .powered-uniswap {
+  margin-top: 2px;
 }
 .hero-network .network-strip {
   color: var(--muted);
@@ -377,6 +383,7 @@
 .footer-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 20px;
   color: #9699a3;
   font-size: 13px;

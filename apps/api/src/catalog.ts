@@ -13,238 +13,104 @@ import {
 } from "../../../packages/shared/src/index.js";
 import { modelConfig } from "./agent.js";
 
-const MELT = "Settled from the envelope on Uniswap. Not a store gift card.";
-const CRYPTOREFILLS = "Cryptorefills is the merchant of record.";
+const CARD =
+  "Cryptorefills emails this card after Uniswap converts ETH to USDC. Unused ETH stays in the envelope.";
+
+function card(
+  partial: Pick<
+    CatalogOption,
+    "sku" | "title" | "merchant" | "category" | "priceUsd" | "keywords"
+  > & { description: string },
+): CatalogOption {
+  return {
+    tags: ["giftcard"],
+    settlement: "uniswap",
+    tokenSymbol: "USDC",
+    source: "cryptorefills",
+    disclosure: CARD,
+    brandName: partial.merchant,
+    ...partial,
+  };
+}
 
 const LOCAL: CatalogOption[] = [
-  {
+  card({
     sku: "esim-jp-1gb",
-    title: "Japan eSIM · 1 GB / 7 days",
-    merchant: "Melt catalog",
+    title: "Japan eSIM $8",
+    merchant: "eSIM",
     category: "esim",
-    description: "Prepaid mobile data for a short trip to Japan.",
+    description: "A travel eSIM gift. Cryptorefills emails the code.",
     priceUsd: 8,
     keywords: ["esim", "japan", "mobile", "data", "trip", "roaming"],
-    tags: ["esim", "travel"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
-  {
+  }),
+  card({
     sku: "esim-trip-5gb",
-    title: "Travel eSIM · 5 GB / 30 days",
-    merchant: "Melt catalog",
+    title: "Travel eSIM $18",
+    merchant: "eSIM",
     category: "esim",
-    description: "A month of mobile data in supported countries.",
+    description: "A larger travel eSIM for a longer trip.",
     priceUsd: 18,
     keywords: ["esim", "mobile", "data", "trip", "travel"],
-    tags: ["esim", "travel"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
-  {
-    sku: "esim-global-1gb",
-    title: "Global eSIM · 1 GB",
-    merchant: "Melt catalog",
-    category: "esim",
-    description: "Low-value data pack for testing a real trip envelope.",
-    priceUsd: 5,
-    keywords: ["esim", "mobile", "data", "global"],
-    tags: ["esim"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
-  {
-    sku: "dinner-italian",
-    title: "Italian dinner for two",
-    merchant: "Any Italian restaurant",
+  }),
+  card({
+    sku: "food-ubereats-15",
+    title: "Uber Eats $15",
+    merchant: "Uber Eats",
     category: "dinner",
-    description:
-      "A sit-down Italian meal. The recipient picks the place later.",
-    priceUsd: 85,
-    keywords: ["dinner", "italian", "restaurant", "for two", "pasta"],
-    tags: ["dinner"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
-  {
-    sku: "dinner-omakase",
-    title: "Dinner for two, any kitchen",
-    merchant: "Any restaurant",
+    description: "A $15 Uber Eats gift card. Spend it on food, not cash.",
+    priceUsd: 15,
+    keywords: ["dinner", "uber", "eats", "food", "delivery", "restaurant"],
+  }),
+  card({
+    sku: "food-ubereats-25",
+    title: "Uber Eats $25",
+    merchant: "Uber Eats",
     category: "dinner",
-    description: "Open-ended dinner. Cuisine is up to the recipient.",
-    priceUsd: 120,
-    keywords: ["dinner", "restaurant", "for two", "food"],
-    tags: ["dinner"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
-  {
-    sku: "concert-any",
-    title: "Concert ticket",
-    merchant: "Any live venue",
-    category: "concert",
-    description: "One ticket to a show the recipient actually wants.",
-    priceUsd: 95,
-    keywords: ["concert", "ticket", "show", "live", "gig"],
-    tags: ["concert"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
-  {
-    sku: "flight-home",
-    title: "Flight home",
-    merchant: "Any airline",
-    category: "flight",
-    description: "One-way or return fare home, chosen when they book.",
-    priceUsd: 380,
-    keywords: ["flight", "home", "thanksgiving", "airfare"],
-    tags: ["flight"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
-  {
-    sku: "game-hades",
-    title: "Hades",
-    merchant: "Indie game",
-    category: "game",
-    description: "A well-known indie game under $40.",
+    description: "A $25 Uber Eats gift card.",
     priceUsd: 25,
-    keywords: ["game", "indie", "hades"],
-    tags: ["game"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
-  {
-    sku: "game-celeste",
-    title: "Celeste",
-    merchant: "Indie game",
+    keywords: ["dinner", "uber", "eats", "food", "delivery", "restaurant"],
+  }),
+  card({
+    sku: "food-doordash-15",
+    title: "DoorDash $15",
+    merchant: "DoorDash",
+    category: "dinner",
+    description: "A $15 DoorDash gift card.",
+    priceUsd: 15,
+    keywords: ["dinner", "doordash", "food", "delivery", "restaurant"],
+  }),
+  card({
+    sku: "food-doordash-25",
+    title: "DoorDash $25",
+    merchant: "DoorDash",
+    category: "dinner",
+    description: "A $25 DoorDash gift card.",
+    priceUsd: 25,
+    keywords: ["dinner", "doordash", "food", "delivery"],
+  }),
+  card({
+    sku: "game-steam-10",
+    title: "Steam $10",
+    merchant: "Steam",
     category: "game",
-    description: "An indie platformer well under $40.",
+    description: "A $10 Steam wallet card.",
+    priceUsd: 10,
+    keywords: ["game", "steam", "games"],
+  }),
+  card({
+    sku: "game-steam-20",
+    title: "Steam $20",
+    merchant: "Steam",
+    category: "game",
+    description: "A $20 Steam wallet card.",
     priceUsd: 20,
-    keywords: ["game", "indie", "celeste"],
-    tags: ["game"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
-  {
-    sku: "apt-lamp",
-    title: "Floor lamp",
-    merchant: "Home goods",
-    category: "apartment",
-    description: "Lighting for a new apartment. Not a gadget.",
-    priceUsd: 45,
-    keywords: ["apartment", "lamp", "furniture", "home"],
-    tags: ["apartment", "furniture"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
-  {
-    sku: "apt-linens",
-    title: "Bedding set",
-    merchant: "Home goods",
-    category: "apartment",
-    description: "Sheets and a duvet for a new place.",
-    priceUsd: 60,
-    keywords: ["apartment", "bedding", "home", "linens"],
-    tags: ["apartment"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
-  {
-    sku: "apt-tv",
-    title: "32-inch television",
-    merchant: "Electronics",
-    category: "apartment",
-    description: "A TV. Should be rejected by gifts that exclude electronics.",
-    priceUsd: 180,
-    keywords: ["apartment", "tv", "television", "electronics"],
-    tags: ["electronics", "tv"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
-  {
-    sku: "ai-claude",
-    title: "One month of Claude Pro",
-    merchant: "Anthropic",
-    category: "ai",
-    description: "A month of an AI product the recipient can actually use.",
-    priceUsd: 20,
-    keywords: ["ai", "claude", "subscription", "month"],
-    tags: ["ai"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
-  {
-    sku: "ai-chatgpt",
-    title: "One month of ChatGPT Plus",
-    merchant: "OpenAI",
-    category: "ai",
-    description: "A month of ChatGPT Plus.",
-    priceUsd: 20,
-    keywords: ["ai", "chatgpt", "subscription", "month"],
-    tags: ["ai"],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "melt",
-    disclosure: MELT,
-  },
+    keywords: ["game", "steam", "games", "indie"],
+  }),
 ];
 
 function withEthPrice(item: CatalogOption, ethUsd: number): CatalogOption {
   const priceEth = (item.priceUsd / Math.max(ethUsd, 1)).toFixed(6);
   return { ...item, priceEth };
-}
-
-/* Melt SKUs are stand-ins for a purpose, not a store price. Spend what is
-   left, up to the listed amount and the gift cap, so a dinner chip still
-   returns an option when leftover funds are smaller than $85. */
-function pricedForRemaining(
-  item: CatalogOption,
-  remainingEth: number,
-  ethUsd: number,
-  maxUsd?: number,
-): CatalogOption {
-  if (item.source !== "melt") return withEthPrice(item, ethUsd);
-  const remainingUsd = remainingEth * Math.max(ethUsd, 1);
-  const cap = Math.min(
-    item.priceUsd,
-    remainingUsd,
-    maxUsd ?? Number.POSITIVE_INFINITY,
-  );
-  const priceUsd = Math.floor(cap * 100) / 100;
-  if (!(priceUsd >= 0.01)) return withEthPrice(item, ethUsd);
-  const priced = withEthPrice(
-    priceUsd >= item.priceUsd - 0.01 ? item : { ...item, priceUsd },
-    ethUsd,
-  );
-  if (Number(priced.priceEth) <= remainingEth + 1e-9) return priced;
-  return { ...priced, priceEth: Math.max(remainingEth, 0).toFixed(6) };
 }
 
 /* Map Cryptorefills categories onto envelope categories so the policy gate
@@ -254,8 +120,7 @@ function pricedForRemaining(
 const CR_CATEGORY: Record<string, CatalogOption["category"]> = {
   games: "game",
   food: "dinner",
-  travel_flights: "flight",
-  home: "apartment",
+  "e-sim": "esim",
 };
 const CR_EXCLUDED = new Set(["e-money"]);
 
@@ -321,7 +186,8 @@ function parseCrBrands(body: unknown): CatalogOption[] {
       const minUsd = Number(String(brand.min || "").replace(/[^0-9.]/g, ""));
       if (!title || !brand.brand_id || brand.is_out_of_stock) continue;
       if (!(minUsd > 0) || !/^\$/.test(String(brand.min || ""))) continue;
-      const category = CR_CATEGORY[crCategory] || "other";
+      const category = CR_CATEGORY[crCategory];
+      if (!category) continue;
       out.push({
         sku: `cr-${brand.brand_id}`,
         title: `${title} gift card`,
@@ -338,7 +204,8 @@ function parseCrBrands(body: unknown): CatalogOption[] {
         settlement: "uniswap",
         tokenSymbol: "USDC",
         source: "cryptorefills",
-        disclosure: CRYPTOREFILLS,
+        disclosure: CARD,
+        brandName: title,
       });
     }
   }
@@ -482,9 +349,7 @@ export async function findCatalogOptions(
       rejected: [],
       note: "An envelope cannot send unrestricted cash. Propose a purchase that matches the gift.",
     };
-  const priced = LOCAL.map((item) =>
-    pricedForRemaining(item, remainingEth, ethUsd, policy.maxUsd),
-  );
+  const priced = LOCAL.map((item) => withEthPrice(item, ethUsd));
   const remote = await remoteCatalog(request || policy.purpose, ethUsd).catch(
     () => [],
   );
@@ -546,18 +411,26 @@ export async function findCatalogOptions(
   }
   options.sort((a, b) => b.score - a.score || a.priceUsd - b.priceUsd);
   const leftoverUsd = remainingEth * Math.max(ethUsd, 1);
+  const matching = LOCAL.filter(
+    (item) =>
+      policy.category === "other" || item.category === policy.category,
+  );
+  const floor = matching.length
+    ? Math.min(...matching.map((item) => item.priceUsd))
+    : undefined;
   return {
     options: options.slice(0, 12),
     rejected: rejected.slice(0, 8),
-    note:
-      options.length || leftoverUsd >= 1
-        ? undefined
-        : `This gift has $${leftoverUsd.toFixed(2)} left, which is not enough to settle a matching purchase.`,
+    note: options.length
+      ? undefined
+      : floor != null && leftoverUsd + 0.01 < floor
+        ? `This gift has $${leftoverUsd.toFixed(2)} left. Matching cards start at $${floor}.`
+        : undefined,
   };
 }
 
-/** Local catalog only: used by the public “would this count?” preview so a
-    landing visitor is not waiting on a merchant API. */
+/** Local catalog only: used by the public gift-page preview so a visitor is
+    not waiting on a merchant API. */
 export function previewLocalFit(
   policy: EnvelopePolicy,
   remainingEth: number,

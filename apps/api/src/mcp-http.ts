@@ -95,7 +95,7 @@ export function createAgentMcp(user: Identity, tokenHash?: string) {
     "find_options",
     {
       description:
-        "Find purchases that satisfy an existing envelope. Pass what the recipient wants. Unrestricted cash-out requests return no options.",
+        "Find gift cards that satisfy an existing envelope. Pass what the recipient wants (for example 'Uber Eats' or 'an eSIM for Japan'). Unrestricted cash-out requests return no options.",
       inputSchema: envelopeId.extend({
         request: z.string().max(500).optional().default(""),
       }),
@@ -148,12 +148,15 @@ export function createAgentMcp(user: Identity, tokenHash?: string) {
     "redeem",
     {
       description:
-        "Settle a proposed quote. Melt checks the purchase against the envelope and releases only the required amount. There is no generic transfer tool.",
-      inputSchema: envelopeId.extend({ quote_id: z.string().uuid() }),
+        "Settle a proposed quote. Melt converts the required ETH to USDC on Uniswap, then asks Cryptorefills to email the card. On testnet the swap is real and the card waits for mainnet. There is no generic transfer tool.",
+      inputSchema: envelopeId.extend({
+        quote_id: z.string().uuid(),
+        email: z.string().email().max(200).optional(),
+      }),
     },
-    ({ envelope_id, quote_id }) =>
+    ({ envelope_id, quote_id, email }) =>
       run("redeem", async () =>
-        redeemQuote(envelopeFor(user, envelope_id), quote_id),
+        redeemQuote(envelopeFor(user, envelope_id), quote_id, email),
       ),
   );
   server.registerTool(

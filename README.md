@@ -1,8 +1,8 @@
 # Melt · Gift cards without stores
 
-Send purchasing power for a purpose — dinner, a flight home, mobile data for a trip — and let their AI choose how to use it later. The money can only become what you meant.
+Send purchasing power for a purpose — food delivery, Steam, or mobile data for a trip — and let their AI choose how to use it later. The money can only become a matching gift card.
 
-You create an envelope. Ethereum holds the amount, the purpose, the expiry, and where unused funds go. The recipient cannot cash it out. You cannot take it back early. Weeks later they open Melt, or they tell ChatGPT, Claude, Codex or Grok to use the gift. Melt finds a qualifying purchase, converts only the required ETH to USDC on Uniswap, and leaves the rest in the envelope.
+You create an envelope. Ethereum holds the amount, the purpose, the expiry, and where unused funds go. The recipient cannot cash it out. You cannot take it back early. Weeks later they open Melt, or they tell ChatGPT, Claude, Codex or Grok to use the gift. Melt finds a qualifying card, converts only the required ETH to USDC on Uniswap, and Cryptorefills emails it. Unused funds stay in the envelope, then return to the sender.
 
 [Open Melt](https://melt-woad.vercel.app) · [API reference](docs/api.md) · [Connect an agent](docs/agents.md) · [Verification record](docs/verification.md)
 
@@ -13,7 +13,7 @@ Envelope    sender’s money → immutable purpose → recipient’s chosen assi
 Agent job   your money     → one instruction   → your own browser agent       → the task, live, with takeover
 ```
 
-The gift is the headline surface; the agent job surface (Activity → “New agent job”) hands the same vault to a browser agent you watch work in real time. Neither is a store gift card, and neither hands an agent an unrestricted key.
+The gift is the headline surface; the agent job surface (Activity → “New agent job”) hands the same vault to a browser agent you watch work in real time. Envelopes buy real gift cards (Uber Eats, DoorDash, Steam, eSIM). Neither hands an agent an unrestricted key.
 
 ## Run locally
 
@@ -27,7 +27,7 @@ MELT_FORK=1 npm run dev
 
 `MELT_FORK=1` forks Ethereum so Uniswap V3 settlement is real. The chain id stays 31337. The dev script probes a list of public RPCs and picks one that actually serves forked state (free providers rotate between working and demanding archive tokens). Set `FORK_RPC_URL` to pin your own endpoint.
 
-Open [the local site](http://127.0.0.1:5173), choose **Open Melt**, then **Open local workspace**. Create an envelope — the demo path is “mobile data for your trip, up to $20”. Open **Discover**, search for an eSIM, and **Use this**. Melt swaps only the required ETH to USDC on Uniswap. Cash-out wording returns nothing.
+Open [the local site](http://127.0.0.1:5173), choose **Open Melt**, then **Open local workspace**. Create an envelope — the demo path is “mobile data for your trip, up to $20”. Open **Discover**, search for an eSIM, and **Use this**. Melt swaps only the required ETH to USDC on Uniswap, then asks Cryptorefills to email the card. On a local fork or Sepolia the swap is real; a live card needs mainnet USDC. Cash-out wording returns nothing.
 
 Local development starts Anvil on 8545, the API on 8787, test dapps on 8788, and the web app on 5173. Its ETH and wallets are public development accounts with no monetary value.
 
@@ -56,12 +56,12 @@ MCP tools: `list_envelopes`, `get_envelope`, `find_options`, `propose_purchase`,
 ## What's implemented
 
 - **Purpose-bound envelopes.** A sender locks ETH against a semantic promise. Policy (category, dollar cap, deny list, partial use, unused-to-sender) is hashed and cannot be rewritten after funding.
-- **AI discovery over a real catalog.** A recipient asks in plain language — “an eSIM for Japan”, “fps games” — and a model ranks candidates from roughly 900 live gift-card brands (Cryptorefills public API) plus the built-in catalog. The model only orders candidates that already passed the deterministic policy gate; it cannot add items, change prices, or bypass caps. A stemmed keyword matcher answers when no model is configured.
-- **Open proposals, not a walled catalog.** An assistant can propose anything it found on the open web (`propose_item`: title, merchant, price, URL). Melt audits the item against the gift’s purpose with the model, then enforces the deny list, caps, and remaining funds deterministically before quoting. The catalog is a convenience, not a boundary.
+- **AI discovery over a real catalog.** A recipient asks in plain language — “Uber Eats”, “an eSIM for Japan” — and a model ranks candidates from Cryptorefills food, game, and eSIM brands plus the built-in cards. The model only orders candidates that already passed the deterministic policy gate; it cannot add items, change prices, or bypass caps. A stemmed keyword matcher answers when no model is configured.
+- **Open proposals, not a walled catalog.** An assistant can propose a brand it found (`propose_item`: title, merchant, price, URL). Melt audits the item against the gift’s purpose with the model, then enforces the deny list, caps, and remaining funds deterministically before quoting. Redeem still runs the Cryptorefills order path.
 - **A gift you can hand over.** Every gift page prints as a physical certificate with a QR claim link, and can be shared by email or link. The recipient never needs a Melt account to receive it.
 - **A note back.** The recipient can leave a thank-you on the gift page — no account needed. It lands on the sender's envelope and fires an `envelope.thanked` webhook.
 - **A visible spine.** Every envelope exposes its full event timeline — created, funded, quoted, settled — so both sides can see exactly what the vault did and when.
-- **Discover and redeem.** Matching catalog options only. Uniswap V3 converts the required ETH to USDC from the envelope vault (`exactInputSingle`, native value, no ERC-20 approval). Leftover funds stay until expiry, then return to the sender.
+- **Discover and redeem.** Matching catalog cards only. Uniswap V3 converts the required ETH to USDC from the envelope vault (`exactInputSingle`, native value, no ERC-20 approval). Cryptorefills emails the card when paid on Ethereum mainnet. On Sepolia Melt validates the order and does not create one. Leftover funds stay until expiry, then return to the sender.
 - **MCP as distribution.** ChatGPT, Claude, Codex or Grok redeem an existing gift. They cannot invent a transfer. Hosted MCP lives at `/api/mcp`; a stdio server ships in the SDK.
 - **Developer platform.** `/developers` is a standalone portal with API keys, per-key usage metering, webhooks, quickstarts, and generated OpenAPI docs.
 - **Privy identity.** Email or wallet login, embedded Ethereum wallets, passkeys, and a relayer for outer vault transactions. Implementation: [`apps/web/src/PrivyApp.tsx`](apps/web/src/PrivyApp.tsx).

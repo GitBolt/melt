@@ -147,14 +147,17 @@ test("product page explains the gift before the workspace", async ({
   ).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "Write it in English. The store is not the point.",
+      name: "Write it in English. They pick the card.",
     }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Powered by Uniswap" }).first(),
   ).toBeVisible();
   const previewYes = await page.request.post(`${base}/api/public/preview-fit`, {
     headers: { Origin: base },
     data: {
-      purpose: "Dinner for two, anywhere you like, up to $120",
-      request: "Italian near me",
+      purpose: "Food delivery, up to $50",
+      request: "Uber Eats",
     },
   });
   expect(previewYes.ok(), await previewYes.text()).toBeTruthy();
@@ -162,7 +165,7 @@ test("product page explains the gift before the workspace", async ({
   const previewNo = await page.request.post(`${base}/api/public/preview-fit`, {
     headers: { Origin: base },
     data: {
-      purpose: "Dinner for two, anywhere you like, up to $120",
+      purpose: "Food delivery, up to $50",
       request: "cash out to my wallet",
     },
   });

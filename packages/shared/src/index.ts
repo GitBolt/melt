@@ -161,6 +161,13 @@ export interface EnvelopeRedemption {
   delivery?: string;
   createdAt: string;
   disclosure?: string;
+  fulfillment?: {
+    provider: "cryptorefills";
+    status: "issued" | "awaiting_mainnet" | "needs_email" | "unpayable";
+    brand: string;
+    amountUsd: number;
+    email?: string;
+  };
 }
 export interface Envelope {
   object: "envelope";
@@ -209,6 +216,7 @@ export interface CatalogOption {
   tokenSymbol?: string;
   source: "melt" | "cryptorefills" | "agent";
   disclosure: string;
+  brandName?: string;
 }
 export type TaskStatus =
   | "funding"
@@ -362,7 +370,12 @@ const CATEGORY_HINTS: Record<EnvelopeCategory, string[]> = {
     "food",
     "lunch",
     "brunch",
-    "for two",
+    "uber eats",
+    "ubereats",
+    "doordash",
+    "chipotle",
+    "starbucks",
+    "delivery",
   ],
   concert: ["concert", "gig", "festival", "tickets", "show", "live music"],
   flight: ["flight", "airfare", "fly home", "thanksgiving", "plane", "airport"],
@@ -382,7 +395,7 @@ const CATEGORY_HINTS: Record<EnvelopeCategory, string[]> = {
 
 export const categoryPhrase: Record<EnvelopeCategory, string> = {
   esim: "mobile data",
-  dinner: "dinner",
+  dinner: "food",
   concert: "a concert",
   flight: "a flight",
   game: "a game",
@@ -404,10 +417,15 @@ const ASK_EXTRA: Record<EnvelopeCategory, string[]> = {
     "cafe",
     "tasting",
     "omakase",
+    "doordash",
+    "ubereats",
+    "uber",
+    "chipotle",
+    "starbucks",
   ],
   concert: ["ticket"],
   flight: ["airline"],
-  game: ["games", "hades", "celeste"],
+  game: ["games", "steam", "roblox", "playstation"],
   apartment: ["lamp", "bedding"],
   ai: ["chatgpt", "claude"],
   other: [],

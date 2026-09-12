@@ -48,6 +48,7 @@ import {
   ComingBack,
   formatRemaining,
 } from "./Envelopes";
+import { PoweredByUniswap } from "./components/PoweredByUniswap";
 import "./public-receipt.css";
 export interface Auth {
   ready: boolean;
@@ -89,15 +90,15 @@ const PAGES = ["Envelopes", "Discover", "Activity"] as const;
 type Page = (typeof PAGES)[number];
 const LAUNCH_GIFTS = [
   {
-    kind: "Dinner",
-    usd: "$120",
-    note: "Anywhere they like, before New Year",
+    kind: "Food",
+    usd: "$50",
+    note: "Uber Eats or DoorDash, leftover returns",
     tilt: "-1.2deg",
   },
   {
-    kind: "Flight",
-    usd: "$400",
-    note: "Home for Thanksgiving",
+    kind: "Steam",
+    usd: "$40",
+    note: "A Steam card that fits the cap",
     tilt: "1.1deg",
   },
   {
@@ -535,8 +536,8 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
               <div>
                 <h1>Spend a gift.</h1>
                 <p>
-                  Ask for what you actually want. Melt only lists purchases that
-                  still match the original promise.
+                  Ask for Uber Eats, Steam, or an eSIM. Melt only lists cards
+                  that still match the original promise.
                 </p>
               </div>
             </section>
@@ -663,8 +664,8 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                       <div>
                         <h2>Write one of your own</h2>
                         <p>
-                          Purpose-bound money. They spend it later, in Melt or
-                          in ChatGPT. Unused funds return.
+                          Purpose-bound money. They spend it later on a matching
+                          card, in Melt or in ChatGPT. Unused funds return.
                         </p>
                       </div>
                       <div className="launch-actions">
@@ -841,7 +842,8 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
         )}
       </main>
       <footer>
-        <a href="/">Melt · Gift cards without stores</a>
+        <a href="/">Melt · Purpose-bound gift cards</a>
+        <PoweredByUniswap compact />
         <a href="/developers">
           Developers <ArrowUpRight size={12} />
         </a>
@@ -1343,7 +1345,7 @@ function SessionDetail({
                 <p>
                   {t.envelopeId
                     ? t.error ||
-                      "Matching purchases settle on Uniswap. Leftover funds stay until this gift expires."
+                      "Matching cards settle on Uniswap. Leftover funds stay until this gift expires."
                     : t.kind === "swap"
                       ? t.status === "closed"
                         ? `Swapped ${t.spent} ${config.chain.symbol} for ${t.swap?.symbol || "tokens"} · agent spending disabled`

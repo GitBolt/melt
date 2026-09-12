@@ -355,6 +355,8 @@
 .plat-foot {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
   padding: 18px clamp(18px, 4vw, 40px) 28px;
   border-top: 1px solid var(--plat-rule);

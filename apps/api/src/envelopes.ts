@@ -18,6 +18,7 @@ import { db, event, get, getByReceiptToken, save, serial } from "./store.js";
 import { giftEmail, giftUrl, mailConfigured, sendMail } from "./mail.js";
 import {
   client,
+  chain,
   demoOwner,
   deployTask,
   local,
@@ -37,6 +38,7 @@ import {
 } from "./catalog.js";
 import { emit } from "./webhooks.js";
 import { errorMessage } from "./errors.js";
+import { fulfillGiftCard } from "./issuer.js";
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS envelopes(
@@ -822,7 +824,11 @@ async function executeSettlement(
   return { hash, quote };
 }
 
-export async function redeemQuote(envelope: Envelope, quoteId: string) {
+export async function redeemQuote(
+  envelope: Envelope,
+  quoteId: string,
+  email?: string,
+) {
   if (!quoteId)
     throw Object.assign(
       Error(
@@ -879,6 +885,15 @@ export async function redeemQuote(envelope: Envelope, quoteId: string) {
       quote.amountEth,
       usdc.address,
     );
+    const deliveryEmail = email?.trim() || live.recipientEmail;
+    if (deliveryEmail && !live.recipientEmail)
+      live.recipientEmail = deliveryEmail;
+    const issued = await fulfillGiftCard({
+      brand: quote.merchant,
+      usd: quote.amountUsd || 0,
+      email: deliveryEmail,
+      chainId: chain.id,
+    });
     quote.status = "redeemed";
     const redemption = {
       id: randomUUID(),
@@ -891,9 +906,16 @@ export async function redeemQuote(envelope: Envelope, quoteId: string) {
       symbol: swap.symbol,
       hash,
       status: "succeeded" as const,
-      delivery: `${quote.title} reserved. ${swap.amountOut} ${swap.symbol} is in the envelope vault.`,
+      delivery: issued.delivery,
       createdAt: new Date().toISOString(),
       disclosure: quote.disclosure,
+      fulfillment: {
+        provider: issued.provider,
+        status: issued.status,
+        brand: issued.brand,
+        amountUsd: issued.amountUsd,
+        email: issued.email,
+      },
     };
     live.redemptions.push(redemption);
     saveEnvelope(presentEnvelope(live, get(task.id)));

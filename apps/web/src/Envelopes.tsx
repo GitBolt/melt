@@ -29,30 +29,16 @@ import { PurposeLoom } from "./components/PurposeLoom";
 import { TearStub } from "./components/TearStub";
 import { OpenedBlot } from "./components/OpenedBlot";
 import { FitNeedle } from "./components/FitNeedle";
+import { PoweredByUniswap } from "./components/PoweredByUniswap";
 
 const short = (s: string) =>
   s ? `${s.slice(0, 6)}…${s.slice(-4)}` : "Creating…";
 
 export const PRESETS = [
   {
-    label: "Dinner",
-    purpose: "Dinner for two, anywhere you like, up to $120",
-    usd: "120",
-  },
-  {
-    label: "Flight home",
-    purpose: "A flight home for Thanksgiving, up to $400",
-    usd: "400",
-  },
-  {
-    label: "Concert",
-    purpose: "Any concert you want this summer, up to $150",
-    usd: "150",
-  },
-  {
-    label: "Apartment",
-    purpose: "Something for your new apartment, except electronics",
-    usd: "200",
+    label: "Food",
+    purpose: "Food delivery, up to $50",
+    usd: "50",
   },
   {
     label: "Mobile data",
@@ -60,49 +46,52 @@ export const PRESETS = [
     usd: "20",
   },
   {
-    label: "Indie game",
-    purpose: "Any indie game under $40",
+    label: "Steam",
+    purpose: "Steam games, up to $40",
     usd: "40",
-  },
-  {
-    label: "AI month",
-    purpose: "One month of an AI product you actually want",
-    usd: "25",
   },
 ];
 
 const CATEGORY_SAY: Record<string, string> = {
   esim: "mobile data",
-  dinner: "dinner",
+  dinner: "food",
   concert: "a concert",
   flight: "a flight",
-  game: "a game",
+  game: "Steam",
   apartment: "the apartment",
   ai: "an AI product",
   other: "this purpose",
 };
 
 const ASK_FOR: Record<string, string[]> = {
-  esim: ["an eSIM for Japan", "data for my trip", "a local top-up"],
-  dinner: ["Italian near me", "a tasting menu", "lunch for two"],
-  concert: ["tickets this weekend", "whatever is playing Friday"],
-  flight: ["a flight home", "a one-way ticket"],
-  game: ["an indie game", "something on Steam under $40"],
-  apartment: ["a lamp for the apartment", "kitchen things, not electronics"],
-  ai: ["a month of ChatGPT", "the AI I actually use"],
+  esim: ["an eSIM for Japan", "data for my trip"],
+  dinner: ["Uber Eats", "DoorDash"],
+  concert: ["tickets this weekend"],
+  flight: ["a flight home"],
+  game: ["Steam", "something on Steam under $40"],
+  apartment: ["a lamp for the apartment"],
+  ai: ["a month of ChatGPT"],
   other: ["what this gift was for"],
 };
 
 const LOOM_EXCEPT: Record<string, string[]> = {
-  dinner: ["groceries"],
+  dinner: ["games"],
   concert: ["merch"],
   flight: ["hotels"],
-  game: ["wallet credit"],
+  game: ["food"],
   apartment: ["electronics"],
   esim: ["headphones"],
   ai: ["hardware"],
   other: [],
 };
+
+function fulfillLabel(status?: string) {
+  if (status === "issued") return "Card emailed";
+  if (status === "awaiting_mainnet") return "Swap done · card waits for mainnet";
+  if (status === "needs_email") return "Swap done · needs an email";
+  if (status === "unpayable") return "Swap done · card not issued";
+  return "";
+}
 
 function addExcept(purpose: string, word: string) {
   if (purpose.toLowerCase().includes(word.toLowerCase())) return purpose;
@@ -357,9 +346,10 @@ export function EnvelopeComposer({
   }) => void;
   onCancel?: () => void;
 }) {
-  const [preset, setPreset] = useState("Dinner");
+  const [preset, setPreset] = useState("Food");
   const [senderName, setSenderName] = useState("");
   const [recipientLabel, setRecipientLabel] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
   const [purpose, setPurpose] = useState(PRESETS[0].purpose);
   const [usd, setUsd] = useState(PRESETS[0].usd);
   const [until, setUntil] = useState(defaultUntil);
@@ -370,6 +360,7 @@ export function EnvelopeComposer({
   const budget = usdToEth(Number(usd), rate);
   const overCap = Number(usd) > 0 && Number(usd) / rate > 10;
   const emailTo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientLabel.trim());
+  const cardEmail = emailTo ? recipientLabel.trim() : recipientEmail.trim();
   const heard = inferEnvelopePolicy(purpose, {
     maxUsd: Number(usd) > 0 ? Number(usd) : undefined,
     partialUse,
@@ -383,7 +374,7 @@ export function EnvelopeComposer({
         onSubmit({
           senderName,
           recipientLabel,
-          recipientEmail: emailTo ? recipientLabel.trim() : "",
+          recipientEmail: cardEmail,
           notifyRecipient: true,
           purpose,
           budget,
@@ -395,8 +386,7 @@ export function EnvelopeComposer({
       }}
     >
       <p className="swap-lead">
-        Write what it is for. They pick the place, the ticket, or the eSIM
-        later.
+        Write what it is for. They pick Uber Eats, Steam, or an eSIM later.
       </p>
       <div className="template-options">
         {PRESETS.map((item) => (
@@ -429,12 +419,31 @@ export function EnvelopeComposer({
           required
           maxLength={120}
           value={recipientLabel}
-          placeholder="Alex, or an email"
+          placeholder="Alex"
           onChange={(e) => setRecipientLabel(e.target.value)}
         />
       </label>
       {emailTo ? (
-        <p className="helper">We'll email them this gift from Melt.</p>
+        <p className="helper">
+          We will email the gift, and Cryptorefills can send the card here.
+        </p>
+      ) : (
+        <label>
+          Email for the card
+          <input
+            type="email"
+            maxLength={200}
+            value={recipientEmail}
+            placeholder="alex@example.com"
+            onChange={(e) => setRecipientEmail(e.target.value)}
+          />
+        </label>
+      )}
+      {!emailTo ? (
+        <p className="helper">
+          Optional. Cryptorefills emails the card here. They can add it when
+          they spend.
+        </p>
       ) : null}
       <label>
         The promise
@@ -443,7 +452,7 @@ export function EnvelopeComposer({
           maxLength={500}
           rows={3}
           value={purpose}
-          placeholder="Dinner for two, anywhere you like, up to $120, before New Year"
+          placeholder="Food delivery, up to $50"
           onChange={(e) => {
             setPreset("");
             setPurpose(e.target.value);
@@ -475,7 +484,7 @@ export function EnvelopeComposer({
         <input
           maxLength={400}
           value={note}
-          placeholder="Happy birthday. Pick somewhere you actually like."
+          placeholder="Happy birthday. Get dinner on me."
           onChange={(e) => setNote(e.target.value)}
         />
       </label>
@@ -739,7 +748,7 @@ export function EnvelopeDetail({
         Locked for {CATEGORY_SAY[envelope.category] || "this purpose"}
         {envelope.partialUse
           ? ". Partial use allowed."
-          : ". One purchase only."}
+          : ". One card only."}
       </p>
       <ol className="gift-path">
         <li className="is-done">
@@ -880,7 +889,7 @@ export function EnvelopeDetail({
             {envelope.status === "open" && (
               <button className="primary wide" onClick={onDiscover}>
                 <Search size={15} />
-                Find a purchase
+                Find a card
               </button>
             )}
             {envelope.receiptToken && (
@@ -1028,12 +1037,12 @@ export function EnvelopeDetail({
           {envelope.redemptions.length === 0 && (
             <div className="envelope-empty">
               <p>
-                Nothing spent yet. Send the gift link, or find a purchase that
+                Nothing spent yet. Send the gift link, or find a card that
                 matches the purpose.
               </p>
               {envelope.status === "open" ? (
                 <button className="secondary" onClick={onDiscover}>
-                  Find a purchase
+                  Find a card
                 </button>
               ) : null}
             </div>
@@ -1048,7 +1057,11 @@ export function EnvelopeDetail({
                   {item.hash ? ` · Uniswap ${short(item.hash)}` : ""}
                 </p>
                 {item.delivery && <p className="helper">{item.delivery}</p>}
-                {item.disclosure && <p className="helper">{item.disclosure}</p>}
+                {item.fulfillment?.status ? (
+                  <p className="fulfill-status">
+                    {fulfillLabel(item.fulfillment.status)}
+                  </p>
+                ) : null}
               </div>
               <time>{new Date(item.createdAt).toLocaleString()}</time>
             </article>
@@ -1233,6 +1246,7 @@ export function DiscoverPanel({
   onTx?: (hash: string, label?: string) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [cardEmail, setCardEmail] = useState("");
   const [result, setResult] = useState<any>(null);
   const [settled, setSettled] = useState<any>(null);
   const [redeeming, setRedeeming] = useState<{
@@ -1242,6 +1256,7 @@ export function DiscoverPanel({
   const envelope = envelopes.find((item) => item.id === selectedId);
   const lastRedemption = envelope?.redemptions?.at(-1);
   const needsFunds = envelope?.status === "funding";
+  const deliveryEmail = cardEmail.trim() || envelope?.recipientEmail || "";
   async function search(next = query) {
     if (!selectedId || needsFunds) return;
     const found = await request(
@@ -1252,8 +1267,9 @@ export function DiscoverPanel({
   useEffect(() => {
     setResult(null);
     setSettled(null);
+    setCardEmail(envelope?.recipientEmail || "");
     if (selectedId && envelope?.status !== "funding") void search("");
-  }, [selectedId, envelope?.status]);
+  }, [selectedId, envelope?.status, envelope?.recipientEmail]);
   if (!envelopes.length)
     return (
       <section className="compose panel">
@@ -1264,7 +1280,7 @@ export function DiscoverPanel({
         />
         <h2>Nothing to spend yet</h2>
         <p className="helper">
-          Create a gift first. Discover only shows purchases that match one you
+          Create a gift first. Discover only shows cards that match one you
           already funded.
         </p>
       </section>
@@ -1274,7 +1290,7 @@ export function DiscoverPanel({
       <section className="compose panel">
         <div className="section-top">
           <h2>Use this gift</h2>
-          <span className="quiet">MCP · Melt</span>
+          <span className="quiet">Gift cards</span>
         </div>
         <EnvelopePicker
           envelopes={envelopes}
@@ -1310,7 +1326,7 @@ export function DiscoverPanel({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Italian near me, an eSIM for Japan, an indie game…"
+              placeholder="Uber Eats, an eSIM for Japan, Steam…"
               aria-label="What do you want this gift to become"
             />
             <button className="primary" disabled={!selectedId || !!busy}>
@@ -1341,20 +1357,38 @@ export function DiscoverPanel({
             ))}
           </div>
         ) : null}
+        {envelope && !needsFunds && !envelope.recipientEmail ? (
+          <label>
+            Email for the card
+            <input
+              type="email"
+              value={cardEmail}
+              onChange={(e) => setCardEmail(e.target.value)}
+              placeholder="alex@example.com"
+              autoComplete="email"
+            />
+          </label>
+        ) : null}
         {result?.note && <p className="helper">{result.note}</p>}
-        {result?.settlement && (
-          <p className="helper">
-            Settlement: {result.settlement}. Uniswap converts only the amount a
-            qualifying purchase needs.
-          </p>
-        )}
+        {envelope && !needsFunds ? (
+          <div className="settle-note">
+            <PoweredByUniswap compact />
+            <p className="helper">
+              Uniswap converts only the card amount to USDC. Cryptorefills
+              emails the brand. On Sepolia the swap is live; a live card needs
+              mainnet USDC.
+            </p>
+          </div>
+        ) : null}
         {settled && (
           <div className="settlement-card panel" role="status">
             <div className="mini-seal complete">
               <Check size={16} />
             </div>
             <div>
-              <span className="quiet">Settled</span>
+              <span className="quiet">
+                {fulfillLabel(settled.fulfillment?.status) || "Settled"}
+              </span>
               <strong>{settled.title}</strong>
               <p>
                 {settled.amountOut} {settled.symbol} via Uniswap. Leftover funds
@@ -1362,12 +1396,13 @@ export function DiscoverPanel({
               </p>
               {settled.hash && <p className="identifier">{settled.hash}</p>}
               {settled.delivery && <p className="helper">{settled.delivery}</p>}
+              <PoweredByUniswap compact />
             </div>
           </div>
         )}
         {lastRedemption && !settled && (
           <p className="helper">
-            Last purchase: {lastRedemption.title}
+            Last card: {lastRedemption.title}
             {lastRedemption.symbol
               ? ` · ${lastRedemption.amountOut} ${lastRedemption.symbol}`
               : ""}
@@ -1404,17 +1439,18 @@ export function DiscoverPanel({
                     );
                     setRedeeming({
                       sku: option.sku,
-                      step: "Settling onchain…",
+                      step: "Settling on Uniswap…",
                     });
                     const done = await request(
                       `/envelopes/${selectedId}/redeem`,
                       {
                         quoteId: proposed.quote.id,
+                        ...(deliveryEmail ? { email: deliveryEmail } : {}),
                       },
                     );
                     setSettled(done.redemption);
                     if (done.redemption?.hash)
-                      onTx?.(done.redemption.hash, "Settled onchain");
+                      onTx?.(done.redemption.hash, "Settled on Uniswap");
                     await search(query);
                   } finally {
                     setRedeeming(null);
@@ -1439,7 +1475,8 @@ export function DiscoverPanel({
         {result && !result.options?.length && !result.note && (
           <p className="helper">
             Nothing in the catalog matches this promise
-            {query ? ` for “${query}”` : ""}.
+            {query ? ` for “${query}”` : ""}. Matching cards have a listed
+            price; leftover below that cannot buy a smaller card.
           </p>
         )}
         {result?.rejected?.length > 0 && (

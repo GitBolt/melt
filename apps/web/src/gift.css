@@ -342,6 +342,9 @@
 .gift-actions .secondary {
   flex: 1 1 160px;
 }
+.gift-voucher .powered-uniswap {
+  margin-top: 16px;
+}
 @media (max-width: 640px) {
   .gift-envelope {
     width: min(340px, 100%);

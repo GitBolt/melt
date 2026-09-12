@@ -191,7 +191,7 @@ export class Melt {
   redeem(
     id: string,
     quoteId: string,
-    options?: RequestOptions,
+    options?: RequestOptions & { email?: string },
   ): Promise<{ redemption: { id: string; status: string } }>;
   redemptionStatus(
     id: string,

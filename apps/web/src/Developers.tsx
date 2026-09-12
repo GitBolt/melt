@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { MeltLoader, MeltWordmark } from "./components/MeltMotion";
+import { PoweredByUniswap } from "./components/PoweredByUniswap";
 import type { Auth } from "./App";
 import type { Config } from "../../../packages/shared/src/index";
 import "./developers.css";
@@ -370,7 +371,7 @@ const event = await constructEvent(
               <h1>Connect ChatGPT, Claude, Cursor, or Grok</h1>
               <p className="plat-lead">
                 Create and fund an envelope in Melt. Give the recipient a key.
-                Their assistant can find a matching purchase, propose a quote,
+                Their assistant can find a matching gift card, propose a quote,
                 and redeem it. It cannot create a gift, raise the amount, or
                 send cash.
               </p>
@@ -390,7 +391,7 @@ const event = await constructEvent(
                   <h2 className="ok">A key can</h2>
                   <ul>
                     <li>List envelopes this account sent or received</li>
-                    <li>Find purchases that match the gift</li>
+                    <li>Find gift cards that match the gift</li>
                     <li>Propose a catalog option</li>
                     <li>Redeem that quote onchain</li>
                   </ul>
@@ -524,7 +525,7 @@ const event = await constructEvent(
                   [
                     "GET",
                     "/envelopes/:id/options",
-                    "Find purchases that match the gift",
+                    "Find gift cards that match the gift",
                   ],
                   [
                     "POST",
@@ -987,7 +988,8 @@ curl --fail-with-body '${origin}/api/envelopes/$ID/redeem' \\
         </main>
       </div>
       <footer className="plat-foot">
-        <a href="/">Melt · Gift cards without stores</a>
+        <a href="/">Melt · Purpose-bound gift cards</a>
+        <PoweredByUniswap compact />
         <a href="/app">Consumer app</a>
       </footer>
       {notice ? (

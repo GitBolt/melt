@@ -17,11 +17,8 @@ import {
 } from "./catalog.js";
 import { policyHash, publicGift } from "./envelopes.js";
 
-const lamp = catalogBySku("apt-lamp", 2500)!;
-const tv = catalogBySku("apt-tv", 2500)!;
-const esim = catalogBySku("esim-trip-5gb", 2500)!;
-const dinner = catalogBySku("dinner-italian", 2500)!;
-const game = catalogBySku("game-hades", 2500)!;
+const dinner = catalogBySku("food-ubereats-25", 2500)!;
+const game = catalogBySku("game-steam-20", 2500)!;
 
 function option(
   partial: Partial<CatalogOption> & Pick<CatalogOption, "sku" | "title">,
@@ -40,6 +37,24 @@ function option(
     ...partial,
   };
 }
+
+const lamp = option({
+  sku: "apt-lamp",
+  title: "Floor lamp",
+  category: "apartment",
+  keywords: ["apartment", "lamp", "furniture"],
+  priceUsd: 45,
+  priceEth: "0.018",
+});
+const tv = option({
+  sku: "apt-tv",
+  title: "32-inch television",
+  category: "apartment",
+  keywords: ["apartment", "tv", "television", "electronics"],
+  tags: ["electronics", "tv"],
+  priceUsd: 180,
+  priceEth: "0.072",
+});
 
 test("infers a trip data envelope and a dollar cap", () => {
   const policy = inferEnvelopePolicy("mobile data for your trip, up to $20");
@@ -83,32 +98,27 @@ test("indie game envelope stays under $40 and ignores a flight", async () => {
   const found = await findCatalogOptions(policy, 1, "an indie game", 2500);
   assert.ok(found.options.every((item) => item.priceUsd <= 40));
   assert.ok(found.options.some((item) => item.sku === game.sku));
-  assert.equal(
-    optionFitsPolicy(policy, catalogBySku("flight-home", 2500)!, 1).ok,
-    false,
-  );
+  assert.equal(optionFitsPolicy(policy, dinner, 1).ok, false);
 });
 
 test("plural and filler words in the request still find matching options", async () => {
   const policy = inferEnvelopePolicy("Any indie game under $40");
-  const found = await findCatalogOptions(policy, 1, "find fps games", 2500);
+  const found = await findCatalogOptions(policy, 1, "find steam games", 2500);
   assert.ok(found.options.some((item) => item.sku === game.sku));
-  const tickets = await findCatalogOptions(
-    inferEnvelopePolicy("A concert ticket, up to $100"),
+  const food = await findCatalogOptions(
+    inferEnvelopePolicy("Food delivery, up to $50"),
     1,
-    "get me some concert tickets",
+    "get me Uber Eats",
     2500,
   );
-  assert.ok(tickets.options.some((item) => item.sku === "concert-any"));
+  assert.ok(food.options.some((item) => item.sku.startsWith("food-ubereats")));
   const miss = await findCatalogOptions(policy, 1, "skydiving lessons", 2500);
   assert.equal(miss.options.length, 0);
 });
 
-function foundDinner(found: {
-  options: { category?: string; sku: string }[];
-}) {
+function foundFood(found: { options: { category?: string; sku: string }[] }) {
   return found.options.some(
-    (item) => item.category === "dinner" || item.sku.startsWith("dinner-"),
+    (item) => item.category === "dinner" || item.sku.startsWith("food-"),
   );
 }
 
@@ -124,55 +134,21 @@ test("an option a search served stays proposable via the offered cache", async (
   assert.equal(offeredOption("never-served-sku", 2500), undefined);
 });
 
-test("dinner chips find Italian dinner even when leftover funds are small", async () => {
-  const policy = inferEnvelopePolicy(
-    "Dinner for two, anywhere you like, up to $120",
-  );
-  const funded = await findCatalogOptions(policy, 1, "Italian near me", 2500);
-  assert.ok(foundDinner(funded), "a funded dinner gift must serve Italian dinner");
-  const leftoverEth = 1 / 2500;
+test("food gifts return Uber Eats cards that fit the remaining funds", async () => {
+  const policy = inferEnvelopePolicy("Food delivery, up to $50");
+  const funded = await findCatalogOptions(policy, 1, "Uber Eats", 2500);
+  assert.ok(foundFood(funded), "a funded food gift must serve Uber Eats");
+  assert.ok(funded.options.every((item) => item.priceUsd <= 50));
   const leftover = await findCatalogOptions(
     policy,
-    leftoverEth,
-    "Italian near me",
+    1 / 2500,
+    "Uber Eats",
     2500,
   );
-  const italian = leftover.options.find((item) => item.sku === "dinner-italian");
-  assert.ok(italian, "a $1 dinner gift must still serve Italian near me");
-  assert.ok(italian!.priceUsd <= 1.01);
-  assert.ok(italian!.priceUsd >= 0.9);
-  const served = offeredOption("dinner-italian", 2500);
-  assert.ok(served);
-  assert.equal(served!.priceUsd, italian!.priceUsd);
-  const dollarCap = inferEnvelopePolicy(
-    "Dinner for two, anywhere you like, up to $120",
-    { maxUsd: 1 },
-  );
-  const dollarGift = await findCatalogOptions(
-    dollarCap,
-    leftoverEth,
-    "Italian near me",
-    2500,
-  );
-  assert.ok(
-    foundDinner(dollarGift),
-    "typing $1 as the cap must still return dinner",
-  );
-  const roundedEth = Number((1 / 4300).toFixed(5));
-  const rounded = await findCatalogOptions(
-    policy,
-    roundedEth,
-    "Italian near me",
-    4300,
-  );
-  assert.ok(
-    foundDinner(rounded),
-    "a $1 gift must survive ETH rounding under a live rate",
-  );
-  const tasting = await findCatalogOptions(policy, 1, "a tasting menu", 2500);
-  assert.ok(foundDinner(tasting));
-  const lunch = await findCatalogOptions(policy, 1, "lunch for two", 2500);
-  assert.ok(foundDinner(lunch));
+  assert.equal(leftover.options.length, 0);
+  assert.match(leftover.note || "", /start at/i);
+  const lunch = await findCatalogOptions(policy, 1, "DoorDash", 2500);
+  assert.ok(foundFood(lunch));
   const gadgets = await findCatalogOptions(policy, 1, "headphones", 2500);
   assert.equal(gadgets.options.length, 0);
 });

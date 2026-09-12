@@ -3,22 +3,22 @@ import { BudgetRibbon } from "./BudgetRibbon";
 import { useReducedMotion } from "motion/react";
 import "./breakage-pour.css";
 
-const BUDGET = 120;
+const BUDGET = 50;
 
 function readout(mode: "melt" | "card", spent: number, leftover: number) {
   if (mode === "card") {
     return leftover === 0
-      ? `$${spent} on dinner. Nothing left for the store to keep.`
-      : `$${spent} on dinner. The store keeps the unused $${leftover}.`;
+      ? `$${spent} food card. Nothing left for the store to keep.`
+      : `$${spent} food card. The store keeps the unused $${leftover}.`;
   }
-  if (leftover === 0) return `$${spent} on dinner. Nothing unused.`;
+  if (leftover === 0) return `$${spent} food card. Nothing unused.`;
   if (spent === 0) return `$${BUDGET} unused. It returns to the sender.`;
-  return `$${spent} on dinner. $${leftover} unused returns to the sender.`;
+  return `$${spent} food card. $${leftover} unused returns to the sender.`;
 }
 
 export function BreakagePour() {
   const reduced = useReducedMotion();
-  const [spent, setSpent] = useState(85);
+  const [spent, setSpent] = useState(25);
   const [mode, setMode] = useState<"melt" | "card">("melt");
   const leftover = Math.max(0, BUDGET - spent);
   return (
@@ -58,7 +58,7 @@ export function BreakagePour() {
         }
       >
         <div className="pour-half is-dinner">
-          <span>Dinner</span>
+          <span>Food card</span>
           <strong>${spent}</strong>
         </div>
         <i className="pour-perf" aria-hidden="true" />
@@ -80,7 +80,7 @@ export function BreakagePour() {
         total={BUDGET}
         large
         symbol="USD"
-        label="Dinner spend"
+        label="Card amount"
         onChange={(value) => setSpent(Math.round(value))}
       />
     </div>
