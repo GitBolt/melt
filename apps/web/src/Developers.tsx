@@ -848,6 +848,7 @@ curl --fail-with-body '${origin}/api/envelopes/$ID/redeem' \\
                   <label className="hook-url">
                     Endpoint URL
                     <input
+                      type="url"
                       value={hookUrl}
                       onChange={(e) => setHookUrl(e.target.value)}
                       placeholder="https://example.com/melt-webhooks"

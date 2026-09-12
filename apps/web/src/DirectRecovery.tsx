@@ -398,7 +398,7 @@ export function DirectRecovery({
         }
       />
       <header>
-        <a className="wordmark" href="/">
+        <a className="wordmark" href="/" aria-label="Melt home">
           <MeltWordmark />
         </a>
         <a className="recovery-back" href="/">

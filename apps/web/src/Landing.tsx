@@ -18,7 +18,7 @@ const examples = [
     kind: "Food",
     usd: "$50",
     quote: "Food delivery, up to $50.",
-    ok: "Uber Eats, DoorDash, or another food card",
+    ok: "Uber Eats or DoorDash",
     no: "Not cash. Not Steam.",
     tilt: "-1.4deg",
   },

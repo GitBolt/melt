@@ -117,6 +117,28 @@ export function formatUsd(eth: string | number, rate?: number) {
   });
 }
 
+function formatMaxUsd(value: number) {
+  return value.toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: value >= 10 ? 0 : 2,
+  });
+}
+
+function formatEnvelopeUsd(
+  envelope: Envelope,
+  eth: string | number,
+  ethUsd?: number,
+) {
+  if (
+    envelope.status === "funding" &&
+    envelope.policy?.maxUsd &&
+    envelope.policy.maxUsd > 0
+  )
+    return formatMaxUsd(envelope.policy.maxUsd);
+  return formatUsd(eth, ethUsd);
+}
+
 function defaultUntil() {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() + 30);
@@ -358,7 +380,8 @@ export function EnvelopeComposer({
   const [note, setNote] = useState("");
   const rate = config.ethUsd || 2500;
   const budget = usdToEth(Number(usd), rate);
-  const overCap = Number(usd) > 0 && Number(usd) / rate > 10;
+  const overCap =
+    Number(usd) > 10000 || (Number(usd) > 0 && Number(usd) / rate > 10);
   const emailTo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientLabel.trim());
   const cardEmail = emailTo ? recipientLabel.trim() : recipientEmail.trim();
   const heard = inferEnvelopePolicy(purpose, {
@@ -451,6 +474,7 @@ export function EnvelopeComposer({
           required
           maxLength={500}
           rows={3}
+          minLength={8}
           value={purpose}
           placeholder="Food delivery, up to $50"
           onChange={(e) => {
@@ -484,7 +508,7 @@ export function EnvelopeComposer({
         <input
           maxLength={400}
           value={note}
-          placeholder="Happy birthday. Get dinner on me."
+          placeholder="Happy birthday. This is for you."
           onChange={(e) => setNote(e.target.value)}
         />
       </label>
@@ -497,6 +521,7 @@ export function EnvelopeComposer({
             type="number"
             step="1"
             min="1"
+            max="10000"
             required
             value={usd}
             onChange={(e) => {
@@ -509,7 +534,9 @@ export function EnvelopeComposer({
       </label>
       <p className="helper">
         {overCap
-          ? "That is more than this vault can hold right now."
+          ? Number(usd) > 10000
+            ? "The most you can send this way is $10,000."
+            : "That is more than this vault can hold right now."
           : budget
             ? `You will fund about ${budget} ${config.chain.symbol}.`
             : "Enter an amount."}
@@ -550,7 +577,7 @@ export function EnvelopeComposer({
             Cancel
           </button>
         )}
-        <button className="primary" disabled={!!busy || !budget}>
+        <button className="primary" disabled={!!busy || !budget || overCap}>
           {busy === "create" ? <MeltLoader size={16} /> : <Gift size={16} />}
           Create envelope
           <ArrowRight size={16} />
@@ -577,6 +604,13 @@ export function ComingBack({
       n + Number(item.status === "funding" ? item.budget : item.remaining),
     0,
   );
+  const leftoverLabel = live.every(
+    (item) => item.status === "funding" && item.policy?.maxUsd,
+  )
+    ? formatMaxUsd(
+        live.reduce((n, item) => n + (item.policy?.maxUsd || 0), 0),
+      )
+    : formatUsd(remaining, ethUsd);
   const budget = live.reduce((n, item) => n + Number(item.budget), 0);
   if (remaining < 1e-8) return null;
   return (
@@ -587,8 +621,8 @@ export function ComingBack({
         label="Leftover still sitting in gifts"
       />
       <p>
-        {formatUsd(remaining, ethUsd) || `${remaining} ${symbol}`} still sitting
-        in gifts. Stores keep remnants. Unused funds are returned.
+        {leftoverLabel || `${remaining} ${symbol}`} still sitting in gifts.
+        Stores keep remnants. Unused funds are returned.
       </p>
     </div>
   );
@@ -641,7 +675,8 @@ export function EnvelopeList({
             {statusCopy[envelope.status]}
           </span>
           <span className="row-amount">
-            {formatUsd(
+            {formatEnvelopeUsd(
+              envelope,
               envelope.status === "funding"
                 ? envelope.budget
                 : envelope.remaining,
@@ -651,7 +686,8 @@ export function EnvelopeList({
                 ? envelope.budget
                 : envelope.remaining)}{" "}
             <small>
-              {formatUsd(
+              {formatEnvelopeUsd(
+                envelope,
                 envelope.status === "funding"
                   ? envelope.budget
                   : envelope.remaining,
@@ -720,10 +756,9 @@ export function EnvelopeDetail({
           maximumFractionDigits: intendedUsd >= 10 ? 0 : 2,
         })
       : formatUsd(envelope.budget, config.ethUsd);
-  const shownUsd = formatUsd(
-    unfunded ? envelope.budget : envelope.remaining,
-    config.ethUsd,
-  );
+  const shownUsd = unfunded
+    ? budgetUsd
+    : formatUsd(envelope.remaining, config.ethUsd);
   const leftLabel =
     shownUsd || (unfunded ? envelope.budget : envelope.remaining);
   const spentUsd = formatUsd(envelope.spent, config.ethUsd) || envelope.spent;
@@ -991,14 +1026,24 @@ export function EnvelopeDetail({
               <p className="helper">Creating the envelope address…</p>
             )}
             {envelope.receiptToken && (
-              <a
-                className="quiet-button wide"
-                href={`/r/${envelope.receiptToken}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Open receipt
-              </a>
+              <>
+                <a
+                  className="quiet-button wide"
+                  href={`/g/${envelope.receiptToken}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open gift page
+                </a>
+                <a
+                  className="quiet-button wide"
+                  href={`/r/${envelope.receiptToken}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open receipt
+                </a>
+              </>
             )}
             {envelope.vault && (
               <a
@@ -1154,8 +1199,8 @@ function EnvelopePicker({
           <span>
             {selected
               ? selected.status === "funding"
-                ? `${formatUsd(selected.budget, ethUsd) || selected.budget} to fund · ${selected.policy.category}`
-                : `${formatUsd(selected.remaining, ethUsd) || `${selected.remaining} ${symbol}`} left · ${selected.policy.category}`
+                ? `${formatEnvelopeUsd(selected, selected.budget, ethUsd) || selected.budget} to fund · ${selected.policy.category}`
+                : `${formatEnvelopeUsd(selected, selected.remaining, ethUsd) || `${selected.remaining} ${symbol}`} left · ${selected.policy.category}`
               : "Pick an envelope to redeem"}
           </span>
         </div>
@@ -1202,8 +1247,8 @@ function EnvelopePicker({
                     <strong>{item.purpose}</strong>
                     <span>
                       {item.status === "funding"
-                        ? `${formatUsd(item.budget, ethUsd) || item.budget} to fund`
-                        : formatUsd(item.remaining, ethUsd) ||
+                        ? `${formatEnvelopeUsd(item, item.budget, ethUsd) || item.budget} to fund`
+                        : formatEnvelopeUsd(item, item.remaining, ethUsd) ||
                           `${item.remaining} ${symbol}`}{" "}
                       · {item.policy.category}
                       {item.partialUse ? " · partial use" : ""}

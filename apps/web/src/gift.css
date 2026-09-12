@@ -93,7 +93,7 @@
   border-radius: 3px;
   transform: rotate(45deg);
 }
-.gift-slip {
+.gift-envelope .gift-slip {
   position: absolute;
   left: 58px;
   right: 58px;
@@ -109,14 +109,14 @@
     repeating-linear-gradient(180deg, #fff 0 17px, #f7f8fc 17px 18px);
   box-shadow: 0 16px 28px #3947681f;
 }
-.gift-slip span {
+.gift-envelope .gift-slip span {
   display: block;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #8c90a0;
 }
-.gift-slip strong {
+.gift-envelope .gift-slip strong {
   display: block;
   margin-top: 6px;
   font-size: 28px;
@@ -124,7 +124,7 @@
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
-.gift-slip em {
+.gift-envelope .gift-slip em {
   display: block;
   margin-top: 8px;
   font-style: normal;

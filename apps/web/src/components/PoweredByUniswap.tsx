@@ -12,8 +12,8 @@ export function PoweredByUniswap({ compact = false }: { compact?: boolean }) {
       <img
         src="/brand/uniswap-icon-pink.svg"
         alt=""
-        width={18}
-        height={20}
+        width={compact ? 22 : 28}
+        height={compact ? 24 : 30}
       />
       <span>Powered by Uniswap</span>
     </a>

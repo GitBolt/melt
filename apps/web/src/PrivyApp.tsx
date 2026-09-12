@@ -131,7 +131,7 @@ export default function PrivyApp({
     <PrivyProvider
       appId={config.privyAppId!}
       config={{
-        loginMethods: ["email", "wallet"],
+        loginMethods: ["email", "google", "wallet"],
         appearance: {
           theme: "light",
           accentColor: "#5867c8",

@@ -223,7 +223,14 @@ export async function notifyEnvelopeSession(
 }
 
 export function giftByToken(token: string) {
-  const task = getByReceiptToken(token);
+  let task;
+  try {
+    task = getByReceiptToken(token);
+  } catch (error) {
+    if ((error as { statusCode?: number }).statusCode === 404)
+      throw Object.assign(Error("Gift not found"), { statusCode: 404 });
+    throw error;
+  }
   const envelope = envelopeBySession(task.id);
   if (!envelope)
     throw Object.assign(Error("Gift not found"), { statusCode: 404 });

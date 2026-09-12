@@ -3,6 +3,11 @@
   background: var(--paper);
   color: var(--ink);
 }
+.landing #examples,
+.landing #how,
+.landing #product {
+  scroll-margin-top: 88px;
+}
 .landing-wrap {
   width: min(1120px, calc(100% - 48px));
   margin: 0 auto;
@@ -174,14 +179,15 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
 }
 .example-slip {
   position: relative;
   padding: 0;
   perspective: 900px;
   background: none;
-  min-height: 240px;
+  min-height: 260px;
+  height: 100%;
   text-align: left;
   width: 100%;
   font: inherit;
@@ -203,6 +209,7 @@
 }
 .example-face {
   transform: rotateY(0deg);
+  min-height: 100%;
 }
 .example-back {
   position: absolute;
@@ -503,6 +510,22 @@
     animation: none;
   }
 }
+@media (max-width: 1180px) {
+  .hero-grid,
+  .feature-row,
+  .feature-row.flip,
+  .agents-grid,
+  .close-panel {
+    grid-template-columns: 1fr;
+    direction: ltr;
+  }
+  .hero-title {
+    max-width: none;
+  }
+  .feature-media img {
+    height: 240px;
+  }
+}
 @media (max-width: 980px) {
   .evolution-strip {
     grid-template-columns: 1fr;
@@ -513,14 +536,6 @@
   .evolution-melt i {
     display: none;
   }
-  .hero-grid,
-  .feature-row,
-  .feature-row.flip,
-  .agents-grid,
-  .close-panel {
-    grid-template-columns: 1fr;
-    direction: ltr;
-  }
   .step-grid,
   .use-grid,
   .example-grid,
@@ -528,9 +543,6 @@
   .flow-grid,
   .fact-row {
     grid-template-columns: 1fr 1fr;
-  }
-  .hero-title {
-    max-width: none;
   }
   .landing-nav nav {
     display: none;
@@ -547,9 +559,6 @@
   .close-panel p {
     margin-left: auto;
     margin-right: auto;
-  }
-  .feature-media img {
-    height: 240px;
   }
 }
 @media (max-width: 640px) {

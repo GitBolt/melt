@@ -298,7 +298,12 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
       await fn();
       await refresh();
     } catch (e) {
-      setError((e as Error).message);
+      const message = (e as Error).message;
+      setError(
+        /user rejected|rejected the request/i.test(message)
+          ? "Cancelled."
+          : message,
+      );
     } finally {
       setBusy("");
     }
@@ -348,6 +353,7 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
         <a
           className="wordmark"
           href="#"
+          aria-label="Melt home"
           onClick={(e) => {
             e.preventDefault();
             setSelected(undefined);
@@ -526,7 +532,11 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                 void navigator.clipboard
                   .writeText(`${location.origin}/g/${envelope.receiptToken}`)
                   .then(() => setNotice("Gift link copied"))
-                  .catch(() => setError("Could not copy the gift link"));
+                  .catch(() =>
+                    setError(
+                      `Could not copy. Gift page: ${location.origin}/g/${envelope.receiptToken}`,
+                    ),
+                  );
               }}
             />
           </>
@@ -826,7 +836,6 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
                 ))}
                 {!user && (
                   <div className="empty">
-                    <Download size={24} />
                     <h2>Sign in to see activity</h2>
                     <button className="secondary" onClick={signIn}>
                       Sign in
@@ -873,7 +882,9 @@ function JobComposer({
   const [budget, setBudget] = useState("0.005");
   const [minutes, setMinutes] = useState(15);
   const valid =
-    instruction.trim().length >= 3 && /^\d+(\.\d{1,18})?$/.test(budget.trim());
+    instruction.trim().length >= 3 &&
+    /^\d+(\.\d{1,18})?$/.test(budget.trim()) &&
+    Number(budget) > 0;
   return (
     <form
       className="compose-form"

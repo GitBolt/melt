@@ -165,6 +165,12 @@ footer button {
   gap: 14px;
   padding: 8px 6px 4px;
 }
+.gift-slips .gift-slip {
+  position: relative;
+  inset: auto;
+  height: auto;
+  z-index: auto;
+}
 .gift-slip,
 .example-slip {
   text-align: left;

@@ -112,7 +112,7 @@ export function Gift({ token }: { token: string }) {
   return (
     <div className="gift-page">
       <header>
-        <a href="/">
+        <a href="/" aria-label="Melt home">
           <MeltWordmark />
         </a>
       </header>
