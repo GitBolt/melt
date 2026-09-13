@@ -44,6 +44,14 @@ Catalog prices are examples checked against the US catalog on the audit date, no
 
 ## Verification
 
+Final result: production build passed; 16 Solidity, 77 API, 13 SDK, 11 browser and 1 restart test passed (118 total). Release code is commit `97cf0b62880d6b2875f9fa3e4a69b1c038c4423a`.
+
+Deployment evidence:
+
+- Railway API deployment `13ed88ff-165f-4f05-90ab-7f45493d31b9`: observed `SUCCESS`; health returns 200 on Sepolia.
+- Vercel deployment `dpl_AobGL4R2r4NkXNTu5JxRvExfPYdB`: observed `READY`, aliased to `https://trymeltapp.vercel.app`.
+- Live read-only checks: original $1 food gift reports $1.00, its links use the new domain, gaming/Razer fits, food/video-games rejects, food/Uber-Eats explains the $15 minimum, Steam/Xbox rejects, cash-out rejects.
+
 - Production build and TypeScript checking.
 - Solidity budget, permitted calls, expiry and recovery tests.
 - API/policy/auth/catalog/issuer regression tests and SDK tests.
@@ -65,6 +73,7 @@ These automated transactions use an isolated local mainnet fork and development 
 7. Account API keys are revocable but are not independently per-envelope capability keys. Share them only with a trusted assistant.
 8. Existing onchain vault permissions are immutable; only newly created gift vaults receive the new router/selector restriction. API-level gift isolation applies to both.
 9. The frontend build still reports large third-party authentication/wallet chunks. Functional checks passed; low-bandwidth performance is not exhaustively benchmarked.
+10. `npm audit --omit=dev` reports 23 moderate, 0 high and 0 critical findings. The reported dependency chains lead to `decode-uri-component` malformed-input denial of service and `uuid` buffer-bound checks in the wallet stack. npm's suggested direct-package remediation includes a Privy downgrade; it was not applied blindly. These alerts remain unresolved and the application should not be described as vulnerability-free.
 
 ## Published submission review
 
