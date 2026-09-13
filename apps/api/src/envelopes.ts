@@ -1,8 +1,16 @@
 import { createHash, randomUUID } from "node:crypto";
-import { formatEther, parseEther, type Address } from "viem";
+import {
+  erc20Abi,
+  formatEther,
+  formatUnits,
+  parseEther,
+  type Address,
+} from "viem";
 import {
   createEnvelope,
   inferEnvelopePolicy,
+  leftoverUsd,
+  envelopeSpentUsd,
   optionFitsPolicy,
   requestTerms,
   stemWord,
@@ -27,13 +35,20 @@ import {
   vaultCall,
 } from "./chain.js";
 import { hasModelConfiguration } from "./agent.js";
-import { quoteSwap, buildSwapCall, swapAvailable, TOKENS } from "./swap.js";
+import {
+  quoteSwap,
+  buildSwapCall,
+  swapAvailable,
+  TOKENS,
+  UNISWAP,
+} from "./swap.js";
 import {
   aiPurposeCheck,
   catalogBySku,
   findCatalogOptions,
   offeredOption,
   previewLocalFit,
+  remoteCatalog,
   type ExternalItem,
 } from "./catalog.js";
 import { emit } from "./webhooks.js";
@@ -66,6 +81,17 @@ export function policyHash(policy: EnvelopePolicy) {
 }
 
 function saveEnvelope(envelope: Envelope) {
+  const prior = db
+    .prepare("SELECT body FROM envelopes WHERE id=?")
+    .get(envelope.id) as { body: string } | undefined;
+  if (prior) {
+    // Notes and email receipts can arrive while a swap is awaiting the RPC.
+    // Keep their latest values when persisting the serialized purchase state.
+    const current = JSON.parse(prior.body) as Envelope;
+    envelope.thankYou = current.thankYou;
+    envelope.giftOpenedAt = current.giftOpenedAt;
+    envelope.lastEmailedAt = current.lastEmailedAt;
+  }
   db.prepare(
     "INSERT OR REPLACE INTO envelopes(id,user_id,session_id,body) VALUES(?,?,?,?)",
   ).run(
@@ -75,6 +101,19 @@ function saveEnvelope(envelope: Envelope) {
     JSON.stringify(envelope),
   );
   return envelope;
+}
+
+function updateGiftMetadata(
+  id: string,
+  fields: Partial<
+    Pick<Envelope, "thankYou" | "giftOpenedAt" | "lastEmailedAt">
+  >,
+) {
+  const current = { ...readEnvelope(id), ...fields };
+  db.prepare("UPDATE envelopes SET body=? WHERE id=?").run(
+    JSON.stringify(current),
+    id,
+  );
 }
 
 function readEnvelope(id: string): Envelope {
@@ -94,7 +133,9 @@ export function envelopeBySession(sessionId: string) {
 
 function remainingEth(task: Task) {
   try {
-    const left = parseEther(task.balance || "0");
+    const balance = parseEther(task.balance || "0");
+    const allowance = parseEther(task.budget) - parseEther(task.spent || "0");
+    const left = balance < allowance ? balance : allowance;
     return Number(formatEther(left < 0n ? 0n : left));
   } catch {
     return 0;
@@ -109,8 +150,16 @@ function envelopeStatus(
   if (!task.vault || task.status === "funding") return "funding";
   if (task.status === "closed") return "closed";
   if (envelope.expiresAt * 1000 <= now) return "expired";
-  if (remainingEth(task) <= 1e-8) return "exhausted";
-  if (task.status === "running") return "redeeming";
+  if (task.status === "running" || task.status === "closing")
+    return "redeeming";
+  if (envelope.quotes.some((quote) => quote.status === "processing"))
+    return "redeeming";
+  if (
+    remainingEth(task) <= 1e-8 ||
+    (envelope.policy?.maxUsd != null &&
+      envelopeSpentUsd(envelope) >= envelope.policy.maxUsd)
+  )
+    return "exhausted";
   if (
     !envelope.partialUse &&
     envelope.redemptions.some((item) => item.status === "succeeded")
@@ -124,7 +173,7 @@ export function presentEnvelope(envelope: Envelope, task?: Task): Envelope {
     task || (envelope.sessionId ? get(envelope.sessionId) : undefined);
   if (!session) return envelope;
   envelope.vault = session.vault;
-  envelope.remaining = session.balance;
+  envelope.remaining = String(remainingEth(session));
   envelope.spent = session.spent;
   envelope.receiptToken = session.receiptToken;
   envelope.status = envelopeStatus(envelope, session);
@@ -132,9 +181,7 @@ export function presentEnvelope(envelope: Envelope, task?: Task): Envelope {
     !session.vault && session.status === "attention"
       ? session.error || "Envelope setup failed"
       : undefined;
-  saveEnvelope(envelope);
-  /* The timeline is derived from the vault session on every read, so it is
-     attached after save instead of being persisted twice. */
+  // Presentation must not write a stale purchase snapshot back to storage.
   envelope.timeline = session.events.slice(-40);
   return envelope;
 }
@@ -143,7 +190,11 @@ export function getEnvelope(id: string) {
   return presentEnvelope(readEnvelope(id));
 }
 
-export function listEnvelopes(userId: string, owner: string) {
+export function listEnvelopes(
+  userId: string,
+  owner: string,
+  emails: string[] = [],
+) {
   const rows = db.prepare("SELECT body FROM envelopes").all() as {
     body: string;
   }[];
@@ -154,8 +205,8 @@ export function listEnvelopes(userId: string, owner: string) {
     const envelope = presentEnvelope(JSON.parse(row.body) as Envelope);
     if (envelope.userId === userId) sent.push(envelope);
     if (
-      envelope.recipientAddress &&
-      envelope.recipientAddress.toLowerCase() === me
+      envelope.userId !== userId &&
+      canAccessEnvelope(envelope, { id: userId, owner: me, emails })
     )
       received.push(envelope);
   }
@@ -166,9 +217,17 @@ export function listEnvelopes(userId: string, owner: string) {
 
 export function canAccessEnvelope(
   envelope: Envelope,
-  user: { id: string; owner: string },
+  user: { id: string; owner: string; emails?: string[] },
 ) {
   if (envelope.userId === user.id) return true;
+  if (
+    envelope.recipientEmail &&
+    user.emails?.some(
+      (email) =>
+        email.toLowerCase() === envelope.recipientEmail!.trim().toLowerCase(),
+    )
+  )
+    return true;
   if (
     envelope.recipientAddress &&
     envelope.recipientAddress.toLowerCase() === user.owner.toLowerCase()
@@ -198,7 +257,7 @@ export async function notifyGift(
       giftEmail(kind, envelope, await ethUsdRate({ wait: false })),
     );
     envelope.lastEmailedAt = new Date().toISOString();
-    saveEnvelope(envelope);
+    updateGiftMetadata(envelope.id, { lastEmailedAt: envelope.lastEmailedAt });
     return { sent: true as const };
   } catch (error) {
     try {
@@ -240,24 +299,24 @@ export function giftByToken(token: string) {
 export function publicGift(envelope: Envelope, rate?: number) {
   const cap = envelope.policy?.maxUsd;
   const sentUsd =
-    cap && cap > 0
-      ? cap
-      : rate
-        ? Number(envelope.budget) * rate
-        : undefined;
+    cap && cap > 0 ? cap : rate ? Number(envelope.budget) * rate : undefined;
   const leftEth = Number(envelope.remaining || envelope.budget || 0);
-  const leftUsd =
-    envelope.status === "funding"
-      ? sentUsd
-      : rate && leftEth > 0
-        ? leftEth * rate
-        : undefined;
+  const leftUsd = leftoverUsd({
+    remainingEth: leftEth,
+    budgetEth: Number(envelope.budget || 0),
+    maxUsd: cap,
+    spentUsd: envelopeSpentUsd(envelope),
+    rate,
+    unfunded: envelope.status === "funding",
+  });
   const amount =
-    sentUsd && sentUsd > 0 ? dollars(sentUsd) : moneyLabel(envelope.budget, rate);
+    sentUsd && sentUsd > 0
+      ? dollars(sentUsd)
+      : moneyLabel(envelope.budget, rate);
   const remaining =
     envelope.status === "funding"
       ? amount
-      : leftUsd && leftUsd > 0
+      : leftUsd != null
         ? dollars(leftUsd)
         : moneyLabel(envelope.remaining || envelope.budget, rate);
   return {
@@ -319,17 +378,21 @@ export async function publicFitCheck(token: string, request: string) {
       fits: false,
       reason: "This gift is used up or already returned.",
     };
-  const policy =
-    envelope.policy ||
-    inferEnvelopePolicy(envelope.purpose, {
-      category: envelope.category,
-    });
   const ethUsd = (await ethUsdRate({ wait: false })) || 2500;
-  return previewLocalFit(
-    policy,
-    Number(envelope.remaining) || Number(envelope.budget) || 0,
+  const remote = await remoteCatalog(ask, ethUsd).catch(() => []);
+  const localResult = previewLocalFit(
+    spendingPolicy(envelope),
+    Number(envelope.remaining),
     ask,
     ethUsd,
+  );
+  if (localResult.fits || !remote.length) return localResult;
+  return previewLocalFit(
+    spendingPolicy(envelope),
+    Number(envelope.remaining),
+    ask,
+    ethUsd,
+    remote,
   );
 }
 
@@ -349,7 +412,9 @@ export async function publicPreviewFit(
   const policy = inferEnvelopePolicy(promise);
   const ethUsd = (await ethUsdRate({ wait: false })) || 2500;
   const usd =
-    remainingUsd && remainingUsd > 0 ? remainingUsd : policy.maxUsd || 120;
+    remainingUsd != null && Number.isFinite(remainingUsd)
+      ? Math.max(0, remainingUsd)
+      : (policy.maxUsd ?? 120);
   return {
     ...previewLocalFit(policy, usd / Math.max(ethUsd, 1), ask, ethUsd),
     purpose: policy.purpose,
@@ -360,7 +425,7 @@ export async function publicPreviewFit(
 export async function thankGiftSender(token: string, message: string) {
   const envelope = giftByToken(token);
   envelope.thankYou = { message, at: new Date().toISOString() };
-  saveEnvelope(envelope);
+  updateGiftMetadata(envelope.id, { thankYou: envelope.thankYou });
   try {
     const task = get(envelope.sessionId);
     event(task, "info", `Thank-you note from the recipient: “${message}”`);
@@ -378,7 +443,7 @@ export async function markGiftOpened(token: string) {
   const envelope = giftByToken(token);
   if (!envelope.giftOpenedAt) {
     envelope.giftOpenedAt = new Date().toISOString();
-    saveEnvelope(envelope);
+    updateGiftMetadata(envelope.id, { giftOpenedAt: envelope.giftOpenedAt });
   }
   return publicGift(envelope, await ethUsdRate({ wait: false }));
 }
@@ -438,6 +503,12 @@ export async function createFundedEnvelope(
   input: CreateEnvelope,
 ) {
   const parsed = createEnvelope.parse(input);
+  if (parsed.maxUsd) {
+    const rate = await ethUsdRate();
+    parsed.budget = (Math.ceil((parsed.maxUsd / rate) * 1e12) / 1e12).toFixed(
+      12,
+    );
+  }
   const policy = inferEnvelopePolicy(parsed.purpose, {
     category: parsed.category,
     partialUse: parsed.partialUse,
@@ -456,8 +527,8 @@ export async function createFundedEnvelope(
     url: "",
     budget: parsed.budget,
     durationMinutes,
-    target: "",
-    selector: "",
+    target: UNISWAP.router,
+    selector: "0x04e45aaf", // SwapRouter02.exactInputSingle
     recovery: user.owner || demoOwner.address,
     kind: "browse",
     id: randomUUID(),
@@ -569,6 +640,20 @@ export async function findEnvelopeOptions(envelope: Envelope, request = "") {
   const task = get(envelope.sessionId);
   const live = presentEnvelope(envelope, task);
   const ethUsd = await ethUsdRate();
+  if (["expired", "closed", "exhausted", "redeeming"].includes(live.status)) {
+    return {
+      envelopeId: live.id,
+      purpose: live.purpose,
+      remaining: live.remaining,
+      ethUsd,
+      options: [],
+      rejected: [],
+      note:
+        live.status === "redeeming"
+          ? "A purchase is already processing. Check its receipt before starting another."
+          : `This gift is ${live.status}. It cannot be spent. Open the gift details to view its receipt and recovery options.`,
+    };
+  }
   if (live.status === "funding") {
     return {
       envelopeId: live.id,
@@ -582,7 +667,7 @@ export async function findEnvelopeOptions(envelope: Envelope, request = "") {
     };
   }
   const found = await findCatalogOptions(
-    live.policy,
+    spendingPolicy(live),
     remainingEth(task),
     request,
     ethUsd,
@@ -598,6 +683,13 @@ export async function findEnvelopeOptions(envelope: Envelope, request = "") {
 }
 
 function assertProposable(live: Envelope) {
+  if (live.status === "redeeming")
+    throw Object.assign(
+      Error(
+        "A purchase is already processing. Check its receipt before starting another.",
+      ),
+      { statusCode: 409 },
+    );
   if (live.status === "expired")
     throw Object.assign(Error("This envelope has expired"), {
       statusCode: 409,
@@ -615,6 +707,17 @@ function assertProposable(live: Envelope) {
     throw Object.assign(Error("This envelope has no remaining funds"), {
       statusCode: 409,
     });
+}
+
+export function spendingPolicy(envelope: Envelope): EnvelopePolicy {
+  const spentUsd = envelopeSpentUsd(envelope);
+  return {
+    ...envelope.policy,
+    maxUsd:
+      envelope.policy.maxUsd == null
+        ? undefined
+        : Math.max(0, envelope.policy.maxUsd - spentUsd),
+  };
 }
 
 function makeQuote(live: Envelope, option: CatalogOption): EnvelopeQuote {
@@ -641,45 +744,55 @@ export async function proposePurchase(
   sku: string,
   request = "",
 ) {
-  if (!sku)
-    throw Object.assign(Error("Choose a catalog option"), { statusCode: 400 });
-  const task = get(envelope.sessionId);
-  const live = presentEnvelope(envelope, task);
-  assertProposable(live);
-  const ethUsd = await ethUsdRate();
-  let option: CatalogOption | undefined =
-    offeredOption(sku, ethUsd) || catalogBySku(sku, ethUsd);
-  if (!option) {
-    const found = await findCatalogOptions(
-      live.policy,
-      remainingEth(task),
-      request,
-      ethUsd,
-    );
-    option = found.options.find((item) => item.sku === sku);
-  }
-  if (!option)
-    throw Object.assign(
-      Error("That option is not available for this envelope"),
-      {
-        statusCode: 404,
-      },
-    );
-  /* Enforce only the deterministic policy here (deny list, caps, category,
+  return serial(envelope.sessionId, async () => {
+    envelope = getEnvelope(envelope.id);
+    if (!sku)
+      throw Object.assign(Error("Choose a catalog option"), {
+        statusCode: 400,
+      });
+    const task = get(envelope.sessionId);
+    const live = presentEnvelope(envelope, task);
+    assertProposable(live);
+    const ethUsd = await ethUsdRate();
+    let option: CatalogOption | undefined =
+      offeredOption(sku, ethUsd) || catalogBySku(sku, ethUsd);
+    if (!option) {
+      const found = await findCatalogOptions(
+        live.policy,
+        remainingEth(task),
+        request,
+        ethUsd,
+      );
+      option = found.options.find((item) => item.sku === sku);
+    }
+    if (!option)
+      throw Object.assign(
+        Error("That option is not available for this envelope"),
+        {
+          statusCode: 404,
+        },
+      );
+    /* Enforce only the deterministic policy here (deny list, caps, category,
      remaining funds). The free-text request already shaped the option list;
      re-running keyword matching against it would reject semantic matches. */
-  const fit = optionFitsPolicy(live.policy, option, remainingEth(task), "");
-  if (!fit.ok)
-    throw Object.assign(
-      Error(fit.reason || "That purchase does not match the gift"),
-      {
-        statusCode: 409,
-      },
+    const fit = optionFitsPolicy(
+      spendingPolicy(live),
+      option,
+      remainingEth(task),
+      request,
     );
-  const quote = makeQuote(live, option);
-  live.quotes.push(quote);
-  saveEnvelope(live);
-  return { quote, option, policyHash: live.policyHash };
+    if (!fit.ok)
+      throw Object.assign(
+        Error(fit.reason || "That purchase does not match the gift"),
+        {
+          statusCode: 409,
+        },
+      );
+    const quote = makeQuote(live, option);
+    live.quotes.push(quote);
+    saveEnvelope(live);
+    return { quote, option, policyHash: live.policyHash };
+  });
 }
 
 function assertPublicMerchantUrl(raw: string) {
@@ -715,57 +828,67 @@ export async function proposeExternalPurchase(
   envelope: Envelope,
   item: ExternalItem,
 ) {
-  const task = get(envelope.sessionId);
-  const live = presentEnvelope(envelope, task);
-  assertProposable(live);
-  if (item.url) assertPublicMerchantUrl(item.url);
-  const verdict = await aiPurposeCheck(live.policy, item);
-  if (verdict && !verdict.fits)
-    throw Object.assign(
-      Error(verdict.reason || "That item does not serve this gift's purpose"),
-      { statusCode: 409 },
-    );
-  if (!verdict) {
-    const hay =
-      `${item.title} ${item.merchant} ${item.description || ""}`.toLowerCase();
-    const stems = requestTerms(live.policy.purpose).map(stemWord);
-    if (!stems.some((stem) => hay.includes(stem)))
+  return serial(envelope.sessionId, async () => {
+    envelope = getEnvelope(envelope.id);
+    const task = get(envelope.sessionId);
+    const live = presentEnvelope(envelope, task);
+    assertProposable(live);
+    if (item.url) assertPublicMerchantUrl(item.url);
+    const verdict = await aiPurposeCheck(live.policy, item);
+    if (verdict && !verdict.fits)
       throw Object.assign(
-        Error(
-          "Melt could not verify this item against the gift's purpose. Describe the item so it clearly relates to the promise.",
-        ),
+        Error(verdict.reason || "That item does not serve this gift's purpose"),
         { statusCode: 409 },
       );
-  }
-  const ethUsd = await ethUsdRate();
-  const option: CatalogOption = {
-    sku: `agent-${randomUUID().slice(0, 12)}`,
-    title: item.title,
-    merchant: item.merchant,
-    category: verdict?.category || live.policy.category,
-    description:
-      item.description ||
-      (item.url ? `Proposed by an agent: ${item.url}` : "Proposed by an agent"),
-    priceUsd: item.priceUsd,
-    priceEth: (item.priceUsd / ethUsd).toFixed(8),
-    keywords: [],
-    tags: item.url ? [item.url] : [],
-    settlement: "uniswap",
-    tokenSymbol: "USDC",
-    source: "agent",
-    disclosure:
-      "Proposed by the recipient's agent, not the Melt catalog. Melt verified the price against the gift's policy; merchant fulfillment happens outside this quote.",
-  };
-  const fit = optionFitsPolicy(live.policy, option, remainingEth(task), "");
-  if (!fit.ok)
-    throw Object.assign(
-      Error(fit.reason || "That purchase does not match the gift"),
-      { statusCode: 409 },
+    if (!verdict) {
+      const hay =
+        `${item.title} ${item.merchant} ${item.description || ""}`.toLowerCase();
+      const stems = requestTerms(live.policy.purpose).map(stemWord);
+      if (!stems.some((stem) => hay.includes(stem)))
+        throw Object.assign(
+          Error(
+            "Melt could not verify this item against the gift's purpose. Describe the item so it clearly relates to the promise.",
+          ),
+          { statusCode: 409 },
+        );
+    }
+    const ethUsd = await ethUsdRate();
+    const option: CatalogOption = {
+      sku: `agent-${randomUUID().slice(0, 12)}`,
+      title: item.title,
+      merchant: item.merchant,
+      category: verdict?.category || live.policy.category,
+      description:
+        item.description ||
+        (item.url
+          ? `Proposed by an agent: ${item.url}`
+          : "Proposed by an agent"),
+      priceUsd: item.priceUsd,
+      priceEth: (Math.ceil((item.priceUsd / ethUsd) * 1e12) / 1e12).toFixed(12),
+      keywords: [],
+      tags: item.url ? [item.url] : [],
+      settlement: "uniswap",
+      tokenSymbol: "USDC",
+      source: "agent",
+      disclosure:
+        "Agent-supplied item and price, not verified merchant inventory. Melt checks the stated price against the gift cap. Testnet settlement does not buy or deliver this item.",
+    };
+    const fit = optionFitsPolicy(
+      spendingPolicy(live),
+      option,
+      remainingEth(task),
+      "",
     );
-  const quote = makeQuote(live, option);
-  live.quotes.push(quote);
-  saveEnvelope(live);
-  return { quote, option, policyHash: live.policyHash };
+    if (!fit.ok)
+      throw Object.assign(
+        Error(fit.reason || "That purchase does not match the gift"),
+        { statusCode: 409 },
+      );
+    const quote = makeQuote(live, option);
+    live.quotes.push(quote);
+    saveEnvelope(live);
+    return { quote, option, policyHash: live.policyHash };
+  });
 }
 
 async function executeSettlement(
@@ -773,11 +896,13 @@ async function executeSettlement(
   amountIn: string,
   tokenOut: string,
 ) {
-  const quote = await quoteSwap({
-    tokenOut,
-    amountIn,
-    slippageBps: 50,
-  });
+  const quote = {
+    ...(await quoteSwap({
+      tokenOut,
+      amountIn,
+      slippageBps: 50,
+    })),
+  };
   const call = buildSwapCall({
     tokenOut: quote.tokenOut as Address,
     recipient: task.vault as Address,
@@ -787,6 +912,14 @@ async function executeSettlement(
   });
   await reconcile(task);
   await refreshBalance(task);
+  const readTokenBalance = () =>
+    client.readContract({
+      address: quote.tokenOut as Address,
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [task.vault as Address],
+    });
+  const before = await readTokenBalance();
   await client.call({
     account: task.vault as Address,
     to: call.to,
@@ -800,11 +933,17 @@ async function executeSettlement(
     "Execute dapp transaction",
   );
   await refreshBalance(task);
+  const after = await readTokenBalance();
+  const decimals = TOKENS.find(
+    (token) => token.address.toLowerCase() === quote.tokenOut.toLowerCase(),
+  )!.decimals;
+  quote.amountOut = formatUnits(after - before, decimals);
+  const totalHeld = formatUnits(after, decimals);
   const existing = task.assets.find(
     (asset) => asset.token.toLowerCase() === quote.tokenOut.toLowerCase(),
   );
   if (existing) {
-    existing.amount = quote.amountOut;
+    existing.amount = totalHeld;
     existing.symbol = quote.symbol;
   } else {
     task.assets.push({
@@ -812,7 +951,7 @@ async function executeSettlement(
       kind: "erc20",
       recovered: false,
       symbol: quote.symbol,
-      amount: quote.amountOut,
+      amount: totalHeld,
     });
   }
   save(task);
@@ -843,16 +982,23 @@ export async function redeemQuote(
       ),
       { statusCode: 400 },
     );
-  return serial(`envelope:${envelope.id}`, async () => {
+  return serial(envelope.sessionId, async () => {
     const live = presentEnvelope(readEnvelope(envelope.id));
     const task = get(live.sessionId);
     const quote = live.quotes.find((item) => item.id === quoteId);
     if (!quote)
       throw Object.assign(Error("Quote not found"), { statusCode: 404 });
     if (quote.status !== "proposed")
-      throw Object.assign(Error("This quote is no longer open"), {
-        statusCode: 409,
-      });
+      throw Object.assign(
+        Error(
+          quote.status === "processing"
+            ? "This purchase is already processing. Check the receipt before trying another purchase."
+            : "This quote was already used or closed. Check the receipt or choose another card.",
+        ),
+        {
+          statusCode: 409,
+        },
+      );
     if (quote.expiresAt < Math.floor(Date.now() / 1000)) {
       quote.status = "expired";
       saveEnvelope(live);
@@ -868,7 +1014,11 @@ export async function redeemQuote(
       throw Object.assign(Error("Fund the envelope before redeeming"), {
         statusCode: 409,
       });
-    if (current.status === "expired" || current.status === "closed")
+    if (
+      current.status === "expired" ||
+      current.status === "closed" ||
+      current.status === "redeeming"
+    )
       throw Object.assign(Error("This envelope can no longer be redeemed"), {
         statusCode: 409,
       });
@@ -883,24 +1033,65 @@ export async function redeemQuote(
         ),
         { statusCode: 503 },
       );
+    if (chain.id === 1)
+      throw Object.assign(
+        Error(
+          "Live merchant payment is not enabled in this release. Use the Sepolia demo; no funds were moved.",
+        ),
+        { statusCode: 409 },
+      );
+    await reconcile(task);
+    await refreshBalance(task);
+    const availablePolicy = spendingPolicy(live);
+    if (
+      availablePolicy.maxUsd != null &&
+      (quote.amountUsd || 0) > availablePolicy.maxUsd + 0.01
+    )
+      throw Object.assign(
+        Error(
+          `This purchase exceeds the remaining $${availablePolicy.maxUsd.toFixed(2)} gift limit. Choose a smaller card.`,
+        ),
+        { statusCode: 409 },
+      );
+    if (Number(quote.amountEth) > remainingEth(task) + 1e-12)
+      throw Object.assign(
+        Error(
+          "This quote exceeds the remaining ETH spending allowance. Search again for a smaller card.",
+        ),
+        { statusCode: 409 },
+      );
     const usdc = TOKENS.find(
       (token) => token.symbol === (quote.tokenSymbol || "USDC"),
     );
     if (!usdc) throw Error("Settlement token is not available");
-    const { hash, quote: swap } = await executeSettlement(
-      task,
-      quote.amountEth,
-      usdc.address,
-    );
+    quote.status = "processing";
+    saveEnvelope(live);
+    const txCount = task.transactions.length;
+    let settled: Awaited<ReturnType<typeof executeSettlement>>;
+    try {
+      settled = await executeSettlement(task, quote.amountEth, usdc.address);
+    } catch (error) {
+      const submitted = task.transactions
+        .slice(txCount)
+        .some(
+          (tx) =>
+            tx.kind === "Execute dapp transaction" && tx.status !== "reverted",
+        );
+      quote.status = submitted ? "processing" : "proposed";
+      saveEnvelope(live);
+      throw Object.assign(
+        Error(
+          submitted
+            ? "A swap transaction was submitted but confirmation is unresolved. Check the receipt; do not submit another purchase yet."
+            : `The swap did not complete: ${errorMessage(error)}. Your gift remains available; refresh and try again.`,
+        ),
+        { statusCode: 502 },
+      );
+    }
+    const { hash, quote: swap } = settled;
     const deliveryEmail = email?.trim() || live.recipientEmail;
     if (deliveryEmail && !live.recipientEmail)
       live.recipientEmail = deliveryEmail;
-    const issued = await fulfillGiftCard({
-      brand: quote.merchant,
-      usd: quote.amountUsd || 0,
-      email: deliveryEmail,
-      chainId: chain.id,
-    });
     quote.status = "redeemed";
     const redemption = {
       id: randomUUID(),
@@ -913,19 +1104,36 @@ export async function redeemQuote(
       symbol: swap.symbol,
       hash,
       status: "succeeded" as const,
-      delivery: issued.delivery,
+      delivery:
+        "Swap confirmed. Checking merchant order validation; no live card has been issued.",
       createdAt: new Date().toISOString(),
       disclosure: quote.disclosure,
       fulfillment: {
-        provider: issued.provider,
-        status: issued.status,
-        brand: issued.brand,
-        amountUsd: issued.amountUsd,
-        email: issued.email,
+        provider: "cryptorefills" as const,
+        status: "awaiting_mainnet" as
+          "awaiting_mainnet" | "unpayable" | "needs_email" | "issued",
+        brand: quote.merchant,
+        amountUsd: quote.amountUsd || 0,
+        email: deliveryEmail,
       },
     };
     live.redemptions.push(redemption);
     saveEnvelope(presentEnvelope(live, get(task.id)));
+    try {
+      const issued = await fulfillGiftCard({
+        brand: quote.merchant,
+        usd: quote.amountUsd || 0,
+        email: deliveryEmail,
+        chainId: chain.id,
+      });
+      redemption.delivery = issued.delivery;
+      redemption.fulfillment.status = issued.status;
+    } catch {
+      redemption.delivery =
+        "Swap confirmed, but the merchant could not be reached. USDC stays in the vault; no card was issued. Do not repeat the swap.";
+      redemption.fulfillment.status = "unpayable";
+    }
+    saveEnvelope(live);
     await notifyGift(getEnvelope(live.id), "spent");
     emit(task.userId, "envelope.redeemed", get(task.id), {
       envelopeId: live.id,

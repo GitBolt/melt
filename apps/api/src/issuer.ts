@@ -74,11 +74,15 @@ async function validateOrder(payload: Record<string, unknown>) {
     if (!response.ok) {
       return {
         ok: false,
-        detail: body.detail || body.problems?.[0]?.problem || response.statusText,
+        detail:
+          body.detail || body.problems?.[0]?.problem || response.statusText,
       };
     }
     if (body.problems?.length)
-      return { ok: false, detail: body.problems[0]?.problem || "Invalid order" };
+      return {
+        ok: false,
+        detail: body.problems[0]?.problem || "Invalid order",
+      };
     return { ok: true as const };
   } catch (error) {
     return {
@@ -112,7 +116,7 @@ export async function fulfillGiftCard(input: {
       payload,
       createdOrder: false,
       delivery:
-        "Uniswap converted ETH to USDC. Add a recipient email so Cryptorefills can send the card.",
+        "Swap confirmed. No recipient email was provided, so merchant validation was skipped. No card was purchased or issued; USDC stays in the vault for recovery.",
     };
   }
   const payload = giftOrderPayload({ brand, usd: amountUsd, email });
@@ -127,59 +131,23 @@ export async function fulfillGiftCard(input: {
       payload,
       createdOrder: false,
       validation,
-      delivery:
-        "Uniswap converted ETH to USDC in the envelope. Cryptorefills emails the card when this USDC is paid on Ethereum mainnet. Testnet funds cannot buy a live card.",
+      delivery: validation.ok
+        ? "Testnet swap confirmed and merchant order validation passed. No real card was purchased or issued. USDC stays in the vault for recovery."
+        : `Testnet swap confirmed. Merchant validation did not pass: ${validation.detail || "issuer unavailable"}. No card was issued. USDC stays in the vault; do not repeat the swap.`,
     };
   }
-  if (!process.env.CRYPTOREFILLS_API_KEY) {
-    return {
-      provider: "cryptorefills",
-      status: "unpayable",
-      brand,
-      amountUsd,
-      email,
-      payload,
-      createdOrder: false,
-      validation,
-      delivery:
-        "Uniswap converted ETH to USDC. Set CRYPTOREFILLS_API_KEY to create a live Cryptorefills order on mainnet.",
-    };
-  }
-  const response = await fetch(CR_ORDERS, {
-    method: "POST",
-    headers: crHeaders(),
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(12000),
-  });
-  const body = (await response.json().catch(() => ({}))) as {
-    id?: string;
-    orderId?: string;
-    detail?: string;
-  };
-  if (!response.ok) {
-    return {
-      provider: "cryptorefills",
-      status: "unpayable",
-      brand,
-      amountUsd,
-      email,
-      payload,
-      createdOrder: false,
-      validation: { ok: false, detail: body.detail || response.statusText },
-      delivery:
-        "Uniswap converted ETH to USDC. Cryptorefills did not accept the order yet. USDC stays in the envelope.",
-    };
-  }
+  // An order is not a payment or proof of delivery.
   return {
     provider: "cryptorefills",
-    status: "issued",
+    status: "unpayable",
     brand,
     amountUsd,
     email,
-    payload: { ...payload, orderId: body.id || body.orderId },
-    createdOrder: true,
+    payload,
+    createdOrder: false,
     validation,
-    delivery: `Cryptorefills is emailing the ${brand} card to ${email}.`,
+    delivery:
+      "Live merchant payment and delivery are not enabled in this release. No merchant order was created or card issued.",
   };
 }
 

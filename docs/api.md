@@ -1,8 +1,8 @@
 # Melt API
 
-Create and fund a purpose-bound envelope in [Melt](https://melt-woad.vercel.app), then let an existing assistant redeem it over HTTP or MCP.
+Create and fund a purpose-bound envelope in [Melt](https://trymeltapp.vercel.app), then let an existing assistant redeem it over HTTP or MCP.
 
-- **Hosted base URL:** `https://melt-woad.vercel.app/api`
+- **Hosted base URL:** `https://trymeltapp.vercel.app/api`
 - **Direct backend:** `https://melt-api-production-1b26.up.railway.app/api`
 - **Local base URL:** `http://127.0.0.1:8787/api`
 - **Machine-readable reference:** [OpenAPI 3.1](openapi.json), also served at `/api/openapi.json`
@@ -10,11 +10,11 @@ Create and fund a purpose-bound envelope in [Melt](https://melt-woad.vercel.app)
 
 ## First request
 
-Create a key at [Developers](https://melt-woad.vercel.app/developers). Keep it in your agent's environment:
+Create a key at [Developers](https://trymeltapp.vercel.app/developers). Keep it in your agent's environment:
 
 ```sh
 curl --fail-with-body \
-  'https://melt-woad.vercel.app/api/envelopes' \
+  'https://trymeltapp.vercel.app/api/envelopes' \
   -H "Authorization: Bearer $MELT_API_KEY"
 ```
 
@@ -72,7 +72,7 @@ Paths below are relative to the base URL.
 
 ```sh
 curl --fail-with-body \
-  "https://melt-woad.vercel.app/api/sessions/$MELT_SESSION_ID/start" \
+  "https://trymeltapp.vercel.app/api/sessions/$MELT_SESSION_ID/start" \
   -H "Authorization: Bearer $MELT_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"manual":true}'
@@ -181,13 +181,13 @@ The JavaScript client can read it without an API key:
 import { publicReceipt } from "./melt-client.mjs";
 
 const receipt = await publicReceipt(token, {
-  baseUrl: "https://melt-woad.vercel.app",
+  baseUrl: "https://trymeltapp.vercel.app",
 });
 ```
 
 ## Webhooks
 
-Register an HTTPS endpoint at [Developers](https://melt-woad.vercel.app/developers). Melt POSTs JSON event objects and signs the **raw body** with HMAC-SHA256. The `Melt-Signature` header is Stripe-shaped: `t=<unix>,v1=<hex>`. Signing secrets start with `whsec_` and are shown once.
+Register an HTTPS endpoint at [Developers](https://trymeltapp.vercel.app/developers). Melt POSTs JSON event objects and signs the **raw body** with HMAC-SHA256. The `Melt-Signature` header is Stripe-shaped: `t=<unix>,v1=<hex>`. Signing secrets start with `whsec_` and are shown once.
 
 Event types: `envelope.created`, `envelope.funded`, `envelope.redeemed`, `envelope.thanked`, `session.created`, `session.funded`, `session.started`, `swap.executed`, `session.closed`, `session.recovered`, `webhook.test`. `data.object` is the public receipt. Local development may use `http://127.0.0.1` or `http://localhost`.
 

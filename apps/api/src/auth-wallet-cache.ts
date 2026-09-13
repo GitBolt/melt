@@ -1,13 +1,10 @@
 /** Cache wallet metadata only. Access tokens must still be verified on every request. */
-export function createWalletLookup(
-  load: (userId: string) => Promise<string>,
+export function createWalletLookup<T>(
+  load: (userId: string) => Promise<T>,
   { ttlMs = 10_000, maxEntries = 500, now = Date.now } = {},
 ) {
-  const entries = new Map<
-    string,
-    { expiresAt: number; promise: Promise<string> }
-  >();
-  return (userId: string): Promise<string> => {
+  const entries = new Map<string, { expiresAt: number; promise: Promise<T> }>();
+  return (userId: string): Promise<T> => {
     const existing = entries.get(userId);
     if (existing && existing.expiresAt > now()) return existing.promise;
     entries.delete(userId);

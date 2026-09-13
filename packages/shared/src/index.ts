@@ -145,7 +145,7 @@ export interface EnvelopeQuote {
   disclosure: string;
   createdAt: string;
   expiresAt: number;
-  status: "proposed" | "redeemed" | "rejected" | "expired";
+  status: "proposed" | "processing" | "redeemed" | "rejected" | "expired";
 }
 export interface EnvelopeRedemption {
   id: string;
@@ -377,9 +377,23 @@ const CATEGORY_HINTS: Record<EnvelopeCategory, string[]> = {
     "starbucks",
     "delivery",
   ],
-  concert: ["concert", "gig", "festival", "tickets", "show", "live music"],
+  concert: ["concert", "gig", "festival", "tickets", "live music"],
   flight: ["flight", "airfare", "fly home", "thanksgiving", "plane", "airport"],
-  game: ["game", "indie", "steam", "nintendo"],
+  game: [
+    "game",
+    "gaming",
+    "indie",
+    "steam",
+    "nintendo",
+    "xbox",
+    "playstation",
+    "roblox",
+    "razer",
+    "free fire",
+    "fortnite",
+    "blizzard",
+    "valorant",
+  ],
   apartment: ["apartment", "flat", "furniture", "new place", "housewarming"],
   ai: [
     "ai product",
@@ -422,6 +436,19 @@ const ASK_EXTRA: Record<EnvelopeCategory, string[]> = {
     "uber",
     "chipotle",
     "starbucks",
+    "dunkin",
+    "grubhub",
+    "taco",
+    "subway",
+    "burger",
+    "sushi",
+    "ramen",
+    "coffee",
+    "breakfast",
+    "doordash",
+    "door dash",
+    "ubereats",
+    "uber eats",
   ],
   concert: ["ticket"],
   flight: ["airline"],
@@ -435,9 +462,7 @@ function purposeForCategory(value: string) {
   return value.replace(/except\s+[^.,;]+/gi, " ").toLowerCase();
 }
 
-export function requestCategory(
-  request: string,
-): EnvelopeCategory | undefined {
+export function requestCategory(request: string): EnvelopeCategory | undefined {
   const text = purposeForCategory(request);
   for (const key of envelopeCategories) {
     if (key === "other") continue;
@@ -454,13 +479,7 @@ export function inferEnvelopePolicy(
   const text = purposeForCategory(purpose);
   let category: EnvelopeCategory = extras.category || "other";
   if (!extras.category) {
-    for (const key of envelopeCategories) {
-      if (key === "other") continue;
-      if (CATEGORY_HINTS[key].some((hint) => text.includes(hint))) {
-        category = key;
-        break;
-      }
-    }
+    category = requestCategory(text) || "other";
   }
   const deny = [...(extras.deny || [])];
   const except = purpose.match(/except\s+([^.,;]+)/i);
@@ -497,12 +516,98 @@ export function inferEnvelopePolicy(
   };
 }
 
+export function leftoverUsd(input: {
+  remainingEth: number;
+  budgetEth: number;
+  maxUsd?: number;
+  rate?: number;
+  unfunded?: boolean;
+  spentUsd?: number;
+}): number | undefined {
+  const { remainingEth, budgetEth, maxUsd, rate, unfunded } = input;
+  if (unfunded && maxUsd && maxUsd > 0) return maxUsd;
+  if (maxUsd && maxUsd > 0 && budgetEth > 0 && remainingEth >= 0)
+    return Math.min(
+      Math.min(remainingEth / budgetEth, 1) * maxUsd,
+      Math.max(0, maxUsd - (input.spentUsd || 0)),
+    );
+  if (rate && remainingEth > 0) return remainingEth * rate;
+}
+
+export function envelopeSpentUsd(envelope: Envelope) {
+  return envelope.redemptions.reduce(
+    (sum, redemption) =>
+      redemption.status === "succeeded"
+        ? sum +
+          (redemption.fulfillment?.amountUsd ??
+            envelope.quotes?.find((item) => item.id === redemption.quoteId)
+              ?.amountUsd ??
+            0)
+        : sum,
+    0,
+  );
+}
+
+const BRAND_ALIASES = [
+  ["steam"],
+  ["xbox", "x box"],
+  ["playstation", "play station", "psn"],
+  ["nintendo"],
+  ["roblox"],
+  ["doordash", "door dash"],
+  ["uber eats", "ubereats"],
+  ["razer", "razor gold"],
+  ["free fire"],
+  ["fortnite"],
+  ["blizzard"],
+  ["chipotle"],
+  ["starbucks"],
+  ["dunkin"],
+  ["grubhub", "grub hub"],
+  ["subway"],
+  ["taco bell"],
+  ["burger king"],
+  ["dominos", "domino s"],
+  ["amazon"],
+  ["walmart"],
+  ["target"],
+  ["apple"],
+  ["google play"],
+];
+
+function namedBrands(text: string) {
+  const normalized = ` ${text.toLowerCase().replace(/[^a-z0-9]+/g, " ")} `;
+  return BRAND_ALIASES.filter((aliases) =>
+    aliases.some((alias) => normalized.includes(` ${alias} `)),
+  );
+}
+
 export function optionFitsPolicy(
   policy: EnvelopePolicy,
   option: CatalogOption,
   remainingEth: number,
   request = "",
 ): { ok: boolean; reason?: string; score: number } {
+  if (
+    looksLikeCashOut(request) ||
+    looksLikeCashOut(`${option.title} ${option.merchant}`)
+  )
+    return {
+      ok: false,
+      reason: "This gift cannot buy cash, crypto, or unrestricted transfers",
+      score: 0,
+    };
+  if (
+    !Number.isFinite(option.priceUsd) ||
+    option.priceUsd <= 0 ||
+    !Number.isFinite(Number(option.priceEth)) ||
+    Number(option.priceEth) <= 0
+  )
+    return {
+      ok: false,
+      reason: "This item has no valid price. Search again for a current quote.",
+      score: 0,
+    };
   const hay = [
     option.title,
     option.merchant,
@@ -522,21 +627,31 @@ export function optionFitsPolicy(
         score: 0,
       };
   }
-  if (
-    policy.category !== "other" &&
-    option.category !== policy.category &&
-    option.category !== "other"
-  ) {
-    const purposeHit = policy.purpose
-      .toLowerCase()
-      .split(/\W+/)
-      .filter((word) => word.length > 3 && hay.includes(word)).length;
-    if (purposeHit < 2)
+  const purposeText = purposeForCategory(policy.purpose);
+  const merchantText = ` ${`${option.merchant} ${option.title}`.toLowerCase().replace(/[^a-z0-9]+/g, " ")} `;
+  for (const [text, label] of [
+    [purposeText, "This gift is for"],
+    [request, "You asked for"],
+  ]) {
+    const brands = namedBrands(text);
+    if (
+      brands.length &&
+      !brands.some((aliases) =>
+        aliases.some((alias) => merchantText.includes(` ${alias} `)),
+      )
+    )
       return {
         ok: false,
-        reason: `This is ${option.category}, not ${policy.category}`,
+        reason: `${label} ${brands.map((aliases) => aliases[0]).join(" or ")}`,
         score: 0,
       };
+  }
+  if (policy.category !== "other" && option.category !== policy.category) {
+    return {
+      ok: false,
+      reason: `This is ${option.category}, not ${policy.category}`,
+      score: 0,
+    };
   }
   const priceEth = Number(option.priceEth || 0);
   if (priceEth > remainingEth + 1e-9)
@@ -548,10 +663,8 @@ export function optionFitsPolicy(
       score: 0,
     };
   if (policy.allow.length) {
-    const allowHit = policy.allow.some(
-      (item) =>
-        hay.includes(item.toLowerCase()) ||
-        policy.purpose.toLowerCase().includes(item.toLowerCase()),
+    const allowHit = policy.allow.some((item) =>
+      hay.includes(item.toLowerCase()),
     );
     if (!allowHit)
       return { ok: false, reason: "Not in the allowed set", score: 0 };
@@ -561,11 +674,7 @@ export function optionFitsPolicy(
   for (const keyword of option.keywords)
     if (query.includes(keyword.toLowerCase())) score += 2;
   const askCat = requestCategory(request);
-  if (
-    askCat &&
-    policy.category !== "other" &&
-    askCat !== policy.category
-  )
+  if (askCat && policy.category !== "other" && askCat !== policy.category)
     return {
       ok: false,
       reason: `This gift is for ${categoryPhrase[policy.category]}, not ${categoryPhrase[askCat]}`,
@@ -578,10 +687,8 @@ export function optionFitsPolicy(
       (term) => hay.includes(term) || hayStems.has(stemWord(term)),
     );
     if (terms.length && hits.length === 0) {
-      if (askCat && askCat === option.category)
-        score += 2;
-      else
-        return { ok: false, reason: "Does not match the request", score: 0 };
+      if (askCat && askCat === option.category) score += 2;
+      else return { ok: false, reason: "Does not match the request", score: 0 };
     } else score += hits.length;
   }
   return { ok: true, score };
@@ -638,7 +745,7 @@ export function requestTerms(request: string) {
 }
 
 export function looksLikeCashOut(request: string) {
-  return /transfer|withdraw|send (me )?(the )?(money|eth|usdc|funds)|cash out|unrestricted/i.test(
+  return /\b(transfer|withdraw|cash\s*-?\s*out|cashout|bitcoin|ethereum|crypto|usdc|usdt|paypal|venmo|visa|mastercard|unrestricted)\b|send (me )?(the )?(money|eth|funds)/i.test(
     request,
   );
 }

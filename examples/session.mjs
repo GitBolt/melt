@@ -8,7 +8,7 @@ if (!sessionId || !process.env.MELT_API_KEY)
     "Set MELT_API_KEY and pass a session ID created and funded in Melt",
   );
 const melt = new Melt({
-  baseUrl: process.env.MELT_API_URL || "https://melt-woad.vercel.app",
+  baseUrl: process.env.MELT_API_URL || "https://trymeltapp.vercel.app",
   apiKey: process.env.MELT_API_KEY,
 });
 try {

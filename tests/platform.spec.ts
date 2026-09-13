@@ -877,6 +877,132 @@ test("envelope create, discover matching options, and reject cash-out", async ({
   ).toBeTruthy();
 });
 
+test("one-dollar judge journey has clear rejections, a real swap, and duplicate-purchase protection", async ({
+  page,
+}) => {
+  await signInLocal(page);
+  const headers = { Origin: base };
+  async function makeGift(purpose: string) {
+    const response = await page.request.post(`${base}/api/envelopes`, {
+      headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+      data: {
+        recipientLabel: "Judge",
+        purpose,
+        maxUsd: 1,
+        budget: "0.0004",
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+        notifyRecipient: false,
+      },
+    });
+    expect(response.ok(), await response.text()).toBeTruthy();
+    const gift = await response.json();
+    await waitForStatus(page, gift.sessionId, "ready");
+    return gift;
+  }
+  const food = await makeGift("Food delivery up to $1");
+  const publicFood = await (
+    await page.request.get(`${base}/api/public/gifts/${food.receiptToken}`)
+  ).json();
+  expect(publicFood.amount).toMatch(/^\$1(?:\.00)?$/);
+  expect(publicFood.sentUsd).toBe(1);
+  const gamesForFood = await (
+    await page.request.get(
+      `${base}/api/envelopes/${food.id}/options?q=video%20games`,
+    )
+  ).json();
+  expect(gamesForFood.options).toEqual([]);
+  expect(gamesForFood.note).toMatch(/^No\./);
+  const foodOptions = await (
+    await page.request.get(
+      `${base}/api/envelopes/${food.id}/options?q=Uber%20Eats`,
+    )
+  ).json();
+  expect(foodOptions.options).toEqual([]);
+  expect(foodOptions.note).toMatch(/15/);
+  const gaming = await makeGift("Gaming up to $1");
+  const start = await page.request.post(
+    `${base}/api/sessions/${gaming.sessionId}/start`,
+    { headers, data: { manual: true } },
+  );
+  expect(start.status()).toBe(409);
+  await page.goto(`${workspace}?gift=${gaming.receiptToken}#discover`);
+  await expect(page.getByLabel("Envelope")).toContainText("Gaming up to $1");
+  await page
+    .getByLabel("What do you want this gift to become")
+    .fill("Razer Gold");
+  await page.getByRole("button", { name: "Find options" }).click();
+  await expect(page.getByText(/Razer Gold USD/).first()).toBeVisible();
+  await page.screenshot({
+    path: "/tmp/melt-judge-razer-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+      ),
+    )
+    .toBeTruthy();
+  await page.screenshot({
+    path: "/tmp/melt-judge-razer-mobile.png",
+    fullPage: true,
+  });
+  const proposal = await page.request.post(
+    `${base}/api/envelopes/${gaming.id}/propose`,
+    { headers, data: { sku: "game-razer-1", request: "Razer Gold" } },
+  );
+  expect(proposal.ok(), await proposal.text()).toBeTruthy();
+  const { quote } = await proposal.json();
+  const parallelQuotes = await Promise.all(
+    [0, 1].map(() =>
+      page.request.post(`${base}/api/envelopes/${gaming.id}/propose`, {
+        headers,
+        data: { sku: "game-razer-1", request: "Razer Gold" },
+      }),
+    ),
+  );
+  expect(parallelQuotes.every((response) => response.ok())).toBeTruthy();
+  const afterProposals = await (
+    await page.request.get(`${base}/api/envelopes/${gaming.id}`)
+  ).json();
+  expect(afterProposals.quotes).toHaveLength(3);
+  const results = await Promise.all(
+    [0, 1].map(() =>
+      page.request.post(`${base}/api/envelopes/${gaming.id}/redeem`, {
+        headers,
+        data: { quoteId: quote.id },
+      }),
+    ),
+  );
+  expect(results.map((result) => result.status()).sort()).toEqual([200, 409]);
+  const redemption = await results
+    .find((result) => result.status() === 200)!
+    .json();
+  expect(redemption.redemption.hash).toMatch(/^0x[0-9a-fA-F]{64}$/);
+  expect(Number(redemption.redemption.amountOut)).toBeGreaterThan(0);
+  expect(redemption.redemption.delivery).toMatch(
+    /No card was purchased or issued/i,
+  );
+  const repeat = await page.request.post(
+    `${base}/api/envelopes/${gaming.id}/redeem`,
+    { headers, data: { quoteId: (await parallelQuotes[0].json()).quote.id } },
+  );
+  expect(repeat.status()).toBe(409);
+  const exhausted = await (
+    await page.request.get(`${base}/api/envelopes/${gaming.id}/options?q=Razer`)
+  ).json();
+  expect(exhausted.options).toEqual([]);
+  await page.request.post(`${base}/api/sessions/${food.sessionId}/close`, {
+    headers,
+    data: {},
+  });
+  await page.request.post(`${base}/api/sessions/${gaming.sessionId}/close`, {
+    headers,
+    data: {},
+  });
+});
+
 test("developer console creates and revokes a key, clears revealed secret on logout, and serves OpenAPI", async ({
   page,
 }) => {

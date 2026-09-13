@@ -8,7 +8,7 @@ if (
   throw new Error("Pass the session ID shown in Melt");
 if (!process.env.MELT_API_KEY) throw new Error("Set MELT_API_KEY");
 const origin = new URL(
-  process.env.MELT_API_URL || "https://melt-woad.vercel.app",
+  process.env.MELT_API_URL || "https://trymeltapp.vercel.app",
 );
 if (
   !["http:", "https:"].includes(origin.protocol) ||

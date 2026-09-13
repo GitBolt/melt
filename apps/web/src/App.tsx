@@ -227,6 +227,9 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
           ...extra,
         },
         body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(
+          body || (method && method !== "GET") ? 120000 : 20000,
+        ),
       });
       const text = await r.text();
       let data: any = {};
@@ -234,7 +237,12 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
         try {
           data = JSON.parse(text);
         } catch {
-          throw Object.assign(Error("Request failed"), { status: r.status });
+          throw Object.assign(
+            Error(
+              `Melt could not read the server response (${r.status}). Refresh to check the latest state before retrying a purchase.`,
+            ),
+            { status: r.status },
+          );
         }
       }
       if (!r.ok)
@@ -259,10 +267,26 @@ export default function App({ config, auth }: { config: Config; auth?: Auth }) {
           setUser(me);
           const [nextTasks, nextEnvelopes] = await Promise.all([
             request("/sessions"),
-            request("/envelopes").catch(() => ({ sent: [], received: [] })),
+            request("/envelopes"),
           ]);
           setTasks(nextTasks);
           setEnvelopes(nextEnvelopes);
+          const giftToken = new URLSearchParams(location.search).get("gift");
+          if (giftToken) {
+            const gift = [
+              ...nextEnvelopes.sent,
+              ...nextEnvelopes.received,
+            ].find((item) => item.receiptToken === giftToken);
+            if (gift) {
+              setDiscoverId(gift.id);
+              const url = new URL(location.href);
+              url.searchParams.delete("gift");
+              history.replaceState(null, "", url);
+            } else
+              setError(
+                "This gift belongs to another recipient. Sign in with the email address that received it, or with its recipient wallet.",
+              );
+          }
         } catch (e) {
           if ((e as any).status === 401) {
             setUser(null);
@@ -892,9 +916,7 @@ function JobComposer({
       try {
         const parsed = new URL(urlText);
         return (
-          parsed.protocol === "https:" &&
-          !parsed.username &&
-          !parsed.password
+          parsed.protocol === "https:" && !parsed.username && !parsed.password
         );
       } catch {
         return false;
@@ -1084,7 +1106,12 @@ function SessionDetail({
         <div>
           <h1>{t.title}</h1>
           <p>
-            {t.kind === "swap" ? (
+            {t.envelopeId ? (
+              <>
+                Purpose-bound gift <span className="divider-dot">·</span>{" "}
+                Uniswap cards
+              </>
+            ) : t.kind === "swap" ? (
               <>
                 Uniswap V3 <span className="divider-dot">·</span> Automated swap
               </>

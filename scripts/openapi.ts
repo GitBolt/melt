@@ -742,7 +742,7 @@ writeFileSync(
           "Purpose-bound envelopes: send purchasing power for a promise, redeem later through HTTP or hosted MCP. Agent keys can find options, propose, and redeem. They cannot create envelopes or send unrestricted cash. Uniswap converts only the amount a qualifying purchase needs. Public receipts at /public/receipts/{token} omit the owner account. Webhooks are HMAC-SHA256 signed with Melt-Signature (t=,v1=). Owner console lives at /developers.",
       },
       servers: [
-        { url: "https://melt-woad.vercel.app/api", description: "Hosted app" },
+        { url: "https://trymeltapp.vercel.app/api", description: "Hosted app" },
         {
           url: "https://melt-api-production-1b26.up.railway.app/api",
           description: "Direct backend",

@@ -38,7 +38,7 @@ Individual commands are `npm run build`, `npm test`, `npm run test:e2e` and `npm
 
 ## Public-network evidence still required
 
-The hosted entry point is [Melt](https://melt-woad.vercel.app), with [public source](https://github.com/GitBolt/melt). Deployment URLs and working RPC access are not substitutes for transaction proof.
+The hosted entry point is [Melt](https://trymeltapp.vercel.app), with [public source](https://github.com/GitBolt/melt). Deployment URLs and working RPC access are not substitutes for transaction proof.
 
 Before claiming an end-to-end public-testnet run, record:
 

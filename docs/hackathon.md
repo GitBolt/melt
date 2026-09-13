@@ -14,7 +14,7 @@ Uniswap converts only the required ETH to USDC when a purchase qualifies. Privy 
 
 The [official event details](https://ethglobal.com/events/ethonline2026/info/details) list submission at **Sunday, September 13, 12:00 noon EDT**. They describe technicality, originality, practicality, usability and WOW factor without numerical weights. Select at most three partners. Prepare a 2–4 minute human-narrated video at least 720p, public source/version history and AI-tool disclosure. Live judging allows four minutes for the demo and three for questions. Recheck the portal for any event updates.
 
-The source is public at [GitBolt/melt](https://github.com/GitBolt/melt). The product page is [Melt](https://melt-woad.vercel.app); the workspace is [Open Melt](https://melt-woad.vercel.app/app). Disclose AI-assisted implementation and reused UI components accurately.
+The source is public at [GitBolt/melt](https://github.com/GitBolt/melt). The product page is [Melt](https://trymeltapp.vercel.app); the workspace is [Open Melt](https://trymeltapp.vercel.app/app). Disclose AI-assisted implementation and reused UI components accurately.
 
 ## Three-minute video
 

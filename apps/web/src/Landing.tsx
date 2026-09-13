@@ -48,7 +48,7 @@ const steps = [
   {
     n: "02",
     title: "Lock the money",
-    text: "ETH sits in an envelope vault. They cannot withdraw it. You cannot take it back early.",
+    text: "ETH sits in an envelope vault with a budget and expiry. Purchases pass Melt’s purpose checks; unused funds can be recovered by the sender.",
   },
   {
     n: "03",
@@ -58,7 +58,7 @@ const steps = [
   {
     n: "04",
     title: "Only a match pays",
-    text: "Uniswap converts just enough ETH to USDC. Cryptorefills emails the card. The rest stays, then returns.",
+    text: "Try a qualifying card and settle ETH to USDC on Uniswap. This testnet demo validates merchant orders; it does not deliver paid cards.",
   },
 ];
 const story = [
@@ -319,11 +319,11 @@ export default function Landing() {
           <motion.article className="feature-row flip" {...reveal}>
             <div>
               <p className="landing-kicker">Held between two people</p>
-              <h2>Neither Melt nor a model can rewrite the gift.</h2>
+              <h2>A defined budget. A purpose checked before spending.</h2>
               <p>
-                Ethereum keeps the amount, the purpose, the expiry, and where
-                unused funds go. The recipient cannot cash it out. You cannot
-                claw it back early.
+                Ethereum enforces the ETH budget, expiry, and recovery wallet.
+                Melt checks the purpose and dollar limit before a purchase. The
+                sender retains direct recovery access to the vault.
               </p>
             </div>
             <figure className="feature-media panel">

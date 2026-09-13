@@ -57,6 +57,12 @@ export function NetworkStrip({
           type="button"
           className={testnet ? "chosen" : ""}
           aria-pressed={testnet}
+          disabled
+          title={
+            testnet
+              ? "Current deployment network"
+              : "Network switching requires a different deployment"
+          }
         >
           Testnet
         </button>
@@ -64,6 +70,7 @@ export function NetworkStrip({
           type="button"
           className={!testnet ? "chosen" : ""}
           aria-pressed={!testnet}
+          disabled={!testnet || !onExplainMainnet}
           onClick={() => {
             if (testnet) onExplainMainnet?.();
           }}

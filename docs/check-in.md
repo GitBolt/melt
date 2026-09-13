@@ -10,14 +10,14 @@ This is not an agent spending-control wallet. Those restrict how an owner’s ag
 sender’s money → immutable purpose → recipient’s chosen agent → qualifying purchase
 ```
 
-App: [Melt](https://melt-woad.vercel.app)
+App: [Melt](https://trymeltapp.vercel.app)
 Public source: [GitBolt/melt](https://github.com/GitBolt/melt)
 
 Would love feedback on the purpose-bound gift primitive, and whether Uniswap-as-settlement (not a swap tab) is the right conversion rail.
 
 ---
 
-- App: [Melt](https://melt-woad.vercel.app)
+- App: [Melt](https://trymeltapp.vercel.app)
 - Public source: [GitBolt/melt](https://github.com/GitBolt/melt)
 
 Complete the dashboard check-in separately; this file is a draft and does not indicate a submitted check-in.

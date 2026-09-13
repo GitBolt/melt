@@ -3,9 +3,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { Melt, MeltError, publicReceipt } from "./index.js";
 if (!process.env.MELT_API_KEY)
-  throw Error("Set MELT_API_KEY to a key created at https://melt-woad.vercel.app/developers");
+  throw Error("Set MELT_API_KEY to a key created at https://trymeltapp.vercel.app/developers");
 const client = new Melt({
-  baseUrl: process.env.MELT_API_URL || "https://melt-woad.vercel.app",
+  baseUrl: process.env.MELT_API_URL || "https://trymeltapp.vercel.app",
   apiKey: process.env.MELT_API_KEY,
 });
 const server = new McpServer({ name: "melt", version: "0.4.0" });
@@ -267,7 +267,7 @@ server.registerTool(
   ({ token }) =>
     result(() =>
       publicReceipt(token, {
-        baseUrl: process.env.MELT_API_URL || "https://melt-woad.vercel.app",
+        baseUrl: process.env.MELT_API_URL || "https://trymeltapp.vercel.app",
       }),
     ),
 );

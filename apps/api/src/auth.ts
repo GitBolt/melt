@@ -2,17 +2,27 @@ import type { FastifyRequest } from "fastify";
 import { privy, local, demoOwner } from "./chain.js";
 import { db, digest } from "./store.js";
 import { createWalletLookup } from "./auth-wallet-cache.js";
-const walletForUser = createWalletLookup(async (id) => {
+const profileForUser = createWalletLookup(async (id) => {
   const user = await privy!.users()._get(id);
   const wallet = user.linked_accounts.find(
     (a: any) => a.type === "wallet" && a.chain_type === "ethereum",
   ) as any;
   if (!wallet) throw Error("Add an Ethereum wallet to your account");
-  return wallet.address as string;
+  const emails = user.linked_accounts.flatMap((account: any) => {
+    const email =
+      account.type === "email"
+        ? account.address
+        : ["google_oauth", "apple_oauth"].includes(account.type)
+          ? account.email
+          : undefined;
+    return typeof email === "string" ? [email.trim().toLowerCase()] : [];
+  });
+  return { owner: wallet.address as string, emails };
 });
 export interface Identity {
   id: string;
   owner: string;
+  emails?: string[];
   apiKey: boolean;
   tokenHash?: string;
 }
@@ -26,7 +36,9 @@ export async function authenticate(req: FastifyRequest): Promise<Identity> {
     if (row)
       return {
         id: row.user_id as string,
-        owner: "",
+        ...(privy
+          ? await profileForUser(row.user_id as string)
+          : { owner: "" }),
         apiKey: true,
         tokenHash,
       };
@@ -37,8 +49,8 @@ export async function authenticate(req: FastifyRequest): Promise<Identity> {
   if (bearer && privy) {
     try {
       const verified = await privy.utils().auth().verifyAccessToken(bearer);
-      const owner = await walletForUser(verified.user_id);
-      return { id: verified.user_id, owner, apiKey: false };
+      const profile = await profileForUser(verified.user_id);
+      return { id: verified.user_id, ...profile, apiKey: false };
     } catch {
       throw Object.assign(Error("Sign in again to continue"), {
         statusCode: 401,

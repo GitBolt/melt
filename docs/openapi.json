@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://melt-woad.vercel.app/api",
+      "url": "https://trymeltapp.vercel.app/api",
       "description": "Hosted app"
     },
     {

@@ -1,9 +1,9 @@
 # Use Melt without an npm package
 
-Node.js 24+ is enough. Sign in at [Melt](https://melt-woad.vercel.app), create and fund a session, then create an API key at [Developers](https://melt-woad.vercel.app/developers). Keep that key in your local `.env` or secret store.
+Node.js 24+ is enough. Sign in at [Melt](https://trymeltapp.vercel.app), create and fund a session, then create an API key at [Developers](https://trymeltapp.vercel.app/developers). Keep that key in your local `.env` or secret store.
 
 ```dotenv
-MELT_API_URL=https://melt-woad.vercel.app
+MELT_API_URL=https://trymeltapp.vercel.app
 MELT_API_KEY=YOUR_KEY
 ```
 
@@ -19,7 +19,7 @@ Both examples only read status and receipts. They do not send transactions. `ses
 Outside the repository, download the standalone client next to your script:
 
 ```sh
-curl --fail --show-error https://melt-woad.vercel.app/api/client.mjs -o melt-client.mjs
+curl --fail --show-error https://trymeltapp.vercel.app/api/client.mjs -o melt-client.mjs
 ```
 
 Import it with `import { Melt } from './melt-client.mjs'`. Optional TypeScript declarations are available at `/api/client.d.mts`; save them as `melt-client.d.mts` alongside `melt-client.mjs`. Keep a reviewed copy in your own repository so a remote update does not silently change your agent.

@@ -14,7 +14,7 @@ import {
 import { modelConfig } from "./agent.js";
 
 const CARD =
-  "Cryptorefills emails this card after Uniswap converts ETH to USDC. Unused ETH stays in the envelope.";
+  "US catalog. On testnet, Melt demonstrates the ETH-to-USDC swap; no real card is delivered. Merchant availability and order validation are checked separately.";
 
 function card(
   partial: Pick<
@@ -34,6 +34,70 @@ function card(
 }
 
 const LOCAL: CatalogOption[] = [
+  ...[
+    {
+      sku: "game-razer-1",
+      merchant: "Razer Gold USD",
+      category: "game" as const,
+      priceUsd: 1,
+      keywords: ["razer", "games", "gaming"],
+    },
+    {
+      sku: "game-xbox-5",
+      merchant: "Xbox",
+      category: "game" as const,
+      priceUsd: 5,
+      keywords: ["xbox", "games", "gaming"],
+    },
+    {
+      sku: "game-nintendo-5",
+      merchant: "Nintendo eShop",
+      category: "game" as const,
+      priceUsd: 5,
+      keywords: ["nintendo", "games", "switch"],
+    },
+    {
+      sku: "game-roblox-10",
+      merchant: "Roblox",
+      category: "game" as const,
+      priceUsd: 10,
+      keywords: ["roblox", "games"],
+    },
+    {
+      sku: "food-dunkin-2",
+      merchant: "Dunkin",
+      category: "dinner" as const,
+      priceUsd: 2,
+      keywords: ["dunkin", "coffee", "breakfast", "food"],
+    },
+    {
+      sku: "food-chipotle-5",
+      merchant: "Chipotle",
+      category: "dinner" as const,
+      priceUsd: 5,
+      keywords: ["chipotle", "food", "burrito", "lunch"],
+    },
+    {
+      sku: "food-starbucks-5",
+      merchant: "Starbucks",
+      category: "dinner" as const,
+      priceUsd: 5,
+      keywords: ["starbucks", "coffee", "food"],
+    },
+    {
+      sku: "food-grubhub-5",
+      merchant: "Grubhub",
+      category: "dinner" as const,
+      priceUsd: 5,
+      keywords: ["grubhub", "food", "delivery"],
+    },
+  ].map((item) =>
+    card({
+      ...item,
+      title: `${item.merchant} $${item.priceUsd}`,
+      description: `A $${item.priceUsd} ${item.merchant} gift card. Cached US catalog price, checked September 13, 2026.`,
+    }),
+  ),
   card({
     sku: "esim-jp-1gb",
     title: "Japan eSIM $8",
@@ -109,7 +173,9 @@ const LOCAL: CatalogOption[] = [
 ];
 
 function withEthPrice(item: CatalogOption, ethUsd: number): CatalogOption {
-  const priceEth = (item.priceUsd / Math.max(ethUsd, 1)).toFixed(6);
+  const priceEth = (
+    Math.ceil((item.priceUsd / Math.max(ethUsd, 1)) * 1e12) / 1e12
+  ).toFixed(12);
   return { ...item, priceEth };
 }
 
@@ -171,7 +237,7 @@ const cryptorefillsSource: CatalogSource = {
 
 const SOURCES: CatalogSource[] = [cryptorefillsSource];
 
-function parseCrBrands(body: unknown): CatalogOption[] {
+export function parseCrBrands(body: unknown): CatalogOption[] {
   const categories = (body as { categories?: unknown })?.categories;
   if (!Array.isArray(categories)) return [];
   const out: CatalogOption[] = [];
@@ -186,7 +252,11 @@ function parseCrBrands(body: unknown): CatalogOption[] {
       const minUsd = Number(String(brand.min || "").replace(/[^0-9.]/g, ""));
       if (!title || !brand.brand_id || brand.is_out_of_stock) continue;
       if (!(minUsd > 0) || !/^\$/.test(String(brand.min || ""))) continue;
-      const category = CR_CATEGORY[crCategory];
+      // Cross-listing Apple, Walmart or a bank card under games/food does
+      // not restrict what its balance can buy. Trust the primary category.
+      const category =
+        CR_CATEGORY[brand.category || crCategory] ||
+        (/^(Razer Gold USD|Nintendo eShop)$/.test(title) ? "game" : undefined);
       if (!category) continue;
       out.push({
         sku: `cr-${brand.brand_id}`,
@@ -196,6 +266,7 @@ function parseCrBrands(body: unknown): CatalogOption[] {
         description: `${title} gift card (${brand.min}–${brand.max}).`,
         priceUsd: minUsd,
         keywords: [
+          category,
           ...title.toLowerCase().split(/\W+/),
           crCategory.replace(/_/g, " "),
           ...(brand.brand_tags || []),
@@ -228,6 +299,7 @@ export async function remoteCatalog(
   /* Keep only brands related to what was asked, so the policy gate and the
      model ranker see a shortlist instead of nine hundred brands. */
   const terms = requestTerms(query);
+  const category = requestCategory(query);
   const scored = all
     .map((item) => {
       const hay = [item.title, item.merchant, ...item.keywords, ...item.tags]
@@ -237,11 +309,11 @@ export async function remoteCatalog(
       const hits = terms.filter(
         (term) => hay.includes(term) || hayStems.has(stemWord(term)),
       ).length;
-      return { item, hits };
+      return { item, hits: hits + (category === item.category ? 2 : 0) };
     })
     .filter((entry) => entry.hits > 0)
     .sort((a, b) => b.hits - a.hits || a.item.priceUsd - b.item.priceUsd)
-    .slice(0, 20);
+    .slice(0, 120);
   return scored.map((entry) => withEthPrice(entry.item, ethUsd));
 }
 
@@ -262,7 +334,7 @@ async function aiSelectOptions(
 ): Promise<{ skus: string[]; note?: string } | null> {
   const config = modelConfig();
   if (!config || !candidates.length) return null;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 1; attempt++) {
     const picked = await aiSelectOnce(config, policy, request, candidates);
     if (picked) return picked;
   }
@@ -282,7 +354,7 @@ async function aiSelectOnce(
         Authorization: `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",
       },
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(6000),
       body: JSON.stringify({
         model: config.model,
         temperature: 0,
@@ -325,7 +397,7 @@ async function aiSelectOnce(
     const parsed = aiSelection.parse(JSON.parse(json));
     const known = new Set(candidates.map((item) => item.sku));
     return {
-      skus: parsed.skus.filter((sku) => known.has(sku)),
+      skus: [...new Set(parsed.skus.filter((sku) => known.has(sku)))],
       note: parsed.note,
     };
   } catch {
@@ -348,6 +420,17 @@ export async function findCatalogOptions(
       options: [],
       rejected: [],
       note: "An envelope cannot send unrestricted cash. Propose a purchase that matches the gift.",
+    };
+  const askCategory = requestCategory(request);
+  if (
+    askCategory &&
+    policy.category !== "other" &&
+    askCategory !== policy.category
+  )
+    return {
+      options: [],
+      rejected: [],
+      note: `No. This gift is for ${categoryPhrase[policy.category]}, not ${categoryPhrase[askCategory]}.`,
     };
   const priced = LOCAL.map((item) => withEthPrice(item, ethUsd));
   const remote = await remoteCatalog(request || policy.purpose, ethUsd).catch(
@@ -382,17 +465,33 @@ export async function findCatalogOptions(
         })
         .filter((item): item is CatalogOption & { score: number } => !!item);
       if (options.length) {
-        for (const item of approved)
-          if (!picked.skus.includes(item.sku))
+        const kept: (CatalogOption & { score: number })[] = [];
+        for (const item of options) {
+          const match = optionFitsPolicy(policy, item, remainingEth, request);
+          if (!match.ok) {
             rejected.push({
               sku: item.sku,
               title: item.title,
-              reason: "Allowed by the gift, but not what the request asked for",
+              reason: match.reason || "Does not match the request",
             });
-        return {
-          options,
-          rejected: rejected.slice(0, 8),
-        };
+            continue;
+          }
+          kept.push({ ...item, score: match.score });
+        }
+        if (kept.length) {
+          for (const item of approved)
+            if (!kept.some((keptItem) => keptItem.sku === item.sku))
+              rejected.push({
+                sku: item.sku,
+                title: item.title,
+                reason:
+                  "Allowed by the gift, but not what the request asked for",
+              });
+          return {
+            options: kept,
+            rejected: rejected.slice(0, 8),
+          };
+        }
       }
     }
   }
@@ -410,10 +509,18 @@ export async function findCatalogOptions(
     options.push({ ...item, score: match.score });
   }
   options.sort((a, b) => b.score - a.score || a.priceUsd - b.priceUsd);
-  const leftoverUsd = remainingEth * Math.max(ethUsd, 1);
-  const matching = LOCAL.filter(
+  const leftoverUsd = Math.min(
+    remainingEth * Math.max(ethUsd, 1),
+    policy.maxUsd ?? Infinity,
+  );
+  const matching = [...remote, ...priced].filter(
     (item) =>
-      policy.category === "other" || item.category === policy.category,
+      optionFitsPolicy(
+        { ...policy, maxUsd: undefined },
+        item,
+        Infinity,
+        request,
+      ).ok,
   );
   const floor = matching.length
     ? Math.min(...matching.map((item) => item.priceUsd))
@@ -424,8 +531,8 @@ export async function findCatalogOptions(
     note: options.length
       ? undefined
       : floor != null && leftoverUsd + 0.01 < floor
-        ? `This gift has $${leftoverUsd.toFixed(2)} left. Matching cards start at $${floor}.`
-        : undefined,
+        ? `${request.trim() && askCategory === policy.category ? "This matches the gift’s purpose, but it cannot be purchased yet. " : ""}This gift has $${leftoverUsd.toFixed(2)} available. Matching cards start at $${floor}.`
+        : `No matching card is available for “${request || policy.purpose}”. Try a supported food, gaming, or eSIM card. Flights, concert bookings, physical goods, and AI subscriptions are not purchasable in this demo.`,
   };
 }
 
@@ -436,6 +543,7 @@ export function previewLocalFit(
   remainingEth: number,
   request: string,
   ethUsd: number,
+  catalog: CatalogOption[] = LOCAL,
 ) {
   if (looksLikeCashOut(request))
     return {
@@ -444,34 +552,39 @@ export function previewLocalFit(
       leftoverReturns: true as const,
     };
   const askCat = requestCategory(request);
-  if (
-    askCat &&
-    policy.category !== "other" &&
-    askCat !== policy.category
-  ) {
+  if (askCat && policy.category !== "other" && askCat !== policy.category) {
     return {
       fits: false,
       reason: `No. This gift is for ${categoryPhrase[policy.category]}, not ${categoryPhrase[askCat]}.`,
       leftoverReturns: true as const,
     };
   }
-  let matched = false;
-  for (const item of LOCAL.map((item) => withEthPrice(item, ethUsd))) {
-    if (optionFitsPolicy(policy, item, remainingEth, request).ok) {
-      matched = true;
-      break;
-    }
-  }
-  if (!matched && askCat && askCat === policy.category) matched = true;
-  if (!matched && policy.category === "other") {
-    const hay = policy.purpose.toLowerCase();
-    matched = requestTerms(request).some((term) => hay.includes(term));
-  }
+  const matching = catalog.filter(
+    (item) =>
+      optionFitsPolicy(
+        { ...policy, maxUsd: undefined },
+        withEthPrice(item, ethUsd),
+        Infinity,
+        request,
+      ).ok,
+  );
+  const matched = matching.length > 0;
   return {
     fits: matched,
     reason: matched
-      ? "Yes. That can count toward this gift."
-      : "No. That does not match this gift.",
+      ? (() => {
+          const minimum = matching.length
+            ? Math.min(...matching.map((item) => item.priceUsd))
+            : undefined;
+          const available = Math.min(
+            remainingEth * ethUsd,
+            policy.maxUsd ?? Infinity,
+          );
+          return minimum != null && available + 0.01 < minimum
+            ? `Yes, this matches your gift’s purpose, but you cannot buy a card yet. You have $${available.toFixed(2)} available; matching cards start at $${minimum}.`
+            : "Yes. That can count toward this gift.";
+        })()
+      : "No. No supported card matches that request within this gift’s rules. Try a food, gaming, or eSIM card that fits the purpose.",
     leftoverReturns: true as const,
   };
 }

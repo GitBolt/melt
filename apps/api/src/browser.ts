@@ -233,6 +233,13 @@ export async function observe(id: string) {
 }
 export async function doAction(id: string, raw: unknown) {
   const task = get(id);
+  if (task.envelopeId)
+    throw Object.assign(
+      Error(
+        "Gift envelopes only support approved purchase quotes. Use Discover.",
+      ),
+      { statusCode: 409 },
+    );
   if (!["running", "paused"].includes(task.status))
     throw Error("Session is not active");
   const action = actionSchema.parse(raw),
@@ -280,6 +287,13 @@ export async function provider(
   method: string,
   params: unknown[] = [],
 ): Promise<unknown> {
+  if (task.envelopeId)
+    throw Object.assign(
+      Error(
+        "Gift envelopes do not expose a browser wallet. Use the gift purchase API.",
+      ),
+      { statusCode: 409 },
+    );
   const readMethods = [
     "eth_chainId",
     "net_version",
@@ -592,6 +606,13 @@ export async function finish(id: string) {
 }
 export async function start(id: string, manual = false) {
   const task = get(id);
+  if (task.envelopeId)
+    throw Object.assign(
+      Error(
+        "Gift envelopes use Discover and approved purchase quotes, not unrestricted browser sessions.",
+      ),
+      { statusCode: 409 },
+    );
   if (!["ready", "paused"].includes(task.status))
     throw Error("Fund the session before starting");
   if (Date.now() >= task.expiresAt * 1000)

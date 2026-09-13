@@ -15,6 +15,7 @@ export function ReturnRing({
   onCopy?: (when: string) => void;
 }) {
   const reduced = useReducedMotion();
+  const Container = onCopy ? "button" : "div";
   const start = Date.parse(createdAt);
   const end = expiresAt * 1000;
   const span = Math.max(end - start, 1);
@@ -26,21 +27,21 @@ export function ReturnRing({
     day: "numeric",
   });
   return (
-    <button
-      type="button"
+    <Container
+      type={onCopy ? "button" : undefined}
       className={`return-ring${reduced ? " is-still" : ""}`}
       style={{ "--left": String(fraction) } as CSSProperties}
       onClick={() => onCopy?.(when)}
-      title={`Unused funds return ${when}`}
+      title={`Gift expires ${when}; unused funds can be recovered by the sender`}
     >
       <svg viewBox="0 0 72 72" aria-hidden="true">
         <circle className="return-track" cx="36" cy="36" r="28" />
         <circle className="return-fill" cx="36" cy="36" r="28" />
       </svg>
       <span>
-        {days === 0 ? "Returns today" : `${days}d left`}
-        <small>then unused funds return</small>
+        {days === 0 ? "Gift expired" : `${days}d left`}
+        <small>unused funds are recoverable</small>
       </span>
-    </button>
+    </Container>
   );
 }

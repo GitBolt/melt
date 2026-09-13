@@ -355,14 +355,14 @@ async function syncFundingById(id: string) {
 
 app.get("/api/envelopes", async (req) => {
   const user = await authenticate(req);
-  const listed = listEnvelopes(user.id, user.owner);
+  const listed = listEnvelopes(user.id, user.owner, user.emails);
   const ids = new Set(
     [...listed.sent, ...listed.received]
       .filter((item) => item.status === "funding" && item.sessionId)
       .map((item) => item.sessionId),
   );
   await Promise.all([...ids].map((id) => syncFundingById(id)));
-  return listEnvelopes(user.id, user.owner);
+  return listEnvelopes(user.id, user.owner, user.emails);
 });
 app.post(
   "/api/envelopes",
@@ -634,6 +634,13 @@ async function requireBrowser() {
 }
 app.post("/api/sessions/:id/start", async (req) => {
   const { task } = await owned(req);
+  if (task.envelopeId)
+    throw Object.assign(
+      Error(
+        "Gift vaults can only spend through Discover and the gift purchase API. Create a separate agent job for browser actions.",
+      ),
+      { statusCode: 409 },
+    );
   const { manual } = z
     .object({ manual: z.boolean().default(false) })
     .parse(req.body || {});
@@ -730,6 +737,13 @@ app.get("/api/sessions/:id/screenshot", async (req, reply) => {
 });
 app.post("/api/sessions/:id/action", async (req) => {
   const { task } = await owned(req);
+  if (task.envelopeId)
+    throw Object.assign(
+      Error(
+        "Use Discover to spend a gift. Browser actions are not available for gift vaults.",
+      ),
+      { statusCode: 409 },
+    );
   if (task.status !== "paused")
     throw Error("Take control before interacting with the page");
   await doAction(task.id, actionSchema.parse(req.body));

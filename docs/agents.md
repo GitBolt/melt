@@ -1,6 +1,6 @@
 # Connect your agent
 
-Use Melt through HTTP, the hosted MCP endpoint, a downloaded JavaScript client, or the stdio MCP server in this repository. Create keys and read usage at [Developers](https://melt-woad.vercel.app/developers).
+Use Melt through HTTP, the hosted MCP endpoint, a downloaded JavaScript client, or the stdio MCP server in this repository. Create keys and read usage at [Developers](https://trymeltapp.vercel.app/developers).
 
 Melt envelopes are purpose-bound purchasing power. The owner creates and funds a gift on Melt. An existing assistant — ChatGPT, Claude, Codex or Grok — later lists envelopes, finds matching purchases, proposes a quote and redeems it. The key can operate that account’s envelopes; it cannot create envelopes, raise the amount, change the return wallet or send unrestricted cash.
 
@@ -8,7 +8,7 @@ Melt envelopes are purpose-bound purchasing power. The owner creates and funds a
 import { Melt } from "./melt-client.mjs";
 
 const melt = new Melt({
-  baseUrl: "https://melt-woad.vercel.app",
+  baseUrl: "https://trymeltapp.vercel.app",
   apiKey: process.env.MELT_API_KEY,
 });
 
@@ -28,9 +28,9 @@ console.log(settled.redemption.status, settled.envelope.remaining);
 Requires Node.js 24+ with native `fetch`. No dependencies, build step or package installation:
 
 ```sh
-curl --fail --show-error https://melt-woad.vercel.app/api/client.mjs -o melt-client.mjs
+curl --fail --show-error https://trymeltapp.vercel.app/api/client.mjs -o melt-client.mjs
 # Optional TypeScript declarations; keep the same basename.
-curl --fail --show-error https://melt-woad.vercel.app/api/client.d.mts -o melt-client.d.mts
+curl --fail --show-error https://trymeltapp.vercel.app/api/client.d.mts -o melt-client.d.mts
 ```
 
 Keep a reviewed copy in your project. The same source lives at [`packages/sdk/client.mjs`](../packages/sdk/client.mjs); repository TypeScript consumers can import `../packages/sdk/src/index.ts` using `tsx`. There is no public npm package to install.
@@ -39,7 +39,7 @@ Keep a reviewed copy in your project. The same source lives at [`packages/sdk/cl
 import { Melt } from "./melt-client.mjs";
 
 const melt = new Melt({
-  baseUrl: "https://melt-woad.vercel.app",
+  baseUrl: "https://trymeltapp.vercel.app",
   apiKey: process.env.MELT_API_KEY,
 });
 
@@ -131,7 +131,7 @@ Codes include `API_ERROR`, `RATE_LIMITED`, `NETWORK_ERROR`, `INVALID_RESPONSE`, 
 Point ChatGPT, Claude, Cursor, or Grok at Streamable HTTP:
 
 ```
-https://melt-woad.vercel.app/api/mcp
+https://trymeltapp.vercel.app/api/mcp
 ```
 
 Send `Authorization: Bearer melt_…`. Hosted tools are envelope-only: `list_envelopes`, `get_envelope`, `find_options`, `propose_purchase`, `propose_item`, `redeem`, `get_redemption_status`. `propose_item` accepts anything the assistant found on the open web (title, merchant, price, optional https URL); Melt audits it against the gift's purpose, caps, and deny list before quoting, and always rejects cash, crypto, and transfers. Browser session tools stay on the stdio server below.
@@ -140,7 +140,7 @@ Send `Authorization: Bearer melt_…`. Hosted tools are envelope-only: `list_env
 {
   "mcpServers": {
     "melt": {
-      "url": "https://melt-woad.vercel.app/api/mcp",
+      "url": "https://trymeltapp.vercel.app/api/mcp",
       "headers": {
         "Authorization": "Bearer melt_…"
       }
@@ -174,7 +174,7 @@ Configure your MCP application to launch Node.js with **absolute paths** to this
         "/ABSOLUTE/PATH/melt/packages/sdk/src/mcp.ts"
       ],
       "env": {
-        "MELT_API_URL": "https://melt-woad.vercel.app",
+        "MELT_API_URL": "https://trymeltapp.vercel.app",
         "MELT_API_KEY": "YOUR_REVOCABLE_KEY"
       }
     }

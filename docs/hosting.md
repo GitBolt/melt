@@ -17,7 +17,7 @@ The container fixes the mounted directory ownership, then runs the API and Chrom
 ## Vercel
 
 - Project: `melt` (`prj_kbrsAP8zSofyB6scv0Yp9blxG7nB`), scope `gitbolts-projects`.
-- Production website: `https://melt-woad.vercel.app`.
+- Production website: `https://trymeltapp.vercel.app`.
 - Run deployments from the repository root; build output is `dist`.
 - Set `VITE_RPC_URL` to a public or domain-restricted RPC endpoint for the same chain as the API. This value is public and compiled into the website.
 - Add the assigned production domain to Privy's allowed origins and set Railway `APP_ORIGIN` to it. Preview domains need their own deliberately configured authentication access.

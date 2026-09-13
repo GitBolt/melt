@@ -1,7 +1,7 @@
 import { MeltLoader, MeltWordmark } from "./components/MeltMotion";
 import { FitNeedle } from "./components/FitNeedle";
 import { ReturnRing } from "./components/ReturnRing";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowRight, Copy, Check, Printer } from "lucide-react";
 import { PoweredByUniswap } from "./components/PoweredByUniswap";
@@ -40,7 +40,11 @@ const ASK_HINT: Record<string, string> = {
 };
 
 function statusLabel(gift: PublicGift) {
-  if (gift.lastPurchase) return "Already used";
+  if (gift.status === "closed") return "Closed";
+  if (gift.status === "expired") return "Expired";
+  if (gift.status === "exhausted") return "Fully used";
+  if (gift.status === "redeeming") return "Purchase processing";
+  if (gift.lastPurchase) return "Partly used";
   if (gift.funded) return "Ready to spend";
   return "Waiting on funds";
 }
@@ -57,6 +61,7 @@ export function Gift({ token }: { token: string }) {
   const [thanksError, setThanksError] = useState("");
   const [promptCopied, setPromptCopied] = useState(false);
   const [ask, setAsk] = useState("");
+  const fitVersion = useRef(0);
   const [fit, setFit] = useState<{
     verdict: "idle" | "fits" | "no" | "loading";
     reason: string;
@@ -72,7 +77,7 @@ export function Gift({ token }: { token: string }) {
       .catch(() => {});
   }, [gift]);
   useEffect(() => {
-    fetch(`/api/public/gifts/${token}`)
+    fetch(`/api/public/gifts/${token}`, { signal: AbortSignal.timeout(20000) })
       .then(async (response) => {
         const body = await response.json();
         if (!response.ok) throw Error(body.error || "Gift not found");
@@ -242,13 +247,15 @@ export function Gift({ token }: { token: string }) {
               ) : null}
               {gift.leftoverReturns ? (
                 <p className="gift-until">
-                  What you don’t spend returns to {gift.senderName}.
+                  {`What you don’t spend returns to ${gift.senderName}.`}
                 </p>
               ) : null}
               {gift.lastPurchase ? (
-                <p className="gift-until">Bought {gift.lastPurchase}</p>
+                <p className="gift-until">
+                  Last settlement: {gift.lastPurchase}
+                </p>
               ) : null}
-              {gift.funded && !gift.lastPurchase ? (
+              {gift.status === "open" ? (
                 <p className="gift-prompt">
                   Or tell ChatGPT: “Use the gift {gift.senderName} sent me.”
                   <button
@@ -258,43 +265,58 @@ export function Gift({ token }: { token: string }) {
                       event.stopPropagation();
                       navigator.clipboard
                         .writeText(
-                          `Use the gift ${gift.senderName} sent me. Find something that matches it.`,
+                          `Use the gift ${gift.senderName} sent me: ${gift.url}. Connect Melt using ${location.origin}/developers, then find something that matches the gift.`,
                         )
                         .then(() => {
                           setPromptCopied(true);
                           setTimeout(() => setPromptCopied(false), 1600);
-                        });
+                        })
+                        .catch(() =>
+                          setCopyHint(
+                            "Could not copy. Use the gift link and the Developers page to connect your assistant.",
+                          ),
+                        );
                     }}
                   >
                     {promptCopied ? "Copied" : "Copy"}
                   </button>
                 </p>
               ) : null}
-              {gift.funded && !gift.lastPurchase ? (
+              {gift.status === "open" ? (
                 <form
                   className="gift-fit"
                   onSubmit={(e) => {
                     e.preventDefault();
                     const request = ask.trim();
                     if (request.length < 2) return;
+                    const version = ++fitVersion.current;
                     setFit({ verdict: "loading", reason: "" });
                     fetch(`/api/public/gifts/${token}/fit`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ request }),
+                      signal: AbortSignal.timeout(15000),
                     })
                       .then(async (response) => {
                         const body = await response.json();
                         if (!response.ok)
                           throw Error(body.error || "Could not check that");
+                        if (version !== fitVersion.current) return;
                         setFit({
                           verdict: body.fits ? "fits" : "no",
                           reason: body.reason || "",
                         });
                       })
-                      .catch((err) =>
-                        setFit({ verdict: "no", reason: err.message }),
-                      );
+                      .catch((err) => {
+                        if (version === fitVersion.current)
+                          setFit({
+                            verdict: "no",
+                            reason:
+                              err.name === "TimeoutError"
+                                ? "The check timed out. Your gift has not been spent. Try again."
+                                : err.message,
+                          });
+                      });
                   }}
                 >
                   {fit.verdict !== "idle" ? (
@@ -307,6 +329,7 @@ export function Gift({ token }: { token: string }) {
                         value={ask}
                         onChange={(e) => {
                           setAsk(e.target.value);
+                          fitVersion.current++;
                           if (fit.verdict !== "idle")
                             setFit({ verdict: "idle", reason: "" });
                         }}
@@ -327,12 +350,19 @@ export function Gift({ token }: { token: string }) {
                     >
                       Ask
                     </button>
-                    {fit.reason ? <p className="helper">{fit.reason}</p> : null}
+                    {fit.reason ? (
+                      <p role="status">
+                        <strong>{fit.reason}</strong>
+                      </p>
+                    ) : null}
                   </div>
                 </form>
               ) : null}
               <div className="gift-actions">
-                <a className="primary" href="/app#discover">
+                <a
+                  className="primary"
+                  href={`/app?gift=${encodeURIComponent(token)}#discover`}
+                >
                   {gift.funded ? "Spend it in Melt" : "Open in Melt"}
                   <ArrowRight size={16} />
                 </a>
@@ -348,9 +378,7 @@ export function Gift({ token }: { token: string }) {
                         setCopyHint("");
                         setTimeout(() => setCopied(false), 1600);
                       })
-                      .catch(() =>
-                        setCopyHint(gift.url || location.href),
-                      );
+                      .catch(() => setCopyHint(gift.url || location.href));
                   }}
                 >
                   {copied ? <Check size={16} /> : <Copy size={16} />}
@@ -425,7 +453,7 @@ export function Gift({ token }: { token: string }) {
             </motion.section>
           ) : (
             <p className="helper gift-hint">
-              {gift.senderName} sent you {gift.amount} for {gift.purpose}.
+              {`${gift.senderName} sent you ${gift.amount} for ${gift.purpose}.`}
             </p>
           )}
         </AnimatePresence>

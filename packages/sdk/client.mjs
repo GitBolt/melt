@@ -96,7 +96,7 @@ export async function constructEvent(
 export async function publicReceipt(
   token,
   {
-    baseUrl = "https://melt-woad.vercel.app",
+    baseUrl = "https://trymeltapp.vercel.app",
     fetch: transport = globalThis.fetch,
   } = {},
 ) {
@@ -252,7 +252,7 @@ export class Melt {
   #timeout;
   #fetch;
   constructor({
-    baseUrl = "https://melt-woad.vercel.app",
+    baseUrl = "https://trymeltapp.vercel.app",
     apiKey,
     timeoutMs = 90_000,
     fetch: transport = globalThis.fetch,

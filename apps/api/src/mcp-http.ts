@@ -79,7 +79,10 @@ export function createAgentMcp(user: Identity, tokenHash?: string) {
         "List Melt envelopes this account sent or received. An envelope is purpose-bound purchasing power, not cash. This tool cannot create envelopes or send unrestricted transfers.",
       inputSchema: z.object({}),
     },
-    () => run("list_envelopes", async () => listEnvelopes(user.id, user.owner)),
+    () =>
+      run("list_envelopes", async () =>
+        listEnvelopes(user.id, user.owner, user.emails),
+      ),
   );
   server.registerTool(
     "get_envelope",

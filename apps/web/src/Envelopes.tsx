@@ -20,6 +20,8 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { parseEther, toHex } from "viem";
 import {
   inferEnvelopePolicy,
+  leftoverUsd,
+  envelopeSpentUsd,
   type Config,
   type Envelope,
 } from "../../../packages/shared/src/index";
@@ -50,6 +52,8 @@ export const PRESETS = [
     purpose: "Steam games, up to $40",
     usd: "40",
   },
+  { label: "Gaming", purpose: "Gaming gift cards, up to $10", usd: "10" },
+  { label: "Coffee", purpose: "Coffee and breakfast, up to $5", usd: "5" },
 ];
 
 const CATEGORY_SAY: Record<string, string> = {
@@ -65,10 +69,10 @@ const CATEGORY_SAY: Record<string, string> = {
 
 const ASK_FOR: Record<string, string[]> = {
   esim: ["an eSIM for Japan", "data for my trip"],
-  dinner: ["Uber Eats", "DoorDash"],
+  dinner: ["Uber Eats", "DoorDash", "Chipotle", "Starbucks", "Dunkin"],
   concert: ["tickets this weekend"],
   flight: ["a flight home"],
-  game: ["Steam", "something on Steam under $40"],
+  game: ["Steam", "Xbox", "Nintendo", "Roblox", "Razer Gold"],
   apartment: ["a lamp for the apartment"],
   ai: ["a month of ChatGPT"],
   other: ["what this gift was for"],
@@ -87,7 +91,8 @@ const LOOM_EXCEPT: Record<string, string[]> = {
 
 function fulfillLabel(status?: string) {
   if (status === "issued") return "Card emailed";
-  if (status === "awaiting_mainnet") return "Swap done · card waits for mainnet";
+  if (status === "awaiting_mainnet")
+    return "Swap done · card waits for mainnet";
   if (status === "needs_email") return "Swap done · needs an email";
   if (status === "unpayable") return "Swap done · card not issued";
   return "";
@@ -102,7 +107,7 @@ export function usdToEth(usd: number, rate: number) {
   if (!(usd > 0) || !(rate > 0)) return "";
   const eth = usd / rate;
   if (eth > 10) return "";
-  const text = eth.toFixed(5).replace(/\.?0+$/, "");
+  const text = (Math.ceil(eth * 1e12) / 1e12).toFixed(12).replace(/\.?0+$/, "");
   return Number(text) > 0 ? text : "";
 }
 
@@ -130,13 +135,16 @@ function formatEnvelopeUsd(
   eth: string | number,
   ethUsd?: number,
 ) {
-  if (
-    envelope.status === "funding" &&
-    envelope.policy?.maxUsd &&
-    envelope.policy.maxUsd > 0
-  )
-    return formatMaxUsd(envelope.policy.maxUsd);
-  return formatUsd(eth, ethUsd);
+  const usd = leftoverUsd({
+    remainingEth: Number(eth),
+    budgetEth: Number(envelope.budget),
+    maxUsd: envelope.policy?.maxUsd,
+    spentUsd: envelopeSpentUsd(envelope),
+    rate: ethUsd,
+    unfunded: envelope.status === "funding",
+  });
+  if (usd == null) return formatUsd(eth, ethUsd);
+  return formatMaxUsd(usd);
 }
 
 function defaultUntil() {
@@ -388,6 +396,13 @@ export function EnvelopeComposer({
     maxUsd: Number(usd) > 0 ? Number(usd) : undefined,
     partialUse,
   });
+  const minimumCard = /steam/i.test(purpose)
+    ? 10
+    : /uber\s*eats|door\s*dash/i.test(purpose)
+      ? 15
+      : { dinner: 2, game: 1, esim: 8 }[
+          heard.category as "dinner" | "game" | "esim"
+        ];
   return (
     <form
       className="envelope-compose"
@@ -527,6 +542,13 @@ export function EnvelopeComposer({
             onChange={(e) => {
               setPreset("");
               setUsd(e.target.value);
+              const amount = e.target.value || "0";
+              setPurpose((current) =>
+                current.replace(
+                  /((?:up to|under)\s*)\$\d+(?:\.\d+)?/i,
+                  (_, prefix) => `${prefix}$${amount}`,
+                ),
+              );
             }}
           />
           <span>USD</span>
@@ -541,6 +563,23 @@ export function EnvelopeComposer({
             ? `You will fund about ${budget} ${config.chain.symbol}.`
             : "Enter an amount."}
       </p>
+      {minimumCard && Number(usd) > 0 && Number(usd) < minimumCard ? (
+        <p role="status">
+          <strong>
+            Cached {CATEGORY_SAY[heard.category]} cards start at ${minimumCard}.
+            A ${usd} gift cannot buy one yet.
+          </strong>
+        </p>
+      ) : null}
+      {!["dinner", "game", "esim"].includes(heard.category) ? (
+        <p role="status">
+          <strong>
+            This demo purchases food, gaming, and eSIM cards. This custom
+            purpose can be checked, but a matching purchasable product may not
+            be available.
+          </strong>
+        </p>
+      ) : null}
       <DateField
         label="Use by"
         value={until}
@@ -607,9 +646,7 @@ export function ComingBack({
   const leftoverLabel = live.every(
     (item) => item.status === "funding" && item.policy?.maxUsd,
   )
-    ? formatMaxUsd(
-        live.reduce((n, item) => n + (item.policy?.maxUsd || 0), 0),
-      )
+    ? formatMaxUsd(live.reduce((n, item) => n + (item.policy?.maxUsd || 0), 0))
     : formatUsd(remaining, ethUsd);
   const budget = live.reduce((n, item) => n + Number(item.budget), 0);
   if (remaining < 1e-8) return null;
@@ -746,6 +783,19 @@ export function EnvelopeDetail({
   const [copiedVault, setCopiedVault] = useState(false);
   const [copiedLine, setCopiedLine] = useState(false);
   const [copiedLeft, setCopiedLeft] = useState(false);
+  const [copyError, setCopyError] = useState("");
+  async function copyText(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyError("");
+      return true;
+    } catch {
+      setCopyError(
+        "Your browser blocked clipboard access. Select and copy the text or address directly.",
+      );
+      return false;
+    }
+  }
   const unfunded = envelope.status === "funding";
   const intendedUsd = envelope.policy?.maxUsd;
   const budgetUsd =
@@ -756,9 +806,11 @@ export function EnvelopeDetail({
           maximumFractionDigits: intendedUsd >= 10 ? 0 : 2,
         })
       : formatUsd(envelope.budget, config.ethUsd);
-  const shownUsd = unfunded
-    ? budgetUsd
-    : formatUsd(envelope.remaining, config.ethUsd);
+  const shownUsd = formatEnvelopeUsd(
+    envelope,
+    unfunded ? envelope.budget : envelope.remaining,
+    config.ethUsd,
+  );
   const leftLabel =
     shownUsd || (unfunded ? envelope.budget : envelope.remaining);
   const spentUsd = formatUsd(envelope.spent, config.ethUsd) || envelope.spent;
@@ -780,10 +832,9 @@ export function EnvelopeDetail({
         </span>
       </section>
       <p className="session-mandate">
-        Locked for {CATEGORY_SAY[envelope.category] || "this purpose"}
-        {envelope.partialUse
-          ? ". Partial use allowed."
-          : ". One card only."}
+        {`Locked for ${CATEGORY_SAY[envelope.category] || "this purpose"}. ${
+          envelope.partialUse ? "Partial use allowed." : "One card only."
+        }`}
       </p>
       <ol className="gift-path">
         <li className="is-done">
@@ -834,7 +885,8 @@ export function EnvelopeDetail({
                 : config.chain.symbol
             }
             onCopyRemaining={() => {
-              void navigator.clipboard.writeText(String(leftLabel)).then(() => {
+              void copyText(String(leftLabel)).then((copied) => {
+                if (!copied) return;
                 setCopiedLeft(true);
                 window.setTimeout(() => setCopiedLeft(false), 1600);
               });
@@ -846,11 +898,14 @@ export function EnvelopeDetail({
               createdAt={envelope.createdAt}
               now={now}
               onCopy={(when) =>
-                void navigator.clipboard.writeText(
-                  `Unused funds return ${when}`,
-                )
+                void copyText(`Unused funds are recoverable by ${when}`)
               }
             />
+          )}
+          {copyError && (
+            <p className="error" role="alert">
+              {copyError}
+            </p>
           )}
           <dl className="wallet-facts">
             <div>
@@ -938,10 +993,10 @@ export function EnvelopeDetail({
                 className="secondary wide"
                 onClick={() => {
                   const usd =
-                    budgetUsd ||
-                    `${envelope.budget} ${config.chain.symbol}`;
+                    budgetUsd || `${envelope.budget} ${config.chain.symbol}`;
                   const line = `I sent you ${usd} for ${envelope.purpose}. Open it here: ${location.origin}/g/${envelope.receiptToken}`;
-                  void navigator.clipboard.writeText(line).then(() => {
+                  void copyText(line).then((copied) => {
+                    if (!copied) return;
                     setCopiedLine(true);
                     window.setTimeout(() => setCopiedLine(false), 1600);
                   });
@@ -975,12 +1030,11 @@ export function EnvelopeDetail({
                   <button
                     type="button"
                     onClick={() =>
-                      void navigator.clipboard
-                        .writeText(envelope.vault)
-                        .then(() => {
-                          setCopiedVault(true);
-                          window.setTimeout(() => setCopiedVault(false), 1600);
-                        })
+                      void copyText(envelope.vault).then((copied) => {
+                        if (!copied) return;
+                        setCopiedVault(true);
+                        window.setTimeout(() => setCopiedVault(false), 1600);
+                      })
                     }
                   >
                     <Copy size={13} />
@@ -1060,9 +1114,7 @@ export function EnvelopeDetail({
           {envelope.giftOpenedAt ? (
             <OpenedBlot
               openedAt={envelope.giftOpenedAt}
-              onCopy={(when) =>
-                void navigator.clipboard.writeText(`Opened ${when}`)
-              }
+              onCopy={(when) => void copyText(`Opened ${when}`)}
             />
           ) : (
             <OpenedBlot />
@@ -1293,6 +1345,7 @@ export function DiscoverPanel({
   const [query, setQuery] = useState("");
   const [cardEmail, setCardEmail] = useState("");
   const [result, setResult] = useState<any>(null);
+  const searchVersion = useRef(0);
   const [settled, setSettled] = useState<any>(null);
   const [redeeming, setRedeeming] = useState<{
     sku: string;
@@ -1304,16 +1357,25 @@ export function DiscoverPanel({
   const deliveryEmail = cardEmail.trim() || envelope?.recipientEmail || "";
   async function search(next = query) {
     if (!selectedId || needsFunds) return;
+    const version = ++searchVersion.current;
     const found = await request(
       `/envelopes/${selectedId}/options${next ? `?q=${encodeURIComponent(next)}` : ""}`,
     );
-    setResult(found);
+    if (version === searchVersion.current) setResult(found);
   }
   useEffect(() => {
+    searchVersion.current++;
     setResult(null);
+    setQuery("");
     setSettled(null);
     setCardEmail(envelope?.recipientEmail || "");
-    if (selectedId && envelope?.status !== "funding") void search("");
+    if (selectedId && envelope?.status !== "funding")
+      void search("").catch((error) =>
+        setResult({
+          options: [],
+          note: `Could not load gift options: ${error.message}. Press Find options to retry.`,
+        }),
+      );
   }, [selectedId, envelope?.status, envelope?.recipientEmail]);
   if (!envelopes.length)
     return (
@@ -1370,7 +1432,11 @@ export function DiscoverPanel({
             />
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                searchVersion.current++;
+                setQuery(e.target.value);
+                setResult(null);
+              }}
               placeholder="Uber Eats, an eSIM for Japan, Steam…"
               aria-label="What do you want this gift to become"
             />
@@ -1414,14 +1480,18 @@ export function DiscoverPanel({
             />
           </label>
         ) : null}
-        {result?.note && <p className="helper">{result.note}</p>}
+        {result?.note && (
+          <p role="status">
+            <strong>{result.note}</strong>
+          </p>
+        )}
         {envelope && !needsFunds ? (
           <div className="settle-note">
             <PoweredByUniswap compact />
             <p className="helper">
-              Uniswap converts only the card amount to USDC. Cryptorefills
-              emails the brand. On Sepolia the swap is live; a live card needs
-              mainnet USDC.
+              Testnet demo: Uniswap swaps ETH into USDC in the vault. No real
+              card is delivered. Options use the US catalog; region and merchant
+              validation can limit availability.
             </p>
           </div>
         ) : null}
@@ -1519,9 +1589,9 @@ export function DiscoverPanel({
         ))}
         {result && !result.options?.length && !result.note && (
           <p className="helper">
-            Nothing in the catalog matches this promise
-            {query ? ` for “${query}”` : ""}. Matching cards have a listed
-            price; leftover below that cannot buy a smaller card.
+            {`Nothing in the catalog matches this promise${
+              query ? ` for “${query}”` : ""
+            }.`}
           </p>
         )}
         {result?.rejected?.length > 0 && (
